@@ -408,7 +408,8 @@ export default function AdminPage() {
             results: 'This will reset all match scores, summaries, and winners. Schedule and month assignments will remain.',
             players: 'This will remove all team assignments from players and clear the auction history.',
             wallets: 'This will reset all team wallets back to 1,000,000 tokens.',
-            captains: 'This will unlink all captains from their assigned teams.'
+            captains: 'This will unlink all captains from their assigned teams.',
+            cases: 'This will remove all case studies status.'
         };
 
         if (confirm(`⚠️ WARNING: ${descriptions[type]}\n\nAre you sure you want to proceed? This action cannot be undone.`)) {
