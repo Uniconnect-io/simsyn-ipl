@@ -11,6 +11,21 @@ export async function GET() {
     }
 }
 
+export async function PUT(request: Request) {
+    try {
+        const { id, title, description } = await request.json();
+        if (!id || !title || !description) {
+            return NextResponse.json({ error: 'ID, Title, and Description are required' }, { status: 400 });
+        }
+
+        db.prepare('UPDATE case_studies SET title = ?, description = ? WHERE id = ?').run(title, description, id);
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        return NextResponse.json({ error: 'Failed to update case' }, { status: 500 });
+    }
+}
+
 export async function POST(request: Request) {
     try {
         const { title, description } = await request.json();

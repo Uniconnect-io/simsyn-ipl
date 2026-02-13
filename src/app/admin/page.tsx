@@ -98,8 +98,9 @@ export default function AdminPage() {
     const [caseStudies, setCaseStudies] = useState<CaseStudy[]>([]);
     const [isAddingCase, setIsAddingCase] = useState(false);
     const [newCase, setNewCase] = useState({ title: '', description: '' });
-
-    // Battle State
+    const [isEditingCase, setIsEditingCase] = useState(false);
+    const [editingCaseId, setEditingCaseId] = useState<string | null>(null);
+    const [schedule, setSchedule] = useState<Match[]>([]);
     const [startingBattleMatch, setStartingBattleMatch] = useState<Match | null>(null);
     const [caseDescription, setCaseDescription] = useState('');
 
@@ -345,19 +346,26 @@ export default function AdminPage() {
     };
 
     const handleAddCase = async () => {
-        try {
-            const res = await fetch('/api/admin/cases', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(newCase),
-            });
-            if (res.ok) {
-                setIsAddingCase(false);
-                setNewCase({ title: '', description: '' });
-                fetchPlayers();
-            }
-        } catch (error) {
-            alert('Failed to add case study');
+        if (!newCase.title || !newCase.description) return;
+
+        const url = isEditingCase ? '/api/admin/cases' : '/api/admin/cases';
+        const method = isEditingCase ? 'PUT' : 'POST';
+        const body = isEditingCase ? { id: editingCaseId, ...newCase } : newCase;
+
+        const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+
+        if (res.ok) {
+            setIsAddingCase(false);
+            setIsEditingCase(false);
+            setEditingCaseId(null);
+            setNewCase({ title: '', description: '' });
+            fetchPlayers();
+        } else {
+            alert('Failed to save case study');
         }
     };
 
@@ -395,7 +403,7 @@ export default function AdminPage() {
         }
     };
 
-    const handleReset = async (type: 'results' | 'players' | 'wallets' | 'captains') => {
+    const handleReset = async (type: 'results' | 'players' | 'wallets' | 'captains' | 'cases') => {
         const descriptions = {
             results: 'This will reset all match scores, summaries, and winners. Schedule and month assignments will remain.',
             players: 'This will remove all team assignments from players and clear the auction history.',
@@ -649,7 +657,11 @@ export default function AdminPage() {
                             <p className="text-gray-400 mt-1">Manage unique problem statements for Match Battles.</p>
                         </div>
                         <button
-                            onClick={() => setIsAddingCase(true)}
+                            onClick={() => {
+                                setIsEditingCase(false);
+                                setNewCase({ title: '', description: '' });
+                                setIsAddingCase(true);
+                            }}
                             className="bg-accent text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105 flex items-center gap-2"
                         >
                             <Play className="w-4 h-4" /> ADD CASE STUDY
@@ -671,6 +683,17 @@ export default function AdminPage() {
                                         >
                                             <X className="w-3 h-3" />
                                         </button>
+                                        <button
+                                            onClick={() => {
+                                                setNewCase({ title: cs.title, description: cs.description });
+                                                setEditingCaseId(cs.id);
+                                                setIsEditingCase(true);
+                                                setIsAddingCase(true);
+                                            }}
+                                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-all"
+                                        >
+                                            <Edit2 className="w-3 h-3" />
+                                        </button>
                                     </div>
                                 </div>
                                 <p className="text-gray-400 text-sm leading-relaxed line-clamp-3 mb-4">
@@ -691,300 +714,306 @@ export default function AdminPage() {
                         )}
                     </div>
                 </section>
-            )}
+            )
+            }
 
-            {activeTab === 'captains' && (
-                <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <h2 className="text-2xl font-black mb-8 flex items-center gap-3">
-                        <Shield className="text-accent" /> CAPTAIN MANAGEMENT
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {captains.map(captain => (
-                            <div key={captain.id} className="glass-card p-6 flex flex-col items-center text-center">
-                                <div className="w-16 h-16 rounded-full overflow-hidden mb-4 border-2 border-white/10">
-                                    <img
-                                        src={`/assets/employee/${captain.name.toLowerCase()}.png`}
-                                        alt={captain.name}
-                                        className="w-full h-full object-cover"
-                                        onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + captain.name)}
-                                    />
-                                </div>
-                                <h3 className="font-bold mb-1">{captain.name}</h3>
-                                <p className="text-xs text-accent font-black mb-1">{captain.teamName || 'NO TEAM'}</p>
-                                {captain.team_id && (
-                                    <div className="mb-4">
-                                        <div className="text-[10px] text-gray-500 uppercase font-bold">Wallet Balance</div>
-                                        <div className="text-sm font-black text-white">₹{(captain.balance || 0).toLocaleString()}</div>
-                                        <button
-                                            onClick={() => handleTopup(captain.team_id!)}
-                                            className="text-[9px] text-accent hover:underline font-bold mt-1"
-                                        >
-                                            + Topup Wallet
-                                        </button>
-                                    </div>
-                                )}
-                                <p className="text-xs text-gray-500 mb-4">{captain.team_id ? 'Assigned' : 'Unassigned'}</p>
-                                <button
-                                    onClick={() => resetCaptainPassword(captain.id)}
-                                    className="text-xs bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 py-2 px-4 rounded-lg border border-white/5 transition-all w-full flex items-center justify-center gap-2"
-                                >
-                                    <RefreshCw className="w-3 h-3" /> Reset Password
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {activeTab === 'insights' && (
-                <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex justify-between items-end mb-8">
-                        <div>
-                            <h2 className="text-2xl font-black flex items-center gap-3">
-                                <List className="text-accent" /> BATTLE INSIGHTS
-                            </h2>
-                            <p className="text-gray-400 mt-1">Audit trail of all innovation ideas submitted during battles.</p>
-                        </div>
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                            <input
-                                type="text"
-                                placeholder="Search ideas, teams, or results..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-accent outline-none text-sm w-64 transition-all"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="space-y-6">
-                        {battleIdeas
-                            .filter(idea =>
-                                idea.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                idea.team_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                idea.match_type.toLowerCase().includes(searchTerm.toLowerCase())
-                            )
-                            .map(idea => {
-                                let scores = null;
-                                try {
-                                    scores = JSON.parse(idea.feedback);
-                                } catch (e) {
-                                    // Not JSON, just display as text
-                                }
-
-                                return (
-                                    <div key={idea.id} className="glass-card p-6 border-white/5 hover:border-accent/10 transition-all">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="px-2 py-1 rounded bg-accent/20 text-accent text-[10px] font-black uppercase">
-                                                    {idea.match_type}
-                                                </div>
-                                                <div className="text-sm font-bold text-white">
-                                                    {idea.team_name}
-                                                </div>
-                                                <div className="text-xs text-gray-500 italic">
-                                                    by {idea.captain_name}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <div className={`px-2 py-1 rounded text-[10px] font-black ${idea.is_wicket ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}>
-                                                    {idea.is_wicket ? 'WICKET' : `+${idea.runs} RUNS`}
-                                                </div>
-                                                {idea.is_duplicate && (
-                                                    <div className="px-2 py-1 rounded bg-orange-500/20 text-orange-500 text-[10px] font-black">
-                                                        DUPLICATE
-                                                    </div>
-                                                )}
-                                                <div className="text-xs font-mono text-gray-400">
-                                                    Score: {Number(idea.score).toFixed(2)}/100
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <p className="text-gray-300 text-sm leading-relaxed mb-4 bg-black/40 p-4 rounded-xl border border-white/5 font-medium">
-                                            "{idea.content}"
-                                        </p>
-
-                                        {scores ? (
-                                            <div className="space-y-3">
-                                                <div className="flex flex-wrap gap-2">
-                                                    {Object.entries(scores).map(([key, value]: [string, any]) => (
-                                                        <div key={key} className="px-2 py-1 rounded bg-white/5 border border-white/10 flex items-center gap-2">
-                                                            <span className="text-[9px] uppercase font-bold text-gray-500">{key}</span>
-                                                            <span className={`text-[10px] font-black ${value >= 80 ? 'text-green-500' : value >= 60 ? 'text-accent' : 'text-orange-500'}`}>
-                                                                {Number(value).toFixed(2)}
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-start gap-3 bg-accent/5 p-3 rounded-lg border border-accent/10">
-                                                <CheckCircle className="w-4 h-4 text-accent mt-0.5" />
-                                                <p className="text-[11px] text-gray-400 italic leading-tight">
-                                                    <span className="text-accent font-bold uppercase mr-1">AI Feedback:</span> {idea.feedback}
-                                                </p>
-                                            </div>
-                                        )}
-
-                                    </div>
-                                );
-                            })}
-
-                        {battleIdeas.length === 0 && (
-                            <div className="py-20 text-center glass-card border-dashed border-white/10 opacity-60">
-                                <List className="w-12 h-12 text-gray-600 mx-auto mb-4 opacity-20" />
-                                <h4 className="text-xl font-bold text-gray-500">No Battle Insights Yet</h4>
-                                <p className="text-sm text-gray-600">Start a match battle to see innovation analytics here.</p>
-                            </div>
-                        )}
-                    </div>
-                </section>
-            )}
-
-            {activeTab === 'auction' && (
-                <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex justify-between items-end mb-8">
-                        <h2 className="text-2xl font-black flex items-center gap-3">
-                            <Trophy className="text-accent" /> AUCTION CONTROL
+            {
+                activeTab === 'captains' && (
+                    <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <h2 className="text-2xl font-black mb-8 flex items-center gap-3">
+                            <Shield className="text-accent" /> CAPTAIN MANAGEMENT
                         </h2>
-                        <div className="flex gap-4">
-                            <button
-                                onClick={async () => {
-                                    if (!confirm('Shuffle and reset all teams? This cannot be undone.')) return;
-                                    const res = await fetch('/api/auction/reset', { method: 'POST' });
-                                    const data = await res.json();
-                                    if (data.success) {
-                                        fetchPlayers();
-                                        alert('Auction table and teams reset successfully!');
-                                    }
-                                }}
-                                className="bg-red-500 text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105"
-                            >
-                                RESET TEAMS
-                            </button>
-                            <button
-                                onClick={() => setIsAddingPlayer(true)}
-                                className="bg-accent text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105 flex items-center gap-2"
-                            >
-                                <Play className="w-4 h-4" /> ADD PLAYER
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {players.map(player => {
-                            const isLive = auctionStatus?.status === 'ACTIVE' && auctionStatus?.playerId === player.id;
-                            const isSold = player.is_auctioned;
-
-                            return (
-                                <div
-                                    key={player.id}
-                                    className={`glass-card p-6 flex flex-col justify-between relative overflow-hidden ${isLive ? 'border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : ''}`}
-                                >
-                                    {isLive && timeLeft !== null && (
-                                        <div className="absolute top-0 right-0 bg-red-600 text-white px-4 py-1 rounded-bl-xl font-mono font-bold flex items-center gap-2 z-10 animate-pulse">
-                                            <Timer className="w-4 h-4" /> {timeLeft}s
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {captains.map(captain => (
+                                <div key={captain.id} className="glass-card p-6 flex flex-col items-center text-center">
+                                    <div className="w-16 h-16 rounded-full overflow-hidden mb-4 border-2 border-white/10">
+                                        <img
+                                            src={`/assets/employee/${captain.name.toLowerCase()}.png`}
+                                            alt={captain.name}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + captain.name)}
+                                        />
+                                    </div>
+                                    <h3 className="font-bold mb-1">{captain.name}</h3>
+                                    <p className="text-xs text-accent font-black mb-1">{captain.teamName || 'NO TEAM'}</p>
+                                    {captain.team_id && (
+                                        <div className="mb-4">
+                                            <div className="text-[10px] text-gray-500 uppercase font-bold">Wallet Balance</div>
+                                            <div className="text-sm font-black text-white">₹{(captain.balance || 0).toLocaleString()}</div>
+                                            <button
+                                                onClick={() => handleTopup(captain.team_id!)}
+                                                className="text-[9px] text-accent hover:underline font-bold mt-1"
+                                            >
+                                                + Topup Wallet
+                                            </button>
                                         </div>
                                     )}
+                                    <p className="text-xs text-gray-500 mb-4">{captain.team_id ? 'Assigned' : 'Unassigned'}</p>
+                                    <button
+                                        onClick={() => resetCaptainPassword(captain.id)}
+                                        className="text-xs bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 py-2 px-4 rounded-lg border border-white/5 transition-all w-full flex items-center justify-center gap-2"
+                                    >
+                                        <RefreshCw className="w-3 h-3" /> Reset Password
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                )
+            }
 
-                                    <div>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${player.pool === 'A' ? 'bg-red-500' :
-                                                player.pool === 'B' ? 'bg-orange-500' :
-                                                    player.pool === 'C' ? 'bg-yellow-500' :
-                                                        'bg-blue-500'
-                                                }`}>
-                                                Pool {player.pool}
-                                            </span>
-                                            <span className="text-accent font-bold">Rating: {player.rating}</span>
+            {
+                activeTab === 'insights' && (
+                    <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex justify-between items-end mb-8">
+                            <div>
+                                <h2 className="text-2xl font-black flex items-center gap-3">
+                                    <List className="text-accent" /> BATTLE INSIGHTS
+                                </h2>
+                                <p className="text-gray-400 mt-1">Audit trail of all innovation ideas submitted during battles.</p>
+                            </div>
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                                <input
+                                    type="text"
+                                    placeholder="Search ideas, teams, or results..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-accent outline-none text-sm w-64 transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="space-y-6">
+                            {battleIdeas
+                                .filter(idea =>
+                                    idea.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    idea.team_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    idea.match_type.toLowerCase().includes(searchTerm.toLowerCase())
+                                )
+                                .map(idea => {
+                                    let scores = null;
+                                    try {
+                                        scores = JSON.parse(idea.feedback);
+                                    } catch (e) {
+                                        // Not JSON, just display as text
+                                    }
+
+                                    return (
+                                        <div key={idea.id} className="glass-card p-6 border-white/5 hover:border-accent/10 transition-all">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="px-2 py-1 rounded bg-accent/20 text-accent text-[10px] font-black uppercase">
+                                                        {idea.match_type}
+                                                    </div>
+                                                    <div className="text-sm font-bold text-white">
+                                                        {idea.team_name}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 italic">
+                                                        by {idea.captain_name}
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`px-2 py-1 rounded text-[10px] font-black ${idea.is_wicket ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}>
+                                                        {idea.is_wicket ? 'WICKET' : `+${idea.runs} RUNS`}
+                                                    </div>
+                                                    {idea.is_duplicate && (
+                                                        <div className="px-2 py-1 rounded bg-orange-500/20 text-orange-500 text-[10px] font-black">
+                                                            DUPLICATE
+                                                        </div>
+                                                    )}
+                                                    <div className="text-xs font-mono text-gray-400">
+                                                        Score: {Number(idea.score).toFixed(2)}/100
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <p className="text-gray-300 text-sm leading-relaxed mb-4 bg-black/40 p-4 rounded-xl border border-white/5 font-medium">
+                                                "{idea.content}"
+                                            </p>
+
+                                            {scores ? (
+                                                <div className="space-y-3">
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {Object.entries(scores).map(([key, value]: [string, any]) => (
+                                                            <div key={key} className="px-2 py-1 rounded bg-white/5 border border-white/10 flex items-center gap-2">
+                                                                <span className="text-[9px] uppercase font-bold text-gray-500">{key}</span>
+                                                                <span className={`text-[10px] font-black ${value >= 80 ? 'text-green-500' : value >= 60 ? 'text-accent' : 'text-orange-500'}`}>
+                                                                    {Number(value).toFixed(2)}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="flex items-start gap-3 bg-accent/5 p-3 rounded-lg border border-accent/10">
+                                                    <CheckCircle className="w-4 h-4 text-accent mt-0.5" />
+                                                    <p className="text-[11px] text-gray-400 italic leading-tight">
+                                                        <span className="text-accent font-bold uppercase mr-1">AI Feedback:</span> {idea.feedback}
+                                                    </p>
+                                                </div>
+                                            )}
+
                                         </div>
-                                        <h3 className="text-xl font-bold mb-1">{player.name}</h3>
-                                        {player.tags && (
-                                            <div className="flex flex-wrap gap-1 mb-3">
-                                                {player.tags.split(',').map(tag => (
-                                                    <span key={tag} className="text-[9px] bg-white/5 text-gray-400 border border-white/10 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tighter">
-                                                        {tag.trim()}
-                                                    </span>
-                                                ))}
+                                    );
+                                })}
+
+                            {battleIdeas.length === 0 && (
+                                <div className="py-20 text-center glass-card border-dashed border-white/10 opacity-60">
+                                    <List className="w-12 h-12 text-gray-600 mx-auto mb-4 opacity-20" />
+                                    <h4 className="text-xl font-bold text-gray-500">No Battle Insights Yet</h4>
+                                    <p className="text-sm text-gray-600">Start a match battle to see innovation analytics here.</p>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+                )
+            }
+
+            {
+                activeTab === 'auction' && (
+                    <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex justify-between items-end mb-8">
+                            <h2 className="text-2xl font-black flex items-center gap-3">
+                                <Trophy className="text-accent" /> AUCTION CONTROL
+                            </h2>
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={async () => {
+                                        if (!confirm('Shuffle and reset all teams? This cannot be undone.')) return;
+                                        const res = await fetch('/api/auction/reset', { method: 'POST' });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                            fetchPlayers();
+                                            alert('Auction table and teams reset successfully!');
+                                        }
+                                    }}
+                                    className="bg-red-500 text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105"
+                                >
+                                    RESET TEAMS
+                                </button>
+                                <button
+                                    onClick={() => setIsAddingPlayer(true)}
+                                    className="bg-accent text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105 flex items-center gap-2"
+                                >
+                                    <Play className="w-4 h-4" /> ADD PLAYER
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {players.map(player => {
+                                const isLive = auctionStatus?.status === 'ACTIVE' && auctionStatus?.playerId === player.id;
+                                const isSold = player.is_auctioned;
+
+                                return (
+                                    <div
+                                        key={player.id}
+                                        className={`glass-card p-6 flex flex-col justify-between relative overflow-hidden ${isLive ? 'border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : ''}`}
+                                    >
+                                        {isLive && timeLeft !== null && (
+                                            <div className="absolute top-0 right-0 bg-red-600 text-white px-4 py-1 rounded-bl-xl font-mono font-bold flex items-center gap-2 z-10 animate-pulse">
+                                                <Timer className="w-4 h-4" /> {timeLeft}s
                                             </div>
                                         )}
-                                        <div className="flex justify-between items-center">
-                                            <p className="text-gray-400">Min Bid: {player.min_bid.toLocaleString()}</p>
-                                            {!player.is_auctioned && !isLive && (
-                                                <button
-                                                    onClick={() => {
-                                                        setEditingPlayer(player);
-                                                        setNewMinBid(player.min_bid);
-                                                    }}
-                                                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all"
-                                                    title="Edit Min Bid"
-                                                >
-                                                    <Edit2 className="w-3 h-3" />
-                                                </button>
+
+                                        <div>
+                                            <div className="flex justify-between items-start mb-4">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${player.pool === 'A' ? 'bg-red-500' :
+                                                    player.pool === 'B' ? 'bg-orange-500' :
+                                                        player.pool === 'C' ? 'bg-yellow-500' :
+                                                            'bg-blue-500'
+                                                    }`}>
+                                                    Pool {player.pool}
+                                                </span>
+                                                <span className="text-accent font-bold">Rating: {player.rating}</span>
+                                            </div>
+                                            <h3 className="text-xl font-bold mb-1">{player.name}</h3>
+                                            {player.tags && (
+                                                <div className="flex flex-wrap gap-1 mb-3">
+                                                    {player.tags.split(',').map(tag => (
+                                                        <span key={tag} className="text-[9px] bg-white/5 text-gray-400 border border-white/10 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tighter">
+                                                            {tag.trim()}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between items-center">
+                                                <p className="text-gray-400">Min Bid: {player.min_bid.toLocaleString()}</p>
+                                                {!player.is_auctioned && !isLive && (
+                                                    <button
+                                                        onClick={() => {
+                                                            setEditingPlayer(player);
+                                                            setNewMinBid(player.min_bid);
+                                                        }}
+                                                        className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all"
+                                                        title="Edit Min Bid"
+                                                    >
+                                                        <Edit2 className="w-3 h-3" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-6">
+                                            {player.is_auctioned ? (
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center gap-2 text-green-500">
+                                                        <CheckCircle className="w-5 h-5" /> Sold: <span className="font-bold">{player.teamName}</span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handlePlayerAction(player.id, 'release')}
+                                                        className="w-full text-xs text-red-400 hover:text-red-300 py-2 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-all font-bold"
+                                                    >
+                                                        RELEASE FROM TEAM
+                                                    </button>
+                                                </div>
+                                            ) : isLive ? (
+                                                <div className="w-full bg-red-500/20 text-red-500 py-3 rounded-xl font-bold flex items-center justify-center gap-2 border border-red-500/50">
+                                                    <Timer className="w-5 h-5 animate-spin" /> AUCTION LIVE
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => startAuction(player.id)}
+                                                            className="flex-1 btn-primary flex items-center justify-center gap-2 py-3 text-xs"
+                                                            disabled={auctionStatus?.status === 'ACTIVE'}
+                                                        >
+                                                            <Play className="w-4 h-4" /> Start Auction
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleRemovePlayer(player.id)}
+                                                            className="px-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all rounded-xl"
+                                                            title="Remove Player"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                    <select
+                                                        onChange={(e) => {
+                                                            if (e.target.value) {
+                                                                handlePlayerAction(player.id, 'assign', e.target.value);
+                                                                e.target.value = '';
+                                                            }
+                                                        }}
+                                                        className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs outline-none focus:border-accent appearance-none text-center cursor-pointer"
+                                                        defaultValue=""
+                                                    >
+                                                        <option value="" disabled className="bg-gray-900">Assign to Team...</option>
+                                                        {teams.map(t => (
+                                                            <option key={t.id} value={t.id} className="bg-gray-900">{t.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
-
-                                    <div className="mt-6">
-                                        {player.is_auctioned ? (
-                                            <div className="space-y-4">
-                                                <div className="flex items-center gap-2 text-green-500">
-                                                    <CheckCircle className="w-5 h-5" /> Sold: <span className="font-bold">{player.teamName}</span>
-                                                </div>
-                                                <button
-                                                    onClick={() => handlePlayerAction(player.id, 'release')}
-                                                    className="w-full text-xs text-red-400 hover:text-red-300 py-2 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-all font-bold"
-                                                >
-                                                    RELEASE FROM TEAM
-                                                </button>
-                                            </div>
-                                        ) : isLive ? (
-                                            <div className="w-full bg-red-500/20 text-red-500 py-3 rounded-xl font-bold flex items-center justify-center gap-2 border border-red-500/50">
-                                                <Timer className="w-5 h-5 animate-spin" /> AUCTION LIVE
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                <div className="flex gap-2">
-                                                    <button
-                                                        onClick={() => startAuction(player.id)}
-                                                        className="flex-1 btn-primary flex items-center justify-center gap-2 py-3 text-xs"
-                                                        disabled={auctionStatus?.status === 'ACTIVE'}
-                                                    >
-                                                        <Play className="w-4 h-4" /> Start Auction
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleRemovePlayer(player.id)}
-                                                        className="px-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all rounded-xl"
-                                                        title="Remove Player"
-                                                    >
-                                                        <X className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                                <select
-                                                    onChange={(e) => {
-                                                        if (e.target.value) {
-                                                            handlePlayerAction(player.id, 'assign', e.target.value);
-                                                            e.target.value = '';
-                                                        }
-                                                    }}
-                                                    className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs outline-none focus:border-accent appearance-none text-center cursor-pointer"
-                                                    defaultValue=""
-                                                >
-                                                    <option value="" disabled className="bg-gray-900">Assign to Team...</option>
-                                                    {teams.map(t => (
-                                                        <option key={t.id} value={t.id} className="bg-gray-900">{t.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                </section>
-            )
+                                );
+                            })}
+                        </div>
+                    </section>
+                )
             }
 
             {
@@ -1088,94 +1117,115 @@ export default function AdminPage() {
                     </div>
                 )
             }
-            {activeTab === 'maintenance' && (
-                <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <h2 className="text-2xl font-black mb-8 flex items-center gap-3">
-                        <Settings className="text-red-500" /> SYSTEM MAINTENANCE
-                    </h2>
+            {
+                activeTab === 'maintenance' && (
+                    <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <h2 className="text-2xl font-black mb-8 flex items-center gap-3">
+                            <Settings className="text-red-500" /> SYSTEM MAINTENANCE
+                        </h2>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Reset Results */}
-                        <div className="glass-card p-8 border-red-500/20 space-y-4">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
-                                    <RefreshCw className="w-6 h-6" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Reset Results */}
+                            <div className="glass-card p-8 border-red-500/20 space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                                        <RefreshCw className="w-6 h-6" />
+                                    </div>
+                                    <h3 className="text-xl font-bold uppercase tracking-widest">Reset Results</h3>
                                 </div>
-                                <h3 className="text-xl font-bold uppercase tracking-widest">Reset Results</h3>
+                                <p className="text-gray-400 text-sm leading-relaxed">
+                                    Clears all match scores, AI summaries, and winners.
+                                    Match schedule and dates remain intact.
+                                </p>
+                                <button
+                                    onClick={() => handleReset('results')}
+                                    className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
+                                >
+                                    Reset Match Results
+                                </button>
                             </div>
-                            <p className="text-gray-400 text-sm leading-relaxed">
-                                Clears all match scores, AI summaries, and winners.
-                                Match schedule and dates remain intact.
-                            </p>
-                            <button
-                                onClick={() => handleReset('results')}
-                                className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
-                            >
-                                Reset Match Results
-                            </button>
-                        </div>
 
-                        {/* Reset Assignments */}
-                        <div className="glass-card p-8 border-red-500/20 space-y-4">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
-                                    <User className="w-6 h-6" />
+                            {/* Reset Cases */}
+                            <div className="glass-card p-8 border-red-500/20 space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                                        <Award className="w-6 h-6" />
+                                    </div>
+                                    <h3 className="text-xl font-bold uppercase tracking-widest">Reset Case Status</h3>
                                 </div>
-                                <h3 className="text-xl font-bold uppercase tracking-widest">Reset Players</h3>
+                                <p className="text-gray-400 text-sm leading-relaxed">
+                                    Resets the 'Used' status of all case studies, making them available for random selection again.
+                                </p>
+                                <button
+                                    onClick={() => handleReset('cases')}
+                                    className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
+                                >
+                                    Reset Case Status
+                                </button>
                             </div>
-                            <p className="text-gray-400 text-sm leading-relaxed">
-                                Unassigns all players from teams and clears auction history (bids).
-                                Players return to the pool for a fresh auction.
-                            </p>
-                            <button
-                                onClick={() => handleReset('players')}
-                                className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
-                            >
-                                Reset Player Assignments
-                            </button>
-                        </div>
 
-                        {/* Reset Wallets */}
-                        <div className="glass-card p-8 border-red-500/20 space-y-4">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
-                                    <Trophy className="w-6 h-6" />
+                            {/* Reset Assignments */}
+                            <div className="glass-card p-8 border-red-500/20 space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                                        <User className="w-6 h-6" />
+                                    </div>
+                                    <h3 className="text-xl font-bold uppercase tracking-widest">Reset Players</h3>
                                 </div>
-                                <h3 className="text-xl font-bold uppercase tracking-widest">Reset Wallets</h3>
+                                <p className="text-gray-400 text-sm leading-relaxed">
+                                    Unassigns all players from teams and clears auction history (bids).
+                                    Players return to the pool for a fresh auction.
+                                </p>
+                                <button
+                                    onClick={() => handleReset('players')}
+                                    className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
+                                >
+                                    Reset Player Assignments
+                                </button>
                             </div>
-                            <p className="text-gray-400 text-sm leading-relaxed">
-                                Resets all team wallet balances to the starting amount of 1,000,000 tokens.
-                            </p>
-                            <button
-                                onClick={() => handleReset('wallets')}
-                                className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
-                            >
-                                Reset All Wallets
-                            </button>
-                        </div>
 
-                        {/* Reset Captains */}
-                        <div className="glass-card p-8 border-red-500/20 space-y-4">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
-                                    <Shield className="w-6 h-6" />
+                            {/* Reset Wallets */}
+                            <div className="glass-card p-8 border-red-500/20 space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                                        <Trophy className="w-6 h-6" />
+                                    </div>
+                                    <h3 className="text-xl font-bold uppercase tracking-widest">Reset Wallets</h3>
                                 </div>
-                                <h3 className="text-xl font-bold uppercase tracking-widest">Reset Captains</h3>
+                                <p className="text-gray-400 text-sm leading-relaxed">
+                                    Resets all team wallet balances to the starting amount of 1,000,000 tokens.
+                                </p>
+                                <button
+                                    onClick={() => handleReset('wallets')}
+                                    className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
+                                >
+                                    Reset All Wallets
+                                </button>
                             </div>
-                            <p className="text-gray-400 text-sm leading-relaxed">
-                                Unlinks all captains from their current teams. Requires re-assignment
-                                from the Team Management tab.
-                            </p>
-                            <button
-                                onClick={() => handleReset('captains')}
-                                className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
-                            >
-                                Reset Captain Assignments
-                            </button>
+
+                            {/* Reset Captains */}
+                            <div className="glass-card p-8 border-red-500/20 space-y-4">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                                        <Shield className="w-6 h-6" />
+                                    </div>
+                                    <h3 className="text-xl font-bold uppercase tracking-widest">Reset Captains</h3>
+                                </div>
+                                <p className="text-gray-400 text-sm leading-relaxed">
+                                    Unlinks all captains from their current teams. Requires re-assignment
+                                    from the Team Management tab.
+                                </p>
+                                <button
+                                    onClick={() => handleReset('captains')}
+                                    className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
+                                >
+                                    Reset Captain Assignments
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                </section>
-            )}
+                    </section>
+                )
+            }
 
             {
                 isAddingCase && (
@@ -1186,8 +1236,8 @@ export default function AdminPage() {
                             className="glass-card p-8 max-w-lg w-full border-accent"
                         >
                             <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-xl font-bold uppercase tracking-widest">Add Case Study</h3>
-                                <button onClick={() => setIsAddingCase(false)}><X className="w-5 h-5" /></button>
+                                <h3 className="text-xl font-bold uppercase tracking-widest">{isEditingCase ? 'Edit Case Study' : 'Add Case Study'}</h3>
+                                <button onClick={() => { setIsAddingCase(false); setIsEditingCase(false); }}><X className="w-5 h-5" /></button>
                             </div>
 
                             <div className="space-y-4">

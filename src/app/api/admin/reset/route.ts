@@ -6,6 +6,11 @@ export async function POST(request: Request) {
         const { type } = await request.json();
 
         switch (type) {
+            case 'cases':
+                // Reset case study usage
+                db.prepare('UPDATE case_studies SET is_used = 0').run();
+                break;
+
             case 'results':
                 // Reset matches
                 db.prepare(`

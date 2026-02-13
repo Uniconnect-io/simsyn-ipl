@@ -14,6 +14,10 @@ interface Match {
   status: string;
   score1: number;
   score2: number;
+  wickets1: number;
+  wickets2: number;
+  overs1: number;
+  overs2: number;
   winner_id: string | null;
   winnerName: string | null;
   case_description: string | null;
@@ -344,7 +348,10 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
             </div>
             <div className="text-right">
               <h1 className="text-2xl lg:text-5xl font-black uppercase text-glow">{match.team1Name}</h1>
-              <div className="text-4xl lg:text-7xl text-accent font-black mt-2">{match.score1}</div>
+              <div className="text-4xl lg:text-7xl text-accent font-black mt-2">
+                {match.score1}/{match.wickets1}
+              </div>
+              <div className="text-xs text-gray-500 font-mono mt-1">{Number(match.overs1).toFixed(1)} ov</div>
             </div>
           </div>
           <div className="text-gray-700 text-2xl lg:text-4xl font-black italic">VS</div>
@@ -359,7 +366,10 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
             </div>
             <div className="text-left">
               <h1 className="text-2xl lg:text-5xl font-black uppercase text-glow">{match.team2Name}</h1>
-              <div className="text-4xl lg:text-7xl text-accent font-black mt-2">{match.score2}</div>
+              <div className="text-4xl lg:text-7xl text-accent font-black mt-2">
+                {match.score2}/{match.wickets2}
+              </div>
+              <div className="text-xs text-gray-500 font-mono mt-1">{Number(match.overs2).toFixed(1)} ov</div>
             </div>
           </div>
         </div>

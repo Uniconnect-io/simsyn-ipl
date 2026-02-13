@@ -38,30 +38,44 @@ export default function CaptainPage() {
 
     // Timer Effect
     useEffect(() => {
-        if (!activeMatch?.end_time) {
+        if (!activeMatch?.start_time || !activeMatch?.end_time) {
             setTimeLeft('');
             return;
         }
 
         const tick = () => {
             const now = new Date();
+            const start = new Date(activeMatch.start_time);
             const end = new Date(activeMatch.end_time);
-            const diff = end.getTime() - now.getTime();
 
-            if (diff <= 0) {
-                setTimeLeft('00:00');
+            // Time remaining for the countdown
+            const diffRemaining = end.getTime() - now.getTime();
+
+            // Time elapsed for the overs calculation
+            const elapsedMs = now.getTime() - start.getTime();
+            const elapsedSecs = Math.max(0, Math.floor(elapsedMs / 1000));
+            const totalBalls = Math.floor(elapsedSecs / 10);
+            const overs = Math.floor(totalBalls / 6);
+            const balls = totalBalls % 6;
+
+            const cricketTime = `${Math.min(20, overs)}.${balls} ov`;
+
+            if (diffRemaining <= 0) {
+                setTimeLeft('20.0 ov');
                 return;
             }
 
-            const mins = Math.floor(diff / 60000);
-            const secs = Math.floor((diff % 60000) / 1000);
-            setTimeLeft(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+            const mins = Math.floor(diffRemaining / 60000);
+            const secs = Math.floor((diffRemaining % 60000) / 1000);
+            const mmss = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+
+            setTimeLeft(`${cricketTime} (${mmss} left)`);
         };
 
         tick();
         const timer = setInterval(tick, 1000);
         return () => clearInterval(timer);
-    }, [activeMatch?.end_time]);
+    }, [activeMatch?.start_time, activeMatch?.end_time]);
 
     useEffect(() => {
         const fetchStatus = async () => {
@@ -453,7 +467,7 @@ export default function CaptainPage() {
                                                                         <p className="text-[10px] text-gray-500 uppercase mb-1">{activeMatch.team1Name}</p>
                                                                         <p className="text-2xl font-black text-white">{activeMatch.score1}/{activeMatch.wickets1}</p>
                                                                     </div>
-                                                                    <p className="text-xs text-gray-600 font-mono mb-1">{activeMatch.overs1} ov</p>
+                                                                    <p className="text-xs text-gray-600 font-mono mb-1">{Number(activeMatch.overs1).toFixed(1)} ov</p>
                                                                 </div>
                                                                 <div className="w-full h-px bg-white/5"></div>
                                                                 <div className="flex justify-between items-end">
@@ -461,7 +475,7 @@ export default function CaptainPage() {
                                                                         <p className="text-[10px] text-gray-500 uppercase mb-1">{activeMatch.team2Name}</p>
                                                                         <p className="text-2xl font-black text-white">{activeMatch.score2}/{activeMatch.wickets2}</p>
                                                                     </div>
-                                                                    <p className="text-xs text-gray-600 font-mono mb-1">{activeMatch.overs2} ov</p>
+                                                                    <p className="text-xs text-gray-600 font-mono mb-1">{Number(activeMatch.overs2).toFixed(1)} ov</p>
                                                                 </div>
                                                             </div>
                                                         </div>
