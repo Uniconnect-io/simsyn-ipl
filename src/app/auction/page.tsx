@@ -16,7 +16,8 @@ interface AuctionStatus {
     currentBidderId?: string;
     currentBidderName?: string;
     timerEnd?: string;
-    nextPlayer?: { name: string, pool: string, min_bid: number };
+    tags?: string;
+    nextPlayer?: { name: string, pool: string, min_bid: number, tags?: string };
 }
 
 interface Team {
@@ -158,6 +159,15 @@ export default function AuctionPage() {
                                         </div>
                                     </div>
                                     <h2 className="text-4xl font-black tracking-tighter mb-1">{auction.playerName}</h2>
+                                    {auction.tags && (
+                                        <div className="flex flex-wrap justify-center gap-2 mb-4">
+                                            {auction.tags.split(',').map(tag => (
+                                                <div key={tag} className="px-3 py-1 bg-accent/10 text-accent border border-accent/20 rounded-lg text-xs font-black uppercase tracking-widest flex items-center gap-1.5">
+                                                    <Info className="w-3 h-3" /> {tag.trim()}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     <p className="text-gray-400">Base Price: <span className="text-white font-bold">{auction.basePrice?.toLocaleString()}</span></p>
                                 </div>
 

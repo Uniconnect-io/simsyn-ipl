@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Play, CheckCircle, User, Award, Shield, LogOut, RefreshCw, Trophy, Edit2, X, Timer, List, Search } from 'lucide-react';
+import { Play, CheckCircle, User, Award, Shield, LogOut, RefreshCw, Trophy, Edit2, X, Timer, List, Search, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface Player {
@@ -10,6 +10,7 @@ interface Player {
     rating: number;
     pool: string;
     min_bid: number;
+    tags?: string;
     is_auctioned: boolean;
     team_id: string | null;
     teamName?: string | null;
@@ -87,7 +88,7 @@ export default function AdminPage() {
     const [newMinBid, setNewMinBid] = useState<number>(0);
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
     const [auctionStatus, setAuctionStatus] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState<'auction' | 'captains' | 'schedule' | 'cases' | 'insights'>('auction');
+    const [activeTab, setActiveTab] = useState<'auction' | 'captains' | 'schedule' | 'cases' | 'insights' | 'maintenance'>('auction');
 
     // Insights State
     const [battleIdeas, setBattleIdeas] = useState<BattleIdea[]>([]);
@@ -375,25 +376,48 @@ export default function AdminPage() {
     };
 
     const handleStartBattle = async (matchId: string, customCaseDesc: string = '') => {
-        try {
-            const res = await fetch('/api/admin/battle/start', {
+        const finalDesc = customCaseDesc || caseDescription;
+        if (!finalDesc) return alert('Select a case or enter a description');
+
+        const res = await fetch('/api/battle/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ matchId, caseDescription: finalDesc }),
+        });
+
+        if (res.ok) {
+            alert('Battle Started! Captains can now submit ideas.');
+            setStartingBattleMatch(null);
+            setCaseDescription('');
+            fetchPlayers();
+        } else {
+            alert('Failed to start battle');
+        }
+    };
+
+    const handleReset = async (type: 'results' | 'players' | 'wallets' | 'captains') => {
+        const descriptions = {
+            results: 'This will reset all match scores, summaries, and winners. Schedule and month assignments will remain.',
+            players: 'This will remove all team assignments from players and clear the auction history.',
+            wallets: 'This will reset all team wallets back to 1,000,000 tokens.',
+            captains: 'This will unlink all captains from their assigned teams.'
+        };
+
+        if (confirm(`⚠️ WARNING: ${descriptions[type]}\n\nAre you sure you want to proceed? This action cannot be undone.`)) {
+            const res = await fetch('/api/admin/reset', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    matchId,
-                    caseDescription: customCaseDesc
-                }),
+                body: JSON.stringify({ type }),
             });
+
             if (res.ok) {
-                setStartingBattleMatch(null);
-                setCaseDescription('');
+                alert(`Reset ${type} successful!`);
+                // Refresh data
                 fetchPlayers();
+                setCaptains([]); // Force refresh or fetch captains if there's a fetchCaptains
             } else {
-                const data = await res.json();
-                alert(data.error || 'Failed to start battle');
+                alert(`Failed to reset ${type}`);
             }
-        } catch (error) {
-            alert('Error starting battle');
         }
     };
 
@@ -463,13 +487,13 @@ export default function AdminPage() {
                     onClick={() => setActiveTab('auction')}
                     className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'auction' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <Trophy className="inline-block w-4 h-4 mr-2" /> Auction Control
+                    <Trophy className="inline-block w-4 h-4 mr-2" /> Auction
                 </button>
                 <button
                     onClick={() => setActiveTab('captains')}
                     className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'captains' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <User className="inline-block w-4 h-4 mr-2" /> Captains & Security
+                    <User className="inline-block w-4 h-4 mr-2" /> Captains
                 </button>
                 <button
                     onClick={() => setActiveTab('schedule')}
@@ -481,13 +505,19 @@ export default function AdminPage() {
                     onClick={() => setActiveTab('cases')}
                     className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'cases' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <Award className="inline-block w-4 h-4 mr-2" /> Case Studies
+                    <Award className="inline-block w-4 h-4 mr-2" /> Cases
                 </button>
                 <button
                     onClick={() => setActiveTab('insights')}
                     className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'insights' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <List className="inline-block w-4 h-4 mr-2" /> Battle Insights
+                    <List className="inline-block w-4 h-4 mr-2" /> Insights
+                </button>
+                <button
+                    onClick={() => setActiveTab('maintenance')}
+                    className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'maintenance' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                >
+                    <Settings className="inline-block w-4 h-4 mr-2" /> Maintenance
                 </button>
             </div>
 
@@ -524,7 +554,7 @@ export default function AdminPage() {
                             </div>
 
                             <div className="space-y-4">
-                                {matches.map((match) => (
+                                {Array.isArray(matches) && matches.map((match) => (
                                     <div key={match.id} className="bg-black/40 border border-white/5 rounded-xl p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:border-accent/20 transition-all">
                                         <div className="flex items-center gap-4 flex-1">
                                             <div className="px-3 py-1 bg-white/5 rounded-lg text-[10px] font-bold text-gray-500 uppercase">
@@ -869,7 +899,16 @@ export default function AdminPage() {
                                             </span>
                                             <span className="text-accent font-bold">Rating: {player.rating}</span>
                                         </div>
-                                        <h3 className="text-xl font-bold mb-2">{player.name}</h3>
+                                        <h3 className="text-xl font-bold mb-1">{player.name}</h3>
+                                        {player.tags && (
+                                            <div className="flex flex-wrap gap-1 mb-3">
+                                                {player.tags.split(',').map(tag => (
+                                                    <span key={tag} className="text-[9px] bg-white/5 text-gray-400 border border-white/10 px-1.5 py-0.5 rounded-md font-bold uppercase tracking-tighter">
+                                                        {tag.trim()}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
                                         <div className="flex justify-between items-center">
                                             <p className="text-gray-400">Min Bid: {player.min_bid.toLocaleString()}</p>
                                             {!player.is_auctioned && !isLive && (
@@ -1049,12 +1088,94 @@ export default function AdminPage() {
                     </div>
                 )
             }
-            {
-                startingBattleMatch && (
-                    <div className="hidden">
+            {activeTab === 'maintenance' && (
+                <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <h2 className="text-2xl font-black mb-8 flex items-center gap-3">
+                        <Settings className="text-red-500" /> SYSTEM MAINTENANCE
+                    </h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Reset Results */}
+                        <div className="glass-card p-8 border-red-500/20 space-y-4">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                                    <RefreshCw className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-xl font-bold uppercase tracking-widest">Reset Results</h3>
+                            </div>
+                            <p className="text-gray-400 text-sm leading-relaxed">
+                                Clears all match scores, AI summaries, and winners.
+                                Match schedule and dates remain intact.
+                            </p>
+                            <button
+                                onClick={() => handleReset('results')}
+                                className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
+                            >
+                                Reset Match Results
+                            </button>
+                        </div>
+
+                        {/* Reset Assignments */}
+                        <div className="glass-card p-8 border-red-500/20 space-y-4">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                                    <User className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-xl font-bold uppercase tracking-widest">Reset Players</h3>
+                            </div>
+                            <p className="text-gray-400 text-sm leading-relaxed">
+                                Unassigns all players from teams and clears auction history (bids).
+                                Players return to the pool for a fresh auction.
+                            </p>
+                            <button
+                                onClick={() => handleReset('players')}
+                                className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
+                            >
+                                Reset Player Assignments
+                            </button>
+                        </div>
+
+                        {/* Reset Wallets */}
+                        <div className="glass-card p-8 border-red-500/20 space-y-4">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                                    <Trophy className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-xl font-bold uppercase tracking-widest">Reset Wallets</h3>
+                            </div>
+                            <p className="text-gray-400 text-sm leading-relaxed">
+                                Resets all team wallet balances to the starting amount of 1,000,000 tokens.
+                            </p>
+                            <button
+                                onClick={() => handleReset('wallets')}
+                                className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
+                            >
+                                Reset All Wallets
+                            </button>
+                        </div>
+
+                        {/* Reset Captains */}
+                        <div className="glass-card p-8 border-red-500/20 space-y-4">
+                            <div className="flex items-center gap-3 mb-2">
+                                <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
+                                    <Shield className="w-6 h-6" />
+                                </div>
+                                <h3 className="text-xl font-bold uppercase tracking-widest">Reset Captains</h3>
+                            </div>
+                            <p className="text-gray-400 text-sm leading-relaxed">
+                                Unlinks all captains from their current teams. Requires re-assignment
+                                from the Team Management tab.
+                            </p>
+                            <button
+                                onClick={() => handleReset('captains')}
+                                className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
+                            >
+                                Reset Captain Assignments
+                            </button>
+                        </div>
                     </div>
-                )
-            }
+                </section>
+            )}
 
             {
                 isAddingCase && (

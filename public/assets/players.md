@@ -1,74 +1,32 @@
-1️⃣ Rating → Pool Classification
-
-We divide players into 5 Pools based on rating.
-
-🔴 Pool A – Platinum (Rating 9–10)
-
-Elite Game Changers
-Minimum Bid: 250,000 tokens
-
-Player	Rating
-Ashan	10
-Asik	10
-
-👉 Only 2 players in this tier
-👉 A team realistically can afford max 2 (if they sacrifice depth)
-
-🟠 Pool B – Gold (Rating 8)
-
-High Impact Core Players
-Minimum Bid: 180,000 tokens
-
-Player	Rating
-Vithursan	8
-Buddika	8
-Achila	8
-🟡 Pool C – Silver (Rating 7)
-
-Strong Contributors
-Minimum Bid: 140,000 tokens
-
-Player	Rating
-Gimhana	7
-🟢 Pool D – Bronze (Rating 5)
-
-Reliable Team Players
-Minimum Bid: 90,000 tokens
-
-Player	Rating
-Ravindu	
-Inuri	
-Anjani	
-Shan	
-Pasindu	
-Isiwara	
-Lasitha	
-Sahiru	
-Dinidu	
-Dinuka	
-🔵 Pool E – Emerging (Rating 4)
-
-Developing Talent
-Minimum Bid: 60,000 tokens
-
-Player	Rating
-Sewwandi	
-Poorni	
-Hansalie	
-Sachith	
-⚪ Pool F – Rookie (Rating 2–3)
-
-Wildcard / Growth Picks
-Minimum Bid: 40,000 tokens
-
-Player	Rating
-Thusiru	
-Pramuditha	
-Nimnadi	
-Shenali	
-Sanduni	
-Mayumi	
-Sineth	
-Nipun	
-Dulmini	
-Eranda	
+Name,Min Bid,Tags
+Ashan,200000,"Code Whisperer, CRM Maestro, Campaign Architect, Industry Veteran"
+Asik,200000,"Code Whisperer, CRM Maestro, Campaign Architect, 3CX Guru, Industry Veteran"
+Vithursan,200000,"Code Whisperer, Report Wrangler, 3CX Guru, Industry Veteran"
+Achila,200000,"DevOps Dynamo, Infra Alchemist, 3CX Guru, Industry Veteran"
+Shan,200000,"Solution Sorcerer, Industry Veteran"
+Gimhana,200000,"Solution Sorcerer, Industry Veteran"
+Buddika,175000,"Code Whisperer, Campaign Architect"
+Isiwara,175000,"Biz Analyst, Domain Deity"
+Inuri,175000,"Code Whisperer, 3CX Guru, Softphone Savant, AI Apprentice"
+Ravindu,175000,"Code Whisperer, Report Wrangler"
+Anjani,175000,"Code Whisperer, Integration Ninja"
+Pasindu,175000,"Solution Sorcerer, 3CX Guru"
+Lasitha,150000,"Domain Deity, Customer Whisperer"
+Sahiru,150000,"Domain Deity, Customer Whisperer"
+Dinidu,150000,"Domain Deity, Customer Whisperer"
+Dinuka,150000,"Solution Sorcerer, Customer Whisperer"
+Pramuditha,150000,"Domain Deity, Marketing Magician, UI/UX Virtuoso"
+Nimnadi,150000,"Domain Deity, Customer Whisperer, Product Picasso"
+Sewwandi,125000,"Quality Conqueror"
+Thusiru,125000,"Project Pathfinder"
+Sanduni,125000,"Project Pathfinder"
+Poorni,125000,"Quality Conqueror"
+Shenali,125000,"Solution Sensei"
+Steevan,125000,"Customer Whisperer"
+Mayumi,125000,"Customer Whisperer"
+Dulmini,100000,"Customer Whisperer"
+Hansalie,100000,"AI Acumen, Intern Initiate"
+Sineth,100000,"Code Whisperer, Intern Initiate"
+Eranda,100000,"Code Whisperer, Intern Initiate"
+Nipun,100000,"Code Whisperer, Intern Initiate"
+Sachith,100000,"Code Whisperer, Intern Initiate"

@@ -45,6 +45,7 @@ db.exec(`
     rating INTEGER,
     pool TEXT,
     min_bid INTEGER,
+    tags TEXT,
     team_id TEXT,
     sold_price INTEGER,
     is_auctioned INTEGER DEFAULT 0
@@ -131,46 +132,50 @@ db.prepare('INSERT OR IGNORE INTO admins (id, username, password) VALUES (?, ?, 
 
 // Players from public/assets/players.md
 const players = [
-  // Pool A - Platinum
-  { id: 'p1', name: 'Ashan', rating: 10, pool: 'A', min_bid: 250000 },
-  { id: 'p2', name: 'Asik', rating: 10, pool: 'A', min_bid: 250000 },
-  // Pool B - Gold
-  { id: 'p3', name: 'Vithursan', rating: 8, pool: 'B', min_bid: 180000 },
-  { id: 'p4', name: 'Buddika', rating: 8, pool: 'B', min_bid: 180000 },
-  { id: 'p5', name: 'Achila', rating: 8, pool: 'B', min_bid: 180000 },
-  // Pool C - Silver
-  { id: 'p6', name: 'Gimhana', rating: 7, pool: 'C', min_bid: 140000 },
-  // Pool D - Bronze
-  { id: 'p7', name: 'Ravindu', rating: 5, pool: 'D', min_bid: 90000 },
-  { id: 'p8', name: 'Inuri', rating: 5, pool: 'D', min_bid: 90000 },
-  { id: 'p9', name: 'Anjani', rating: 5, pool: 'D', min_bid: 90000 },
-  { id: 'p10', name: 'Shan', rating: 5, pool: 'D', min_bid: 90000 },
-  { id: 'p11', name: 'Pasindu', rating: 5, pool: 'D', min_bid: 90000 },
-  { id: 'p12', name: 'Isiwara', rating: 5, pool: 'D', min_bid: 90000 },
-  { id: 'p13', name: 'Lasitha', rating: 5, pool: 'D', min_bid: 90000 },
-  { id: 'p14', name: 'Sahiru', rating: 5, pool: 'D', min_bid: 90000 },
-  { id: 'p15', name: 'Dinidu', rating: 5, pool: 'D', min_bid: 90000 },
-  { id: 'p16', name: 'Dinuka', rating: 5, pool: 'D', min_bid: 90000 },
-  // Pool E - Emerging
-  { id: 'p17', name: 'Sewwandi', rating: 4, pool: 'E', min_bid: 60000 },
-  { id: 'p18', name: 'Poorni', rating: 4, pool: 'E', min_bid: 60000 },
-  { id: 'p19', name: 'Hansalie', rating: 4, pool: 'E', min_bid: 60000 },
-  { id: 'p20', name: 'Sachith', rating: 4, pool: 'E', min_bid: 60000 },
-  // Pool F - Rookie
-  { id: 'p21', name: 'Thusiru', rating: 3, pool: 'F', min_bid: 40000 },
-  { id: 'p22', name: 'Pramuditha', rating: 3, pool: 'F', min_bid: 40000 },
-  { id: 'p23', name: 'Nimnadi', rating: 3, pool: 'F', min_bid: 40000 },
-  { id: 'p24', name: 'Shenali', rating: 3, pool: 'F', min_bid: 40000 },
-  { id: 'p25', name: 'Sanduni', rating: 3, pool: 'F', min_bid: 40000 },
-  { id: 'p26', name: 'Mayumi', rating: 3, pool: 'F', min_bid: 40000 },
-  { id: 'p27', name: 'Sineth', rating: 3, pool: 'F', min_bid: 40000 },
-  { id: 'p28', name: 'Nipun', rating: 3, pool: 'F', min_bid: 40000 },
-  { id: 'p29', name: 'Dulmini', rating: 3, pool: 'F', min_bid: 40000 },
-  { id: 'p30', name: 'Eranda', rating: 3, pool: 'F', min_bid: 40000 },
+  // Tier 1 - 200,000
+  { id: 'p1', name: 'Ashan', min_bid: 200000, tags: 'Code Whisperer, CRM Maestro, Campaign Architect, Industry Veteran', pool: 'A', rating: 10 },
+  { id: 'p2', name: 'Asik', min_bid: 200000, tags: 'Code Whisperer, CRM Maestro, Campaign Architect, 3CX Guru, Industry Veteran', pool: 'A', rating: 10 },
+  { id: 'p3', name: 'Vithursan', min_bid: 200000, tags: 'Code Whisperer, Report Wrangler, 3CX Guru, Industry Veteran', pool: 'A', rating: 10 },
+  { id: 'p4', name: 'Achila', min_bid: 200000, tags: 'DevOps Dynamo, Infra Alchemist, 3CX Guru, Industry Veteran', pool: 'A', rating: 10 },
+  { id: 'p5', name: 'Shan', min_bid: 200000, tags: 'Solution Sorcerer, Industry Veteran', pool: 'A', rating: 10 },
+  { id: 'p6', name: 'Gimhana', min_bid: 200000, tags: 'Solution Sorcerer, Industry Veteran', pool: 'A', rating: 10 },
+  
+  // Tier 2 - 175,000
+  { id: 'p7', name: 'Buddika', min_bid: 175000, tags: 'Code Whisperer, Campaign Architect', pool: 'B', rating: 8 },
+  { id: 'p8', name: 'Isiwara', min_bid: 175000, tags: 'Biz Analyst, Domain Deity', pool: 'B', rating: 8 },
+  { id: 'p9', name: 'Inuri', min_bid: 175000, tags: 'Code Whisperer, 3CX Guru, Softphone Savant, AI Apprentice', pool: 'B', rating: 8 },
+  { id: 'p10', name: 'Ravindu', min_bid: 175000, tags: 'Code Whisperer, Report Wrangler', pool: 'B', rating: 8 },
+  { id: 'p11', name: 'Anjani', min_bid: 175000, tags: 'Code Whisperer, Integration Ninja', pool: 'B', rating: 8 },
+  { id: 'p12', name: 'Pasindu', min_bid: 175000, tags: 'Solution Sorcerer, 3CX Guru', pool: 'B', rating: 8 },
+  
+  // Tier 3 - 150,000
+  { id: 'p13', name: 'Lasitha', min_bid: 150000, tags: 'Domain Deity, Customer Whisperer', pool: 'C', rating: 7 },
+  { id: 'p14', name: 'Sahiru', min_bid: 150000, tags: 'Domain Deity, Customer Whisperer', pool: 'C', rating: 7 },
+  { id: 'p15', name: 'Dinidu', min_bid: 150000, tags: 'Domain Deity, Customer Whisperer', pool: 'C', rating: 7 },
+  { id: 'p16', name: 'Dinuka', min_bid: 150000, tags: 'Solution Sorcerer, Customer Whisperer', pool: 'C', rating: 7 },
+  { id: 'p17', name: 'Pramuditha', min_bid: 150000, tags: 'Domain Deity, Marketing Magician, UI/UX Virtuoso', pool: 'C', rating: 7 },
+  { id: 'p18', name: 'Nimnadi', min_bid: 150000, tags: 'Domain Deity, Customer Whisperer, Product Picasso', pool: 'C', rating: 7 },
+  
+  // Tier 4 - 125,000
+  { id: 'p19', name: 'Sewwandi', min_bid: 125000, tags: 'Quality Conqueror', pool: 'D', rating: 5 },
+  { id: 'p20', name: 'Thusiru', min_bid: 125000, tags: 'Project Pathfinder', pool: 'D', rating: 5 },
+  { id: 'p21', name: 'Sanduni', min_bid: 125000, tags: 'Project Pathfinder', pool: 'D', rating: 5 },
+  { id: 'p22', name: 'Poorni', min_bid: 125000, tags: 'Quality Conqueror', pool: 'D', rating: 5 },
+  { id: 'p23', name: 'Shenali', min_bid: 125000, tags: 'Solution Sensei', pool: 'D', rating: 5 },
+  { id: 'p24', name: 'Steevan', min_bid: 125000, tags: 'Customer Whisperer', pool: 'D', rating: 5 },
+  { id: 'p25', name: 'Mayumi', min_bid: 125000, tags: 'Customer Whisperer', pool: 'D', rating: 5 },
+  
+  // Tier 5 - 100,000
+  { id: 'p26', name: 'Dulmini', min_bid: 100000, tags: 'Customer Whisperer', pool: 'E', rating: 4 },
+  { id: 'p27', name: 'Hansalie', min_bid: 100000, tags: 'AI Acumen, Intern Initiate', pool: 'E', rating: 4 },
+  { id: 'p28', name: 'Sineth', min_bid: 100000, tags: 'Code Whisperer, Intern Initiate', pool: 'E', rating: 4 },
+  { id: 'p29', name: 'Eranda', min_bid: 100000, tags: 'Code Whisperer, Intern Initiate', pool: 'E', rating: 4 },
+  { id: 'p30', name: 'Nipun', min_bid: 100000, tags: 'Code Whisperer, Intern Initiate', pool: 'E', rating: 4 },
+  { id: 'p31', name: 'Sachith', min_bid: 100000, tags: 'Code Whisperer, Intern Initiate', pool: 'E', rating: 4 },
 ];
 
-const insertPlayer = db.prepare('INSERT OR IGNORE INTO players (id, name, rating, pool, min_bid) VALUES (?, ?, ?, ?, ?)');
-players.forEach(p => insertPlayer.run(p.id, p.name, p.rating, p.pool, p.min_bid));
+const insertPlayer = db.prepare('INSERT OR IGNORE INTO players (id, name, rating, pool, min_bid, tags) VALUES (?, ?, ?, ?, ?, ?)');
+players.forEach(p => insertPlayer.run(p.id, p.name, p.rating, p.pool, p.min_bid, p.tags));
 
 console.log('Seeding complete.');
 db.close();

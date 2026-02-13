@@ -15,6 +15,7 @@ export async function GET() {
         p.rating, 
         p.pool, 
         p.min_bid as basePrice,
+        p.tags,
         t.name as currentBidderName
       FROM auctions a
       JOIN players p ON a.player_id = p.id

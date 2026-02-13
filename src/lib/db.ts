@@ -26,6 +26,7 @@ db.exec(`
     rating INTEGER,
     pool TEXT,
     min_bid INTEGER,
+    tags TEXT,
     team_id TEXT,
     sold_price INTEGER,
     is_auctioned INTEGER DEFAULT 0
@@ -53,6 +54,8 @@ db.exec(`
     team1_id TEXT,
     team2_id TEXT,
     month INTEGER,
+    date TEXT,
+    type TEXT DEFAULT 'LEAGUE',
     winner_id TEXT,
     score1 INTEGER DEFAULT 0,
     score2 INTEGER DEFAULT 0,
