@@ -1,0 +1,244 @@
+// app/api/submit-idea/route.ts
+
+import { NextResponse } from "next/server";
+import Database from "better-sqlite3";
+import OpenAI from "openai";
+
+// -----------------------------
+// 🔹 Setup
+// -----------------------------
+
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY!,
+});
+
+const db = new Database("sipl.db");
+
+// Create tables if not exists
+db.exec(`
+CREATE TABLE IF NOT EXISTS ideas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  teamId TEXT,
+  idea TEXT,
+  embedding TEXT,
+  score REAL,
+  runs INTEGER,
+  wicket INTEGER,
+  createdAt INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS game_state (
+  teamId TEXT PRIMARY KEY,
+  runs INTEGER,
+  wickets INTEGER,
+  startTime INTEGER,
+  endTime INTEGER
+);
+`);
+
+// -----------------------------
+// 🔹 Utility Functions
+// -----------------------------
+
+function cosineSimilarity(a: number[], b: number[]) {
+    const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
+    const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+    const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+    return dot / (magA * magB);
+}
+
+function calculateScore(scores: any) {
+    return (
+        scores.alignment * 0.25 +
+        scores.feasibility * 0.2 +
+        scores.value * 0.25 +
+        scores.effort * 0.15 +
+        scores.innovation * 0.15
+    );
+}
+
+function convertToRuns(score: number) {
+    if (score >= 85) return { runs: 6, wicket: false };
+    if (score >= 75) return { runs: 4, wicket: false };
+    if (score >= 60) return { runs: 2, wicket: false };
+    if (score >= 50) return { runs: 1, wicket: false };
+    if (score >= 40) return { runs: 0, wicket: false };
+    return { runs: 0, wicket: true };
+}
+
+// -----------------------------
+// 🔹 AI Evaluation
+// -----------------------------
+
+async function evaluateIdeaWithAI(caseText: string, idea: string) {
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+            {
+                role: "system",
+                content:
+                    "You are an innovation judge. Score ideas strictly from 0-100.",
+            },
+            {
+                role: "user",
+                content: `
+Case:
+${caseText}
+
+Idea:
+${idea}
+
+Score each from 0-100:
+1. alignment
+2. feasibility
+3. value
+4. effort (higher = lower implementation effort)
+5. innovation
+
+Return ONLY JSON:
+{
+  "alignment": number,
+  "feasibility": number,
+  "value": number,
+  "effort": number,
+  "innovation": number
+}
+        `,
+            },
+        ],
+    });
+
+    return JSON.parse(response.choices[0].message.content!);
+}
+
+async function getEmbedding(text: string) {
+    const embedding = await openai.embeddings.create({
+        model: "text-embedding-3-small",
+        input: text,
+    });
+
+    return embedding.data[0].embedding;
+}
+
+// -----------------------------
+// 🔹 API Route
+// -----------------------------
+
+export async function POST(req: Request) {
+    try {
+        const { teamId, idea, caseText } = await req.json();
+
+        if (!teamId || !idea || !caseText) {
+            return NextResponse.json(
+                { error: "Missing required fields" },
+                { status: 400 }
+            );
+        }
+
+        // -----------------------------
+        // 🔹 Check Game State
+        // -----------------------------
+
+        const game = db
+            .prepare("SELECT * FROM game_state WHERE teamId = ?")
+            .get(teamId);
+
+        if (!game) {
+            return NextResponse.json(
+                { error: "Game not started" },
+                { status: 400 }
+            );
+        }
+
+        if (Date.now() > game.endTime) {
+            return NextResponse.json(
+                { error: "Match Over" },
+                { status: 400 }
+            );
+        }
+
+        if (game.wickets >= 10) {
+            return NextResponse.json(
+                { error: "All wickets lost" },
+                { status: 400 }
+            );
+        }
+
+        // -----------------------------
+        // 🔹 Duplicate Detection
+        // -----------------------------
+
+        const newEmbedding = await getEmbedding(idea);
+
+        const previousIdeas = db
+            .prepare("SELECT embedding FROM ideas WHERE teamId = ?")
+            .all(teamId);
+
+        for (const row of previousIdeas) {
+            const oldEmbedding = JSON.parse(row.embedding);
+            const similarity = cosineSimilarity(newEmbedding, oldEmbedding);
+
+            if (similarity > 0.85) {
+                // Duplicate → Wicket
+                db.prepare(`
+          UPDATE game_state
+          SET wickets = wickets + 1
+          WHERE teamId = ?
+        `).run(teamId);
+
+                return NextResponse.json({
+                    duplicate: true,
+                    runsAwarded: 0,
+                    wicket: true,
+                });
+            }
+        }
+
+        // -----------------------------
+        // 🔹 AI Scoring
+        // -----------------------------
+
+        const rawScores = await evaluateIdeaWithAI(caseText, idea);
+        const weightedScore = calculateScore(rawScores);
+        const result = convertToRuns(weightedScore);
+
+        // -----------------------------
+        // 🔹 Update Game State
+        // -----------------------------
+
+        db.prepare(`
+      UPDATE game_state
+      SET runs = runs + ?, 
+          wickets = wickets + ?
+      WHERE teamId = ?
+    `).run(result.runs, result.wicket ? 1 : 0, teamId);
+
+        db.prepare(`
+      INSERT INTO ideas 
+      (teamId, idea, embedding, score, runs, wicket, createdAt)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+            teamId,
+            idea,
+            JSON.stringify(newEmbedding),
+            weightedScore,
+            result.runs,
+            result.wicket ? 1 : 0,
+            Date.now()
+        );
+
+        return NextResponse.json({
+            score: weightedScore,
+            breakdown: rawScores,
+            runsAwarded: result.runs,
+            wicket: result.wicket,
+        });
+    } catch (error: any) {
+        console.error(error);
+        return NextResponse.json(
+            { error: "Internal Server Error" },
+            { status: 500 }
+        );
+    }
+}

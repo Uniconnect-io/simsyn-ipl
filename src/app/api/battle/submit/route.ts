@@ -1,0 +1,185 @@
+import { NextResponse } from 'next/server';
+import db from '@/lib/db';
+import OpenAI from "openai";
+import crypto from 'crypto';
+
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+
+// Helper for cosine similarity
+function dotProduct(vecA: number[], vecB: number[]) {
+    return vecA.reduce((sum, val, i) => sum + val * (vecB[i] || 0), 0);
+}
+
+function cosineSimilarity(vecA: number[], vecB: number[]) {
+    const magA = Math.sqrt(vecA.reduce((sum, val) => sum + val * val, 0));
+    const magB = Math.sqrt(vecB.reduce((sum, val) => sum + val * val, 0));
+    if (magA === 0 || magB === 0) return 0;
+    return dotProduct(vecA, vecB) / (magA * magB);
+}
+
+async function getEmbedding(text: string) {
+    if (!openai) return null;
+    try {
+        const response = await openai.embeddings.create({
+            model: "text-embedding-3-small",
+            input: text.replace(/\n/g, " "),
+        });
+        return response.data[0].embedding;
+    } catch (e) {
+        console.error('Embedding error:', e);
+        return null;
+    }
+}
+
+function calculateWeightedScore(scores: any) {
+    return (
+        scores.alignment * 0.25 +
+        scores.feasibility * 0.2 +
+        scores.value * 0.25 +
+        scores.effort * 0.15 +
+        scores.innovation * 0.15
+    );
+}
+
+function convertToRuns(score: number) {
+    if (score >= 85) return { runs: 6, wicket: false };
+    if (score >= 75) return { runs: 4, wicket: false };
+    if (score >= 60) return { runs: 2, wicket: false };
+    if (score >= 50) return { runs: 1, wicket: false };
+    if (score >= 40) return { runs: 0, wicket: false };
+    return { runs: 0, wicket: true };
+}
+
+async function getAIScores(caseText: string, idea: string) {
+    if (!openai) {
+        // Mock scoring logic for testing
+        const lengthFactor = Math.min(idea.length / 100, 1) * 30; // Better runs for longer ideas (up to 30)
+        const base = 50 + Math.random() * 20; // 50-70 base
+        return {
+            alignment: base + (Math.random() * 10),
+            feasibility: base + (Math.random() * 10),
+            value: base + (Math.random() * 20),
+            effort: base + (Math.random() * 15),
+            innovation: base + lengthFactor
+        };
+    }
+
+    const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        response_format: { type: "json_object" },
+        messages: [
+            { role: "system", content: "You are an innovation judge. Score ideas strictly 0-100." },
+            { role: "user", content: `Case: ${caseText}\nIdea: ${idea}\nReturn ONLY JSON: {"alignment": number, "feasibility": number, "value": number, "effort": number, "innovation": number}` }
+        ],
+    });
+
+    return JSON.parse(response.choices[0].message.content!);
+}
+
+export async function POST(request: Request) {
+    try {
+        const { matchId, teamId, captainId, content } = await request.json();
+
+        if (!matchId || !teamId || !content) {
+            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // 1. Validate Match State
+        const match: any = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
+        if (!match || match.status !== 'IN_PROGRESS') {
+            return NextResponse.json({ error: 'Match is not in progress' }, { status: 400 });
+        }
+
+        const now = new Date();
+        if (now > new Date(match.end_time)) {
+            return NextResponse.json({ error: 'Match has ended' }, { status: 400 });
+        }
+
+        const isTeam1 = match.team1_id === teamId;
+        const currentWickets = isTeam1 ? match.wickets1 : match.wickets2;
+        if (currentWickets >= 10) {
+            return NextResponse.json({ error: 'All wickets lost. Submission blocked.' }, { status: 400 });
+        }
+
+        // 2. Duplicate Detection
+        const currentEmbedding = await getEmbedding(content);
+        const previousIdeas: any[] = db.prepare('SELECT content FROM battle_ideas WHERE match_id = ? AND team_id = ?').all(matchId, teamId);
+
+        if (currentEmbedding) {
+            for (const prev of previousIdeas) {
+                const prevEmbedding = await getEmbedding(prev.content);
+                if (prevEmbedding) {
+                    const similarity = cosineSimilarity(currentEmbedding, prevEmbedding);
+                    // Threshold: 0.85 indicates very high semantic similarity
+                    if (similarity > 0.85) {
+                        const colWickets = isTeam1 ? 'wickets1' : 'wickets2';
+                        db.prepare(`UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`).run(matchId);
+
+                        return NextResponse.json({
+                            success: true,
+                            runs: 0,
+                            wicket: true,
+                            message: 'Duplicate concept identified! Wicket lost.'
+                        });
+                    }
+                }
+            }
+        } else {
+            // Fallback to simple lexical match if OpenAI fails/is missing
+            for (const prev of previousIdeas) {
+                if (content.toLowerCase().trim() === prev.content.toLowerCase().trim()) {
+                    const colWickets = isTeam1 ? 'wickets1' : 'wickets2';
+                    db.prepare(`UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`).run(matchId);
+
+                    return NextResponse.json({
+                        success: true,
+                        runs: 0,
+                        wicket: true,
+                        message: 'Identical idea detected! Wicket lost.'
+                    });
+                }
+            }
+        }
+
+        // 3. Scoring
+        const rawScores = await getAIScores(match.case_description, content);
+        const weightedScore = calculateWeightedScore(rawScores);
+        const result = convertToRuns(weightedScore);
+
+        // 4. Update Database
+        const colRuns = isTeam1 ? 'score1' : 'score2';
+        const colWickets = isTeam1 ? 'wickets1' : 'wickets2';
+        const colOvers = isTeam1 ? 'overs1' : 'overs2';
+
+        // Increment overs (simple logic: each idea is part of an over)
+        const startTime = new Date(match.start_time).getTime();
+        const elapsedMins = (now.getTime() - startTime) / 60000;
+        const currentOvers = Math.min(20, Math.ceil(elapsedMins));
+
+        db.prepare(`
+            UPDATE matches 
+            SET ${colRuns} = ${colRuns} + ?, 
+                ${colWickets} = ${colWickets} + ?,
+                ${colOvers} = ?
+            WHERE id = ?
+        `).run(result.runs, result.wicket ? 1 : 0, currentOvers, matchId);
+
+        const ideaId = crypto.randomUUID();
+        db.prepare(`
+            INSERT INTO battle_ideas (id, match_id, team_id, captain_id, content, score, runs, is_wicket, feedback)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(ideaId, matchId, teamId, captainId, content, weightedScore, result.runs, result.wicket ? 1 : 0, JSON.stringify(rawScores));
+
+        return NextResponse.json({
+            success: true,
+            runs: result.runs,
+            wicket: result.wicket,
+            score: weightedScore,
+            breakdown: rawScores
+        });
+
+    } catch (error) {
+        console.error('Submission error:', error);
+        return NextResponse.json({ error: 'Failed to submit idea' }, { status: 500 });
+    }
+}
