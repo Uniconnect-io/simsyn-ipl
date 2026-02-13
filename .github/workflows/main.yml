@@ -1,0 +1,100 @@
+name: Deployment UCEnterprise Server
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    # Increase job-level timeout to allow long deploy commands (minutes)
+    timeout-minutes: 120
+
+    steps:
+      - name: Get Code
+        uses: actions/checkout@v4
+      - name: Clear target directory
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.UCENTERPRISE_SERVER_IP }}
+          username: ${{ secrets.UCENTERPRISE_SERVER_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY_DEPLOYER_UCENTERPRISE }}
+          script: |
+            sudo chown -R adin:admin /opt/ipl.simsyn.com
+            sudo rm -rf /opt/ipl.simsyn.com/* 
+                
+      - name: Deploy to the Server
+        uses: easingthemes/ssh-deploy@main
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY_DEPLOYER_UCENTERPRISE }}
+          SOURCE: "./"
+          REMOTE_HOST: ${{ secrets.UCENTERPRISE_SERVER_IP }}
+          REMOTE_USER: ${{ secrets.UCENTERPRISE_SERVER_USERNAME }}
+          TARGET: "/opt/ipl.simsyn.com"
+
+      # - name: SSH into CentOS Server and Restart Containers
+      #   uses: appleboy/ssh-action@v0.1.10
+      #   # Increase step timeout (in minutes) to accommodate long npm installs / pm2 operations
+      #   timeout-minutes: 60
+      #   with:
+      #     host: ${{ secrets.UCENTERPRISE_SERVER_IP }}
+      #     username: ${{ secrets.UCENTERPRISE_SERVER_USERNAME }}
+      #     key: ${{ secrets.SSH_PRIVATE_KEY_DEPLOYER_UCENTERPRISE }}
+      #     script: |
+      #       # Load NVM and use a specific Node.js version
+      #       export NVM_DIR="$HOME/.nvm"
+      #       [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
+      #       [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" # This loads nvm bash_completion
+      #       nvm use v20.14.0 || nvm install v20.14.0
+
+      #       # Navigate to the deployment directory
+      #       cd /opt/ipl.simsyn.com
+      #       echo "Current directory: $(pwd)"
+
+      #       # Install dependencies
+      #       npm cache clean --force
+      #       npm i
+      #       npm install sharp
+
+      #       # Run security audit
+      #       #npm audit fix
+
+      #       export $(grep -v '^#' ./.env.dev | xargs)
+
+      #       # Seed the database
+      #       if npm run migrate-seed-and-db-seed; then
+      #         echo "Database seeding completed."
+      #       else
+      #         echo "Database seeding failed." >&2
+      #         exit 1
+      #       fi
+
+      #       # Check if PM2 process exists
+      #       if pm2 show enterprise-core-dev > /dev/null 2>&1; then
+      #         # Reload existing PM2 process
+      #         if pm2 reload enterprise-core-dev; then
+      #           echo "enterprise-core-dev server reloaded successfully"
+      #         else
+      #           echo "Failed to reload enterprise-core-dev server" >&2
+      #           exit 1
+      #         fi
+      #       else
+      #         # Start new PM2 process
+      #         if pm2 start npm --name "enterprise-core-dev" -- start dev; then
+      #           echo "enterprise-core-dev server started successfully"
+      #         else
+      #           echo "Failed to start enterprise-core-dev server" >&2
+      #           exit 1
+      #         fi
+      #       fi
+
+      #       # Save PM2 process list
+      #       pm2 save
+            
+            # if pm2 reload 1; then
+            #   echo "Application reloaded successfully."
+            # else
+            #   echo "Failed to reload the application." >&2
+            #   exit 1
+            # fi
