@@ -56,6 +56,11 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
     fetch(`/api/match/${params.id}`)
       .then(res => res.json())
       .then(data => {
+        if (data.error) {
+          // Handle error - maybe redirect or show error
+          console.error(data.error);
+          return;
+        }
         setMatch(data);
         setCaseDesc(data.case_description || '');
         setScore1(data.score1 || 0);
@@ -138,7 +143,7 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded bg-white/5 border border-white/10 overflow-hidden">
                 <img
-                  src={`/assets/teamlogos/${match.team1Name.toLowerCase().replace(/ /g, '_')}.png`}
+                  src={`/assets/teamlogos/${(match.team1Name || '').toLowerCase().replace(/ /g, '_')}.png`}
                   alt={match.team1Name}
                   className="w-full h-full object-cover"
                   onError={(e) => (e.currentTarget.style.display = 'none')}
@@ -210,7 +215,7 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded bg-white/5 border border-white/10 overflow-hidden">
                 <img
-                  src={`/assets/teamlogos/${match.team2Name.toLowerCase().replace(/ /g, '_')}.png`}
+                  src={`/assets/teamlogos/${(match.team2Name || '').toLowerCase().replace(/ /g, '_')}.png`}
                   alt={match.team2Name}
                   className="w-full h-full object-cover"
                   onError={(e) => (e.currentTarget.style.display = 'none')}
@@ -340,7 +345,7 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
           <div className="flex-1 flex flex-col items-end gap-4">
             <div className="w-16 h-16 lg:w-24 lg:h-24 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shadow-2xl shadow-accent/20">
               <img
-                src={`/assets/teamlogos/${match.team1Name.toLowerCase().replace(/ /g, '_')}.png`}
+                src={`/assets/teamlogos/${(match.team1Name || '').toLowerCase().replace(/ /g, '_')}.png`}
                 alt={match.team1Name}
                 className="w-full h-full object-cover"
                 onError={(e) => (e.currentTarget.style.display = 'none')}
@@ -358,7 +363,7 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
           <div className="flex-1 flex flex-col items-start gap-4">
             <div className="w-16 h-16 lg:w-24 lg:h-24 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shadow-2xl shadow-accent/20">
               <img
-                src={`/assets/teamlogos/${match.team2Name.toLowerCase().replace(/ /g, '_')}.png`}
+                src={`/assets/teamlogos/${(match.team2Name || '').toLowerCase().replace(/ /g, '_')}.png`}
                 alt={match.team2Name}
                 className="w-full h-full object-cover"
                 onError={(e) => (e.currentTarget.style.display = 'none')}
@@ -399,7 +404,7 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
           <div className="p-6 border-b border-white/5 bg-white/5 flex items-center gap-3">
             <div className="w-8 h-8 rounded bg-white/5 border border-white/10 overflow-hidden">
               <img
-                src={`/assets/teamlogos/${match.team1Name.toLowerCase().replace(/ /g, '_')}.png`}
+                src={`/assets/teamlogos/${(match.team1Name || '').toLowerCase().replace(/ /g, '_')}.png`}
                 alt={match.team1Name}
                 className="w-full h-full object-cover"
                 onError={(e) => (e.currentTarget.style.display = 'none')}
@@ -422,7 +427,7 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
             <h4 className="font-black uppercase tracking-widest text-gray-400">Team {match.team2Name}</h4>
             <div className="w-8 h-8 rounded bg-white/5 border border-white/10 overflow-hidden">
               <img
-                src={`/assets/teamlogos/${match.team2Name.toLowerCase().replace(/ /g, '_')}.png`}
+                src={`/assets/teamlogos/${(match.team2Name || '').toLowerCase().replace(/ /g, '_')}.png`}
                 alt={match.team2Name}
                 className="w-full h-full object-cover"
                 onError={(e) => (e.currentTarget.style.display = 'none')}

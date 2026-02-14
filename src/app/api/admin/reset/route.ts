@@ -17,18 +17,24 @@ export async function POST(request: Request) {
                     UPDATE matches 
                     SET winner_id = NULL, 
                         score1 = 0, 
-                        score2 = 0, 
+                        score2 = 0,
+                        wickets1 = 0,
+                        wickets2 = 0,
+                        overs1 = 0,
+                        overs2 = 0,
+                        balls1 = 0,
+                        balls2 = 0,
                         team1_summary = NULL, 
                         team2_summary = NULL, 
                         team1_bonus = 0, 
                         team2_bonus = 0, 
                         status = 'SCHEDULED'
                 `).run();
-                // Clear idea submissions (assuming there's a table for them, based on previous analysis of idea_submissions)
+                // Clear idea submissions (correct table is battle_ideas)
                 try {
-                    db.prepare('DELETE FROM idea_submissions').run();
+                    db.prepare('DELETE FROM battle_ideas').run();
                 } catch (e) {
-                    console.error('Failed to clear idea_submissions', e);
+                    console.error('Failed to clear battle_ideas', e);
                 }
                 break;
 

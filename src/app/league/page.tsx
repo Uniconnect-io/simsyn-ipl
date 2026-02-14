@@ -28,7 +28,12 @@ interface Match {
     winnerName: string | null;
     score1?: number;
     score2?: number;
+    wickets1?: number;
+    wickets2?: number;
+    overs1?: number;
+    overs2?: number;
     case_description?: string;
+    is_published?: number;
 }
 
 export default function LeaguePage() {
@@ -145,10 +150,10 @@ export default function LeaguePage() {
                                                 <span className="text-accent font-mono text-xs">
                                                     {new Date(match.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                                 </span>
-                                                {match.status === 'COMPLETED' ? (
+                                                {match.status === 'COMPLETED' && match.is_published ? (
                                                     <span className="bg-accent text-white px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest">RESULT</span>
-                                                ) : match.status === 'REVIEW_PENDING' ? (
-                                                    <span className="bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded text-[10px] font-bold">IN REVIEW</span>
+                                                ) : (match.status === 'REVIEW_PENDING' || (match.status === 'COMPLETED' && !match.is_published)) ? (
+                                                    <span className="bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded text-[10px] font-bold">DECISION PENDING</span>
                                                 ) : (
                                                     <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold">UPCOMING</span>
                                                 )}
@@ -168,11 +173,16 @@ export default function LeaguePage() {
                                                 </div>
 
                                                 <div className="flex flex-col items-center">
-                                                    {match.status === 'COMPLETED' ? (
-                                                        <div className="text-xl font-black text-white flex items-center gap-2">
-                                                            <span>{match.score1}</span>
-                                                            <span className="text-gray-600 font-normal text-xs">-</span>
-                                                            <span>{match.score2}</span>
+                                                    {match.status === 'COMPLETED' && match.is_published ? (
+                                                        <div className="flex flex-col items-center">
+                                                            <div className="text-xl font-black text-white flex items-center gap-2">
+                                                                <span className={match.winnerName === match.team1Name ? 'text-accent' : ''}>{match.score1}/{match.wickets1}</span>
+                                                                <span className="text-gray-600 font-normal text-xs">-</span>
+                                                                <span className={match.winnerName === match.team2Name ? 'text-accent' : ''}>{match.score2}/{match.wickets2}</span>
+                                                            </div>
+                                                            <div className="text-[10px] font-mono text-gray-500 mt-1">
+                                                                ({match.overs1 || 0} ov) vs ({match.overs2 || 0} ov)
+                                                            </div>
                                                         </div>
                                                     ) : (
                                                         <span className="text-gray-600 text-[10px] font-black italic">VS</span>

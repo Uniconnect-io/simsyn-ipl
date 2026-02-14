@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Play, CheckCircle, User, Award, Shield, LogOut, RefreshCw, Trophy, Edit2, X, Timer, List, Search, Settings } from 'lucide-react';
 import { motion } from 'framer-motion';
+import BattleHistoryTable from '@/components/BattleHistoryTable';
 
 interface Player {
     id: string;
@@ -171,9 +172,9 @@ export default function AdminPage() {
 
     const fetchBattleIdeas = async () => {
         try {
-            const res = await fetch('/api/admin/battle/ideas');
+            const res = await fetch('/api/battle/history');
             const data = await res.json();
-            setBattleIdeas(data);
+            setBattleIdeas(data.ideas || []);
         } catch (error) {
             console.error('Error fetching battle ideas:', error);
         }
@@ -385,9 +386,8 @@ export default function AdminPage() {
 
     const handleStartBattle = async (matchId: string, customCaseDesc: string = '') => {
         const finalDesc = customCaseDesc || caseDescription;
-        if (!finalDesc) return alert('Select a case or enter a description');
 
-        const res = await fetch('/api/battle/start', {
+        const res = await fetch('/api/admin/battle/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ matchId, caseDescription: finalDesc }),
@@ -399,7 +399,8 @@ export default function AdminPage() {
             setCaseDescription('');
             fetchPlayers();
         } else {
-            alert('Failed to start battle');
+            const data = await res.json();
+            alert(data.error || 'Failed to start battle');
         }
     };
 
@@ -429,6 +430,82 @@ export default function AdminPage() {
             }
         }
     };
+
+    const handleUpdateIdea = async (idea: any, weightedScore: number, breakdown: any) => {
+        try {
+            const res = await fetch('/api/battle/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ideaId: idea.id, weightedScore, breakdown }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                // Refresh data to reflect new scores
+                const matchesRes = await fetch('/api/league/schedule');
+                if (matchesRes.ok) setMatches(await matchesRes.json());
+
+                const ideasRes = await fetch('/api/battle/history');
+                if (ideasRes.ok) {
+                    const ideasData = await ideasRes.json();
+                    setBattleIdeas(ideasData.ideas);
+                }
+            } else {
+                alert('Failed to update score: ' + data.error);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Error updating score');
+        }
+    };
+
+    const handleUnpublishMatch = async (matchId: string) => {
+        if (!confirm('Are you sure you want to UNPUBLISH this match? This will REVERT the Points Table changes.')) return;
+
+        try {
+            const res = await fetch('/api/admin/battle/publish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ matchId, published: false }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Match unpublished successfully! Points table reverted.');
+                // Refresh matches to update status UI
+                const matchesRes = await fetch('/api/league/schedule');
+                if (matchesRes.ok) setMatches(await matchesRes.json());
+            } else {
+                alert('Failed to unpublish match: ' + data.error);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Error unpublishing match');
+        }
+    };
+
+    const handlePublishMatch = async (matchId: string) => {
+        if (!confirm('Are you sure you want to PUBLISH this match? This will update the Points Table and cannot be undone.')) return;
+
+        try {
+            const res = await fetch('/api/admin/battle/publish', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ matchId, published: true }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('Match published successfully! Points table updated.');
+                // Refresh matches to update status UI
+                const matchesRes = await fetch('/api/league/schedule');
+                if (matchesRes.ok) setMatches(await matchesRes.json());
+            } else {
+                alert('Failed to publish match: ' + data.error);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('Error publishing match');
+        }
+    };
+
 
     if (loading) return <div className="p-8">Loading...</div>;
 
@@ -785,88 +862,15 @@ export default function AdminPage() {
                             </div>
                         </div>
 
-                        <div className="space-y-6">
-                            {battleIdeas
-                                .filter(idea =>
-                                    idea.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                    idea.team_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                    idea.match_type.toLowerCase().includes(searchTerm.toLowerCase())
-                                )
-                                .map(idea => {
-                                    let scores = null;
-                                    try {
-                                        scores = JSON.parse(idea.feedback);
-                                    } catch (e) {
-                                        // Not JSON, just display as text
-                                    }
-
-                                    return (
-                                        <div key={idea.id} className="glass-card p-6 border-white/5 hover:border-accent/10 transition-all">
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="px-2 py-1 rounded bg-accent/20 text-accent text-[10px] font-black uppercase">
-                                                        {idea.match_type}
-                                                    </div>
-                                                    <div className="text-sm font-bold text-white">
-                                                        {idea.team_name}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500 italic">
-                                                        by {idea.captain_name}
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`px-2 py-1 rounded text-[10px] font-black ${idea.is_wicket ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}>
-                                                        {idea.is_wicket ? 'WICKET' : `+${idea.runs} RUNS`}
-                                                    </div>
-                                                    {idea.is_duplicate && (
-                                                        <div className="px-2 py-1 rounded bg-orange-500/20 text-orange-500 text-[10px] font-black">
-                                                            DUPLICATE
-                                                        </div>
-                                                    )}
-                                                    <div className="text-xs font-mono text-gray-400">
-                                                        Score: {Number(idea.score).toFixed(2)}/100
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <p className="text-gray-300 text-sm leading-relaxed mb-4 bg-black/40 p-4 rounded-xl border border-white/5 font-medium">
-                                                "{idea.content}"
-                                            </p>
-
-                                            {scores ? (
-                                                <div className="space-y-3">
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {Object.entries(scores).map(([key, value]: [string, any]) => (
-                                                            <div key={key} className="px-2 py-1 rounded bg-white/5 border border-white/10 flex items-center gap-2">
-                                                                <span className="text-[9px] uppercase font-bold text-gray-500">{key}</span>
-                                                                <span className={`text-[10px] font-black ${value >= 80 ? 'text-green-500' : value >= 60 ? 'text-accent' : 'text-orange-500'}`}>
-                                                                    {Number(value).toFixed(2)}
-                                                                </span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-start gap-3 bg-accent/5 p-3 rounded-lg border border-accent/10">
-                                                    <CheckCircle className="w-4 h-4 text-accent mt-0.5" />
-                                                    <p className="text-[11px] text-gray-400 italic leading-tight">
-                                                        <span className="text-accent font-bold uppercase mr-1">AI Feedback:</span> {idea.feedback}
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                        </div>
-                                    );
-                                })}
-
-                            {battleIdeas.length === 0 && (
-                                <div className="py-20 text-center glass-card border-dashed border-white/10 opacity-60">
-                                    <List className="w-12 h-12 text-gray-600 mx-auto mb-4 opacity-20" />
-                                    <h4 className="text-xl font-bold text-gray-500">No Battle Insights Yet</h4>
-                                    <p className="text-sm text-gray-600">Start a match battle to see innovation analytics here.</p>
-                                </div>
-                            )}
-                        </div>
+                        <BattleHistoryTable
+                            ideas={battleIdeas}
+                            matches={matches}
+                            searchTerm={searchTerm}
+                            editable={true}
+                            onUpdateIdea={handleUpdateIdea}
+                            onPublishMatch={handlePublishMatch}
+                            onUnpublishMatch={handleUnpublishMatch}
+                        />
                     </section>
                 )
             }

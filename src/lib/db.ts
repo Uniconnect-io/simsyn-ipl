@@ -72,7 +72,8 @@ db.exec(`
     team2_summary TEXT,
     team1_bonus INTEGER DEFAULT 0,
     team2_bonus INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'SCHEDULED'
+    status TEXT DEFAULT 'SCHEDULED',
+    is_published BOOLEAN DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS battle_ideas (
@@ -87,6 +88,9 @@ db.exec(`
     is_duplicate INTEGER DEFAULT 0,
     feedback TEXT,
     embedding TEXT,
+    ball_index INTEGER,
+    wicket_reason TEXT,
+    is_extra INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 

@@ -23,81 +23,21 @@ export default function CaptainPage() {
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loadingTeamData, setLoadingTeamData] = useState(false);
+    const [activeMatch, setActiveMatch] = useState<any>(null); // Kept for "Live Battle" badge indicator if needed, or remove if unused.
 
-    // Battle State
-    const [activeMatch, setActiveMatch] = useState<any>(null);
-    const [ideas, setIdeas] = useState<any[]>([]);
-    const [ideaInput, setIdeaInput] = useState('');
-    const [lastResult, setLastResult] = useState<any>(null);
-    const [pendingIdeas, setPendingIdeas] = useState<any[]>([]);
-
-    // History State
-    const [historyIdeas, setHistoryIdeas] = useState<any[]>([]);
-    const [loadingHistory, setLoadingHistory] = useState(false);
-    const [timeLeft, setTimeLeft] = useState<string>('');
-
-    // Timer Effect
-    useEffect(() => {
-        if (!activeMatch?.start_time || !activeMatch?.end_time) {
-            setTimeLeft('');
-            return;
-        }
-
-        const tick = () => {
-            const now = new Date();
-            const start = new Date(activeMatch.start_time);
-            const end = new Date(activeMatch.end_time);
-
-            // Time remaining for the countdown
-            const diffRemaining = end.getTime() - now.getTime();
-
-            // Time elapsed for the overs calculation
-            const elapsedMs = now.getTime() - start.getTime();
-            const elapsedSecs = Math.max(0, Math.floor(elapsedMs / 1000));
-            const totalBalls = Math.floor(elapsedSecs / 10);
-            const overs = Math.floor(totalBalls / 6);
-            const balls = totalBalls % 6;
-
-            const cricketTime = `${Math.min(20, overs)}.${balls} ov`;
-
-            if (diffRemaining <= 0) {
-                setTimeLeft('20.0 ov');
-                return;
-            }
-
-            const mins = Math.floor(diffRemaining / 60000);
-            const secs = Math.floor((diffRemaining % 60000) / 1000);
-            const mmss = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-
-            setTimeLeft(`${cricketTime} (${mmss} left)`);
-        };
-
-        tick();
-        const timer = setInterval(tick, 1000);
-        return () => clearInterval(timer);
-    }, [activeMatch?.start_time, activeMatch?.end_time]);
-
+    // Effect to check for active match to show badge (optional, but good UX)
     useEffect(() => {
         const fetchStatus = async () => {
-            if (!loggedInCaptain) return;
             try {
                 const res = await fetch('/api/battle/status');
                 const data = await res.json();
-                if (data.match) {
-                    setActiveMatch(data.match);
-                    setIdeas(data.ideas);
-                } else {
-                    setActiveMatch(null);
-                }
+                setActiveMatch(data.match);
             } catch (e) {
-                console.error('Status fetch error:', e);
+                console.error(e);
             }
         };
-
         fetchStatus();
-        const interval = setInterval(fetchStatus, 5000);
-        return () => clearInterval(interval);
-    }, [loggedInCaptain]);
+    }, []);
 
     useEffect(() => {
         const storedCaptain = localStorage.getItem('sipl_captain');
@@ -132,69 +72,6 @@ export default function CaptainPage() {
             }
         } finally {
             setLoadingTeamData(false);
-        }
-    };
-
-    const fetchHistory = async () => {
-        if (!loggedInCaptain?.team_id) return;
-        setLoadingHistory(true);
-        try {
-            const res = await fetch(`/api/captain/ideas?teamId=${loggedInCaptain.team_id}`);
-            const data = await res.json();
-            setHistoryIdeas(data);
-        } catch (e) {
-            console.error('History fetch error:', e);
-        } finally {
-            setLoadingHistory(false);
-        }
-    };
-
-    useEffect(() => {
-        if (loggedInCaptain?.team_id) {
-            fetchHistory();
-        }
-    }, [loggedInCaptain, activeMatch]); // Refresh history when match status changes
-
-    const handlePostIdea = async () => {
-        if (!ideaInput.trim() || !activeMatch || !loggedInCaptain) return;
-
-        const currentIdea = ideaInput;
-        const tempId = crypto.randomUUID();
-
-        // Instant Feedback: Add to pending and clear input
-        setPendingIdeas(prev => [{
-            id: tempId,
-            content: currentIdea,
-            isPending: true,
-            created_at: new Date().toISOString()
-        }, ...prev]);
-        setIdeaInput('');
-
-        try {
-            const res = await fetch('/api/battle/submit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    matchId: activeMatch.id,
-                    teamId: loggedInCaptain.team_id,
-                    captainId: loggedInCaptain.id,
-                    content: currentIdea
-                }),
-            });
-            const data = await res.json();
-            if (data.success) {
-                setLastResult(data);
-                // Remove from pending as it will be caught by status polling shortly
-                setTimeout(() => {
-                    setPendingIdeas(prev => prev.filter(i => i.id !== tempId));
-                }, 2000);
-            } else {
-                alert(data.error || 'Submission failed');
-                setPendingIdeas(prev => prev.filter(i => i.id !== tempId));
-            }
-        } catch (error) {
-            alert('Error submitting idea');
-            setPendingIdeas(prev => prev.filter(i => i.id !== tempId));
         }
     };
 
@@ -376,226 +253,42 @@ export default function CaptainPage() {
                                         </div>
                                     </section>
 
-                                    <section className="col-span-1 md:col-span-2">
-                                        {activeMatch ? (
-                                            <div className="glass-card p-8 border-red-500/30 bg-red-500/5 relative overflow-hidden">
-                                                <div className="absolute top-0 right-0 p-4">
-                                                    <div className="flex items-center gap-2 bg-red-500 text-white px-3 py-1 rounded-full text-[10px] font-black animate-pulse">
-                                                        <span className="w-1.5 h-1.5 bg-white rounded-full"></span>
-                                                        LIVE BATTLE
-                                                    </div>
+                                    <section className="flex flex-col gap-4">
+                                        <button
+                                            onClick={() => window.location.href = '/captain/live-battle'}
+                                            className={`flex-1 bg-gradient-to-br from-red-900/40 to-black border border-red-500/30 hover:border-red-500 p-8 rounded-2xl flex flex-col items-center justify-center gap-4 group transition-all ${activeMatch ? 'animate-pulse ring-2 ring-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : ''}`}
+                                        >
+                                            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center group-hover:scale-110 transition-transform relative">
+                                                <Shield className="w-8 h-8 text-red-500" />
+                                                {activeMatch && (
+                                                    <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-bounce">
+                                                        LIVE
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="text-center">
+                                                <h3 className="text-2xl font-black text-white mb-1">LIVE BATTLE</h3>
+                                                <p className="text-gray-400 text-sm">Enter the arena and lead your team</p>
+                                            </div>
+                                        </button>
+
+                                        <button
+                                            onClick={() => window.location.href = '/captain/history'}
+                                            className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 p-8 rounded-2xl flex items-center justify-between group transition-all"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center">
+                                                    <List className="w-6 h-6 text-gray-400" />
                                                 </div>
-
-                                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                                    <div className="lg:col-span-2 space-y-6">
-                                                        <div>
-                                                            <h4 className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-1">Case Study</h4>
-                                                            <div className="bg-black/60 border border-white/10 rounded-xl p-6 text-white text-sm leading-relaxed min-h-[120px]">
-                                                                {activeMatch.case_description}
-                                                            </div>
-                                                        </div>
-
-                                                        {((activeMatch.team1_id === loggedInCaptain.team_id && activeMatch.wickets1 < 10) ||
-                                                            (activeMatch.team2_id === loggedInCaptain.team_id && activeMatch.wickets2 < 10)) && (
-                                                                <div className="space-y-3">
-                                                                    <h4 className="text-[10px] text-gray-500 uppercase font-black tracking-widest px-1">Innovation Submission</h4>
-                                                                    <div className="relative">
-                                                                        <textarea
-                                                                            value={ideaInput}
-                                                                            onChange={(e) => setIdeaInput(e.target.value)}
-                                                                            placeholder="Describe your innovative solution here..."
-                                                                            className="w-full bg-black/40 border border-white/10 rounded-2xl p-6 pr-24 focus:border-red-500 outline-none text-white text-sm min-h-[100px] transition-all"
-                                                                        />
-                                                                        <button
-                                                                            onClick={handlePostIdea}
-                                                                            disabled={!ideaInput.trim()}
-                                                                            className="absolute bottom-4 right-4 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white px-6 py-2 rounded-xl text-xs font-black uppercase transition-all shadow-lg"
-                                                                        >
-                                                                            POST IDEA
-                                                                        </button>
-                                                                    </div>
-                                                                    {lastResult && (
-                                                                        <motion.div
-                                                                            initial={{ opacity: 0, y: 10 }}
-                                                                            animate={{ opacity: 1, y: 0 }}
-                                                                            className={`p-4 rounded-xl border flex items-center justify-between ${lastResult.wicket ? 'bg-red-500/10 border-red-500/20' : 'bg-green-500/10 border-green-500/20'
-                                                                                }`}
-                                                                        >
-                                                                            <div className="flex items-center gap-3">
-                                                                                <span className={`w-8 h-8 rounded-full flex items-center justify-center font-black ${lastResult.wicket ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
-                                                                                    }`}>
-                                                                                    {lastResult.wicket ? 'W' : lastResult.runs}
-                                                                                </span>
-                                                                                <div>
-                                                                                    <p className="text-xs font-bold text-white">
-                                                                                        {lastResult.wicket ? 'OUT!' : `${lastResult.runs} RUNS!`}
-                                                                                    </p>
-                                                                                    <p className="text-[10px] text-gray-500 mt-0.5">
-                                                                                        {lastResult.message || `Score: ${Number(lastResult.score).toFixed(2)}%`}
-                                                                                    </p>
-                                                                                </div>
-                                                                            </div>
-                                                                            {!lastResult.wicket && lastResult.breakdown && (
-                                                                                <div className="flex flex-wrap gap-1 max-w-[200px] justify-end">
-                                                                                    {Object.entries(lastResult.breakdown).map(([k, v]: [string, any]) => (
-                                                                                        <div key={k} className="text-[8px] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-gray-400">
-                                                                                            <span className="uppercase opacity-50 mr-1">{k.slice(0, 3)}:</span>
-                                                                                            <span className="font-bold text-accent">{Number(v).toFixed(2)}</span>
-                                                                                        </div>
-                                                                                    ))}
-                                                                                </div>
-                                                                            )}
-                                                                        </motion.div>
-                                                                    )}
-                                                                </div>
-                                                            )}
-                                                    </div>
-
-                                                    <div className="space-y-6">
-                                                        <div className="bg-black/80 rounded-2xl border border-white/10 p-6">
-                                                            <div className="flex justify-between items-center mb-6">
-                                                                <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Scoreboard</span>
-                                                                <div className="flex items-center gap-2 text-red-500 font-mono text-xs">
-                                                                    {timeLeft && <span className="mr-2 text-white bg-red-500/20 px-2 py-0.5 rounded animate-pulse">{timeLeft}</span>}
-                                                                    <RefreshCw className="w-3 h-3 animate-spin" /> LIVE
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="space-y-4">
-                                                                <div className="flex justify-between items-end">
-                                                                    <div>
-                                                                        <p className="text-[10px] text-gray-500 uppercase mb-1">{activeMatch.team1Name}</p>
-                                                                        <p className="text-2xl font-black text-white">{activeMatch.score1}/{activeMatch.wickets1}</p>
-                                                                    </div>
-                                                                    <p className="text-xs text-gray-600 font-mono mb-1">{Number(activeMatch.overs1).toFixed(1)} ov</p>
-                                                                </div>
-                                                                <div className="w-full h-px bg-white/5"></div>
-                                                                <div className="flex justify-between items-end">
-                                                                    <div>
-                                                                        <p className="text-[10px] text-gray-500 uppercase mb-1">{activeMatch.team2Name}</p>
-                                                                        <p className="text-2xl font-black text-white">{activeMatch.score2}/{activeMatch.wickets2}</p>
-                                                                    </div>
-                                                                    <p className="text-xs text-gray-600 font-mono mb-1">{Number(activeMatch.overs2).toFixed(1)} ov</p>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="bg-white/5 rounded-2xl p-6 border border-white/5">
-                                                            <h5 className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-4">Live Activity</h5>
-                                                            <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                                                                {[...pendingIdeas, ...ideas]
-                                                                    .filter(idea => idea.team_id === loggedInCaptain.team_id || idea.isPending)
-                                                                    .slice(0, 10)
-                                                                    .map((idea: any) => (
-                                                                        <div key={idea.id} className={`flex items-center justify-between p-2 rounded-lg bg-black/20 border ${idea.isPending ? 'border-accent/40 animate-pulse' : 'border-white/5'}`}>
-                                                                            <div className="flex items-center gap-2">
-                                                                                <div className={`w-6 h-6 rounded flex items-center justify-center text-[10px] font-black ${idea.isPending ? 'bg-gray-700' : idea.is_wicket ? 'bg-red-500' : 'bg-green-500'
-                                                                                    }`}>
-                                                                                    {idea.isPending ? '...' : idea.is_wicket ? 'W' : idea.runs}
-                                                                                </div>
-                                                                                <p className="text-[10px] text-gray-400 truncate max-w-[100px]">{idea.content}</p>
-                                                                            </div>
-                                                                            <span className="text-[8px] text-gray-600">
-                                                                                {idea.isPending ? 'Pending' : new Date(idea.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                            </span>
-                                                                        </div>
-                                                                    ))}
-                                                            </div>
-                                                        </div>
-                                                    </div>
+                                                <div className="text-left">
+                                                    <h3 className="text-xl font-bold text-white">Submission History</h3>
+                                                    <p className="text-gray-500 text-xs">View past ideas and scores</p>
                                                 </div>
                                             </div>
-                                        ) : (
-                                            <div className="glass-card p-12 text-center border-dashed border-white/10 opacity-60">
-                                                <RefreshCw className="w-12 h-12 text-gray-600 mx-auto mb-4 opacity-20" />
-                                                <h4 className="text-xl font-bold text-gray-500">Awaiting Match Orders</h4>
-                                                <p className="text-sm text-gray-600">The Admin has not initiated any live Match Battles yet.</p>
-                                            </div>
-                                        )}
+                                            <ArrowRight className="w-6 h-6 text-gray-500 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                                        </button>
                                     </section>
                                 </div>
-
-                                {/* History Section */}
-                                <section className="mt-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-                                    <div className="flex justify-between items-center mb-6">
-                                        <h3 className="text-xl font-black uppercase tracking-widest flex items-center gap-2">
-                                            <List className="text-accent w-5 h-5" /> Idea Submission History
-                                        </h3>
-                                        <button
-                                            onClick={fetchHistory}
-                                            className="text-[10px] text-gray-500 hover:text-white uppercase font-bold flex items-center gap-1 transition-all"
-                                        >
-                                            <RefreshCw className={`w-3 h-3 ${loadingHistory ? 'animate-spin' : ''}`} /> Refresh History
-                                        </button>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        {historyIdeas.map((idea) => (
-                                            <motion.div
-                                                key={idea.id}
-                                                initial={{ opacity: 0 }}
-                                                animate={{ opacity: 1 }}
-                                                className="glass-card p-5 border-white/5 hover:border-accent/10 transition-all"
-                                            >
-                                                <div className="flex justify-between items-start mb-3">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="px-2 py-0.5 rounded bg-accent/20 text-accent text-[9px] font-black uppercase">
-                                                            {idea.match_type}
-                                                        </div>
-                                                        <div className="text-[10px] text-gray-500 font-mono">
-                                                            VS {idea.team_id === activeMatch?.team1_id ? idea.team2_name : idea.team1_name}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`px-2 py-0.5 rounded text-[9px] font-black ${idea.is_wicket ? 'bg-red-500/20 text-red-500' : 'bg-green-500/20 text-green-500'}`}>
-                                                            {idea.is_wicket ? 'WICKET' : `+${idea.runs} RUNS`}
-                                                        </div>
-                                                        <span className="text-[10px] font-mono text-gray-600">
-                                                            {new Date(idea.created_at).toLocaleDateString()}
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <p className="text-gray-300 text-sm italic mb-3">
-                                                    "{idea.content}"
-                                                </p>
-
-                                                {idea.feedback && (() => {
-                                                    let feedbackObj = null;
-                                                    try {
-                                                        feedbackObj = JSON.parse(idea.feedback);
-                                                    } catch (e) { }
-
-                                                    return feedbackObj ? (
-                                                        <div className="flex flex-wrap gap-2 mt-2">
-                                                            {Object.entries(feedbackObj).map(([key, value]: [string, any]) => (
-                                                                <div key={key} className="px-2 py-0.5 rounded bg-white/5 border border-white/10 flex items-center gap-2">
-                                                                    <span className="text-[8px] uppercase font-bold text-gray-500">{key}</span>
-                                                                    <span className={`text-[9px] font-black ${value >= 80 ? 'text-green-500' : value >= 60 ? 'text-accent' : 'text-orange-500'}`}>
-                                                                        {Number(value).toFixed(2)}
-                                                                    </span>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    ) : (
-                                                        <div className="bg-black/40 p-3 rounded-lg border border-white/5 flex items-start gap-2">
-                                                            <CheckCircle className="w-3 h-3 text-accent mt-0.5 shrink-0" />
-                                                            <p className="text-[10px] text-gray-400 leading-normal">
-                                                                <span className="text-accent font-bold uppercase mr-1">Feedback:</span> {idea.feedback}
-                                                            </p>
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </motion.div>
-                                        ))}
-
-                                        {historyIdeas.length === 0 && !loadingHistory && (
-                                            <div className="py-12 text-center glass-card border-dashed border-white/10 opacity-60">
-                                                <p className="text-sm text-gray-600">No submission history found for your team.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </section>
                             </div>
                         ) : (loggedInCaptain && loggedInCaptain.team_id) ? (
                             <div className="glass-card p-12 text-center border-red-500/20">

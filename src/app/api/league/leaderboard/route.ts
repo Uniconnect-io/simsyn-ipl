@@ -4,7 +4,7 @@ import db from '@/lib/db';
 export async function GET() {
     try {
         const teams = db.prepare('SELECT id, name FROM teams').all() as any[];
-        const matches = db.prepare("SELECT * FROM matches WHERE status IN ('COMPLETED', 'IN_PROGRESS')").all() as any[];
+        const matches = db.prepare("SELECT * FROM matches WHERE is_published = 1 OR status = 'IN_PROGRESS'").all() as any[];
 
         const leaderboard = teams.map(team => {
             let played = 0;
