@@ -154,13 +154,13 @@ export async function POST(request: Request) {
 
         // 2. HARD VALIDATION (Pre-AI)
         // Basic content validation
-        if (!content || content.trim().length < 40) {
+        if (!content || content.trim().length < 20) {
             return NextResponse.json({
                 success: true,
                 runs: 0,
                 wicket: true,
                 wicketReason: "Invalid Submission",
-                message: "Submission too short (min 40 chars). Please elaborate."
+                message: "Submission too short (min 20 chars). Please elaborate."
             });
         }
 
@@ -228,7 +228,7 @@ export async function POST(request: Request) {
                 const relevanceScore = cosineSimilarity(currentEmbedding, caseEmbedding);
                 console.log("Relevance Score:", relevanceScore);
 
-                if (relevanceScore < 0.60) {
+                if (relevanceScore < 0.12) {
                     const colWickets = isTeam1 ? 'wickets1' : 'wickets2';
                     db.prepare(`UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`).run(matchId);
 
@@ -242,7 +242,7 @@ export async function POST(request: Request) {
                         success: true,
                         runs: 0,
                         wicket: true,
-                        wicketReason: "Irrelevant Idea (< 60% match)",
+                        wicketReason: "Irrelevant Idea (< 12% match)",
                         message: "Idea is not relevant to the case."
                     });
                 }
