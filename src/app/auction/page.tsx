@@ -84,7 +84,15 @@ export default function AuctionPage() {
         }
 
         const myTeam = teams.find(t => t.id === myTeamId);
-        if (myTeam && amount > myTeam.balance) {
+        if (!myTeam) return;
+
+        // Check for max team size (5 players + captain = 6 total)
+        if (myTeam.players.length >= 5) {
+            alert('Your team is full! You have 5 players (Total 6 with Captain).');
+            return;
+        }
+
+        if (amount > myTeam.balance) {
             alert('Insufficient tokens for this bid!');
             return;
         }
@@ -117,12 +125,7 @@ export default function AuctionPage() {
                         <p className="text-gray-400 text-xs">Simsyn Innovation Premier League</p>
                     </div>
                 </div>
-                {timeLeft !== null && (
-                    <div className={`glass-card px-4 py-2 flex items-center gap-3 border-2 ${timeLeft < 10 ? 'border-red-500 animate-pulse' : 'border-accent'}`}>
-                        <Timer className={`w-5 h-5 ${timeLeft < 10 ? 'text-red-500' : 'text-accent'}`} />
-                        <span className="text-2xl font-mono font-bold leading-none">{timeLeft}s</span>
-                    </div>
-                )}
+
             </header>
 
             <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
@@ -137,6 +140,14 @@ export default function AuctionPage() {
                                 exit={{ opacity: 0, scale: 1.05 }}
                                 className="glass-card flex-1 p-6 flex flex-col border-accent/30 bg-gradient-to-br from-accent/5 to-transparent relative overflow-hidden"
                             >
+                                {/* Timer Badge */}
+                                {timeLeft !== null && (
+                                    <div className={`absolute top-0 left-0 px-4 py-1 rounded-br-xl font-black text-xs tracking-widest z-10 flex items-center gap-2 border-r border-b ${timeLeft < 10 ? 'bg-red-500 text-white border-red-600 animate-pulse' : 'bg-black/60 text-accent border-accent/20'}`}>
+                                        <Timer className="w-3 h-3" />
+                                        <span className="text-lg leading-none">{timeLeft}s</span>
+                                    </div>
+                                )}
+
                                 {/* Active Player Badge */}
                                 <div className="absolute top-0 right-0 bg-accent text-black px-4 py-1 rounded-bl-xl font-black text-xs tracking-widest z-10">
                                     POOL {auction.pool}
@@ -195,32 +206,54 @@ export default function AuctionPage() {
 
                                     {/* Bidding Controls */}
                                     {myTeamId && (
-                                        <div className="space-y-3">
-                                            {!auction.currentBidderName && (
-                                                <button
-                                                    onClick={() => handleBid(auction.basePrice || 0)}
-                                                    className="w-full bg-accent hover:bg-yellow-400 text-black font-black py-3 rounded-xl transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <TrendingUp className="w-5 h-5" /> BID BASE PRICE
-                                                </button>
-                                            )}
-                                            <div className="grid grid-cols-4 gap-2">
-                                                {[10000, 25000, 50000, 100000].map(inc => (
-                                                    <button
-                                                        key={inc}
-                                                        onClick={() => handleBid((auction.currentBid || 0) + inc)}
-                                                        className="bg-white/10 hover:bg-white/20 py-2 rounded-lg font-bold text-sm transition-all"
-                                                    >
-                                                        +{inc / 1000}k
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            <button
-                                                onClick={() => handleBid((auction.currentBid || 0) + 5000)}
-                                                className="w-full btn-primary py-3 font-bold text-lg"
-                                            >
-                                                PLACE BID {((auction.currentBid || 0) + 5000).toLocaleString()}
-                                            </button>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {(() => {
+                                                const currentAmount = auction.currentBid || 0;
+                                                const baseAmount = auction.basePrice || 0;
+
+                                                let bidOptions: number[] = [];
+
+                                                if (!auction.currentBidderName) {
+                                                    // Base Phase: Base, +5k, +10k, +25k, +50k, +100k
+                                                    bidOptions = [
+                                                        baseAmount,
+                                                        baseAmount + 5000,
+                                                        baseAmount + 10000,
+                                                        baseAmount + 25000,
+                                                        baseAmount + 50000,
+                                                        baseAmount + 100000
+                                                    ];
+                                                } else {
+                                                    // Active Phase: +5k, +10k, +25k, +50k, +75k, +100k
+                                                    const base = currentAmount;
+                                                    bidOptions = [
+                                                        base + 5000,
+                                                        base + 10000,
+                                                        base + 25000,
+                                                        base + 50000,
+                                                        base + 75000,
+                                                        base + 100000
+                                                    ];
+                                                }
+
+                                                return bidOptions.map(amount => {
+                                                    const effectiveBase = auction.currentBid && auction.currentBid > 0 ? auction.currentBid : baseAmount;
+                                                    const isBaseBid = amount === baseAmount && !auction.currentBidderName;
+
+                                                    return (
+                                                        <button
+                                                            key={amount}
+                                                            onClick={() => handleBid(amount)}
+                                                            className="bg-white/10 hover:bg-accent hover:text-black py-3 rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group"
+                                                        >
+                                                            <span className="text-[10px] font-medium text-gray-400 group-hover:text-black/60 uppercase tracking-widest">
+                                                                {isBaseBid ? 'Bid Base' : `+${(amount - effectiveBase) / 1000}k`}
+                                                            </span>
+                                                            <span className="text-base">{amount.toLocaleString()}</span>
+                                                        </button>
+                                                    );
+                                                });
+                                            })()}
                                         </div>
                                     )}
                                 </div>
@@ -278,6 +311,11 @@ export default function AuctionPage() {
                                             <div className="min-w-0">
                                                 <h3 className="font-black text-lg truncate leading-tight">{team.name}</h3>
                                                 <p className="text-[10px] text-gray-400 mt-0.5 font-bold">Rank #{idx + 1}</p>
+                                                {team.captain && (
+                                                    <p className="text-[10px] text-accent mt-0.5 font-bold truncate flex items-center gap-1">
+                                                        <span className="text-gray-500">C:</span> {team.captain.name}
+                                                    </p>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0">
