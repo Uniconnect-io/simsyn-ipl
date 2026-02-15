@@ -3,9 +3,15 @@ import db from '@/lib/db';
 
 export async function GET() {
     try {
-        const teams = db.prepare('SELECT * FROM teams').all() as any[];
-        const players = db.prepare('SELECT id, name, team_id, rating FROM players WHERE team_id IS NOT NULL').all() as any[];
-        const captains = db.prepare('SELECT id, name, team_id FROM captains').all() as any[];
+        const [teamsRs, playersRs, captainsRs] = await Promise.all([
+            db.execute('SELECT * FROM teams'),
+            db.execute('SELECT id, name, team_id, rating FROM players WHERE team_id IS NOT NULL'),
+            db.execute('SELECT id, name, team_id FROM captains')
+        ]);
+
+        const teams = teamsRs.rows as any[];
+        const players = playersRs.rows as any[];
+        const captains = captainsRs.rows as any[];
 
         const teamsWithPlayers = teams.map(team => ({
             ...team,

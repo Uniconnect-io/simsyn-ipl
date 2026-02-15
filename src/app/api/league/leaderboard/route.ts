@@ -3,8 +3,13 @@ import db from '@/lib/db';
 
 export async function GET() {
     try {
-        const teams = db.prepare('SELECT id, name FROM teams').all() as any[];
-        const matches = db.prepare("SELECT * FROM matches WHERE is_published = 1 OR status = 'IN_PROGRESS'").all() as any[];
+        const [teamsRs, matchesRs] = await Promise.all([
+            db.execute('SELECT id, name FROM teams'),
+            db.execute("SELECT * FROM matches WHERE is_published = 1 OR status = 'IN_PROGRESS'")
+        ]);
+
+        const teams = teamsRs.rows as any[];
+        const matches = matchesRs.rows as any[];
 
         const leaderboard = teams.map(team => {
             let played = 0;

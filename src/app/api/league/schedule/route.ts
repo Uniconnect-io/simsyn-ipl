@@ -3,7 +3,7 @@ import db from '@/lib/db';
 
 export async function GET() {
   try {
-    const matches = db.prepare(`
+    const rs = await db.execute(`
       SELECT 
         m.*, 
         t1.name as team1Name, 
@@ -14,7 +14,8 @@ export async function GET() {
       LEFT JOIN teams t2 ON m.team2_id = t2.id
       LEFT JOIN teams w ON m.winner_id = w.id
       ORDER BY m.date ASC, m.id ASC
-    `).all();
+    `);
+    const matches = rs.rows;
 
     return NextResponse.json(matches);
   } catch (error) {

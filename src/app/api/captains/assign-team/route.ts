@@ -21,7 +21,12 @@ export async function POST(request: Request) {
             captain_id: string | null;
         }
 
-        const captain = db.prepare('SELECT * FROM captains WHERE id = ?').get(captainId) as Captain | undefined;
+        const captainRs = await db.execute({
+            sql: 'SELECT * FROM captains WHERE id = ?',
+            args: [captainId]
+        });
+        const captain = captainRs.rows[0] as unknown as Captain | undefined;
+
         if (!captain) {
             return NextResponse.json({ error: 'Captain not found' }, { status: 404 });
         }
@@ -30,7 +35,9 @@ export async function POST(request: Request) {
         }
 
         // Get available teams
-        const availableTeams = db.prepare('SELECT * FROM teams WHERE captain_id IS NULL').all() as Team[];
+        const teamsRs = await db.execute('SELECT * FROM teams WHERE captain_id IS NULL');
+        const availableTeams = teamsRs.rows as unknown as Team[];
+
         if (availableTeams.length === 0) {
             return NextResponse.json({ error: 'No teams available' }, { status: 400 });
         }
@@ -39,15 +46,16 @@ export async function POST(request: Request) {
         const randomTeam = availableTeams[Math.floor(Math.random() * availableTeams.length)];
 
         // Assign team to captain and captain to team
-        const updateTeam = db.prepare('UPDATE teams SET captain_id = ? WHERE id = ?');
-        const updateCaptain = db.prepare('UPDATE captains SET team_id = ? WHERE id = ?');
-
-        const transaction = db.transaction(() => {
-            updateTeam.run(captainId, randomTeam.id);
-            updateCaptain.run(randomTeam.id, captainId);
-        });
-
-        transaction();
+        await db.batch([
+            {
+                sql: 'UPDATE teams SET captain_id = ? WHERE id = ?',
+                args: [captainId, randomTeam.id]
+            },
+            {
+                sql: 'UPDATE captains SET team_id = ? WHERE id = ?',
+                args: [randomTeam.id, captainId]
+            }
+        ], 'write');
 
         return NextResponse.json({
             success: true,

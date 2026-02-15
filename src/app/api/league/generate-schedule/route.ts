@@ -3,7 +3,8 @@ import db from '@/lib/db';
 
 export async function POST() {
   try {
-    const teams = db.prepare('SELECT id FROM teams').all() as { id: string }[];
+    const teamsRs = await db.execute('SELECT id FROM teams');
+    const teams = teamsRs.rows as unknown as { id: string }[];
     if (teams.length < 2) { // Allow testing with fewer teams, though 6 is ideal
       // But keeping it robust
     }
@@ -16,7 +17,7 @@ export async function POST() {
     const teamIds = teams.map(t => t.id);
 
     // Clear existing matches
-    db.prepare('DELETE FROM matches').run();
+    await db.execute('DELETE FROM matches');
 
     // Round Robin (Circle Algorithm)
     const n = teamIds.length;
@@ -109,26 +110,22 @@ export async function POST() {
       });
     }
 
-    const insertMatch = db.prepare(`
-      INSERT INTO matches (id, team1_id, team2_id, month, status, date, type, case_description) 
-      VALUES (?, ?, ?, ?, 'SCHEDULED', ?, ?, ?)
-    `);
+    const stmts = finalMatches.map(m => ({
+      sql: `INSERT INTO matches (id, team1_id, team2_id, month, status, date, type, case_description) VALUES (?, ?, ?, ?, 'SCHEDULED', ?, ?, ?)`,
+      args: [
+        m.id,
+        m.team1_id,
+        m.team2_id,
+        m.month,
+        m.date,
+        m.type,
+        m.case_description || null
+      ]
+    }));
 
-    const transaction = db.transaction(() => {
-      finalMatches.forEach(m => {
-        insertMatch.run(
-          m.id,
-          m.team1_id,
-          m.team2_id,
-          m.month,
-          m.date,
-          m.type,
-          m.case_description || null
-        );
-      });
-    });
-
-    transaction();
+    if (stmts.length > 0) {
+      await db.batch(stmts, 'write');
+    }
 
     return NextResponse.json({ success: true, count: finalMatches.length });
   } catch (error) {

@@ -3,7 +3,7 @@ import db from '@/lib/db';
 
 export async function GET() {
   try {
-    const auction = db.prepare(`
+    const auctionRs = await db.execute(`
       SELECT 
         a.id, 
         a.player_id as playerId, 
@@ -21,11 +21,13 @@ export async function GET() {
       JOIN players p ON a.player_id = p.id
       LEFT JOIN teams t ON a.current_bidder_id = t.id
       WHERE a.status = 'ACTIVE'
-    `).get() as any;
+    `);
+    const auction = auctionRs.rows[0];
 
     if (!auction) {
       // Find next player to auction if none active
-      const nextPlayer = db.prepare("SELECT * FROM players WHERE is_auctioned = 0 LIMIT 1").get();
+      const nextPlayerRs = await db.execute("SELECT * FROM players WHERE is_auctioned = 0 LIMIT 1");
+      const nextPlayer = nextPlayerRs.rows[0];
       return NextResponse.json({ status: 'IDLE', nextPlayer });
     }
 

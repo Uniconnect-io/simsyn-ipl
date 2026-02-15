@@ -7,11 +7,22 @@ export async function GET(
 ) {
     try {
         const { id: teamId } = await params;
-        const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(teamId);
+
+        const teamRs = await db.execute({
+            sql: 'SELECT * FROM teams WHERE id = ?',
+            args: [teamId]
+        });
+        const team = teamRs.rows[0];
+
         if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
 
-        const players = db.prepare('SELECT * FROM players WHERE team_id = ?').all(teamId);
-        const captain = db.prepare('SELECT * FROM captains WHERE team_id = ?').get(teamId);
+        const [playersRs, captainRs] = await Promise.all([
+            db.execute({ sql: 'SELECT * FROM players WHERE team_id = ?', args: [teamId] }),
+            db.execute({ sql: 'SELECT * FROM captains WHERE team_id = ?', args: [teamId] })
+        ]);
+
+        const players = playersRs.rows;
+        const captain = captainRs.rows[0];
 
         return NextResponse.json({ ...team, players, captain });
     } catch (error) {

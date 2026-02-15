@@ -9,7 +9,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const auction = db.prepare("SELECT * FROM auctions WHERE player_id = ? AND status = 'ACTIVE'").get(playerId) as any;
+    const auctionRs = await db.execute({
+      sql: "SELECT * FROM auctions WHERE player_id = ? AND status = 'ACTIVE'",
+      args: [playerId]
+    });
+    const auction = auctionRs.rows[0] as any;
+
     if (!auction) {
       return NextResponse.json({ error: 'No active auction for this player' }, { status: 404 });
     }
@@ -35,7 +40,12 @@ export async function POST(request: Request) {
     }
 
     // Check team balance
-    const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(teamId) as any;
+    const teamRs = await db.execute({
+      sql: 'SELECT * FROM teams WHERE id = ?',
+      args: [teamId]
+    });
+    const team = teamRs.rows[0] as any;
+
     if (!team) {
       return NextResponse.json({ error: 'Team not found' }, { status: 404 });
     }
@@ -46,23 +56,16 @@ export async function POST(request: Request) {
     // Update auction and timer
     const timerEnd = new Date(Date.now() + 30 * 1000).toISOString();
 
-    const updateAuction = db.prepare(`
-      UPDATE auctions 
-      SET current_bid = ?, current_bidder_id = ?, timer_end = ? 
-      WHERE id = ?
-    `);
-
-    const insertBid = db.prepare(`
-      INSERT INTO bids (id, player_id, team_id, amount) 
-      VALUES (?, ?, ?, ?)
-    `);
-
-    const transaction = db.transaction(() => {
-      updateAuction.run(amount, teamId, timerEnd, auction.id);
-      insertBid.run(crypto.randomUUID(), playerId, teamId, amount);
-    });
-
-    transaction();
+    await db.batch([
+      {
+        sql: `UPDATE auctions SET current_bid = ?, current_bidder_id = ?, timer_end = ? WHERE id = ?`,
+        args: [amount, teamId, timerEnd, auction.id]
+      },
+      {
+        sql: `INSERT INTO bids (id, player_id, team_id, amount) VALUES (?, ?, ?, ?)`,
+        args: [crypto.randomUUID(), playerId, teamId, amount]
+      }
+    ], 'write');
 
     return NextResponse.json({ success: true, timer_end: timerEnd });
   } catch (error) {

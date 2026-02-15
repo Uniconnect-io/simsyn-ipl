@@ -10,7 +10,12 @@ export async function POST(request: Request) {
         }
 
         // 1. Determine Winner
-        const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId) as any;
+        const matchRs = await db.execute({
+            sql: 'SELECT * FROM matches WHERE id = ?',
+            args: [matchId]
+        });
+        const match = matchRs.rows[0] as any;
+
         if (!match) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
 
         let winnerId = null;
@@ -18,14 +23,16 @@ export async function POST(request: Request) {
         else if (match.score2 > match.score1) winnerId = match.team2_id;
 
         // 2. Update Match
-        const stmt = db.prepare(`
+        const result = await db.execute({
+            sql: `
             UPDATE matches 
             SET is_published = 1, winner_id = ?, status = 'COMPLETED'
             WHERE id = ?
-        `);
-        const result = stmt.run(winnerId, matchId);
+        `,
+            args: [winnerId, matchId]
+        });
 
-        if (result.changes === 0) {
+        if (result.rowsAffected === 0) {
             // Maybe column doesn't exist? Check schema or error will be thrown
             // If it throws, we catch it below.
             // If it runs but changes 0, matchId wrong?

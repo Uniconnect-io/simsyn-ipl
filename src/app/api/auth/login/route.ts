@@ -6,12 +6,22 @@ export async function POST(request: Request) {
         const { id, password, type } = await request.json();
 
         if (type === 'admin') {
-            const admin = db.prepare('SELECT id, username as name FROM admins WHERE username = ? AND password = ?').get(id, password) as any;
+            const rs = await db.execute({
+                sql: 'SELECT id, username as name, role FROM admins WHERE username = ? AND password = ?',
+                args: [id, password]
+            });
+            const admin = rs.rows[0];
+
             if (admin) {
                 return NextResponse.json({ success: true, user: { ...admin, role: 'ADMIN' } });
             }
         } else {
-            const captain = db.prepare('SELECT id, name, team_id, role, password_reset_required FROM captains WHERE id = ? AND password = ?').get(id, password) as any;
+            const rs = await db.execute({
+                sql: 'SELECT id, name, team_id, role, password_reset_required FROM captains WHERE id = ? AND password = ?',
+                args: [id, password]
+            });
+            const captain = rs.rows[0];
+
             if (captain) {
                 return NextResponse.json({ success: true, user: captain });
             }

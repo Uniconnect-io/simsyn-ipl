@@ -9,13 +9,16 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        const result = db.prepare(`
+        const result = await db.execute({
+            sql: `
             UPDATE captains 
             SET password = ?, password_reset_required = 0 
             WHERE id = ?
-        `).run(newPassword, id);
+        `,
+            args: [newPassword, id]
+        });
 
-        if (result.changes === 0) {
+        if (result.rowsAffected === 0) {
             return NextResponse.json({ error: 'Captain not found' }, { status: 404 });
         }
 

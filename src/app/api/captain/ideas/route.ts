@@ -10,7 +10,8 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Team ID is required' }, { status: 400 });
         }
 
-        const ideas = db.prepare(`
+        const rs = await db.execute({
+            sql: `
             SELECT 
                 bi.*,
                 m.type as match_type,
@@ -22,7 +23,10 @@ export async function GET(request: Request) {
             JOIN teams t2 ON m.team2_id = t2.id
             WHERE bi.team_id = ?
             ORDER BY bi.created_at DESC
-        `).all(teamId);
+        `,
+            args: [teamId]
+        });
+        const ideas = rs.rows;
 
         return NextResponse.json(ideas);
     } catch (error) {

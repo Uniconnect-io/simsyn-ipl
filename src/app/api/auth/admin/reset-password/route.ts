@@ -10,13 +10,16 @@ export async function POST(request: Request) {
         }
 
         // Reset password to 'sipl2026' and require reset on next login
-        const result = db.prepare(`
+        const result = await db.execute({
+            sql: `
             UPDATE captains 
             SET password = 'sipl2026', password_reset_required = 1 
             WHERE id = ?
-        `).run(captainId);
+        `,
+            args: [captainId]
+        });
 
-        if (result.changes === 0) {
+        if (result.rowsAffected === 0) {
             return NextResponse.json({ error: 'Captain not found' }, { status: 404 });
         }
 

@@ -10,10 +10,13 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        db.prepare(`
+        await db.execute({
+            sql: `
             INSERT INTO idea_submissions (id, match_id, team_id, captain_id, content)
             VALUES (?, ?, ?, ?, ?)
-        `).run(randomUUID(), matchId, teamId, captainId, content);
+        `,
+            args: [randomUUID(), matchId, teamId, captainId, content]
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {
