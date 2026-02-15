@@ -10,7 +10,18 @@ export async function POST(request: Request) {
         }
 
         // Check if captain already has a team
-        const captain = db.prepare('SELECT * FROM captains WHERE id = ?').get(captainId);
+        interface Captain {
+            id: string;
+            team_id: string | null;
+        }
+
+        interface Team {
+            id: string;
+            name: string;
+            captain_id: string | null;
+        }
+
+        const captain = db.prepare('SELECT * FROM captains WHERE id = ?').get(captainId) as Captain | undefined;
         if (!captain) {
             return NextResponse.json({ error: 'Captain not found' }, { status: 404 });
         }
@@ -19,7 +30,7 @@ export async function POST(request: Request) {
         }
 
         // Get available teams
-        const availableTeams = db.prepare('SELECT * FROM teams WHERE captain_id IS NULL').all();
+        const availableTeams = db.prepare('SELECT * FROM teams WHERE captain_id IS NULL').all() as Team[];
         if (availableTeams.length === 0) {
             return NextResponse.json({ error: 'No teams available' }, { status: 400 });
         }
