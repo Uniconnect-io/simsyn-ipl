@@ -87,15 +87,17 @@ async function getAIScores(caseText: string, idea: string) {
                 content: `You are a STRICT innovation judge.
 
 Rules:
-1. If the idea is not clearly solving the provided case, return ALL scores = 0.
-2. If the idea is vague, generic, or unrelated, return ALL scores = 0.
-3. If the idea is a greeting, question, test input, or nonsense text, return ALL scores = 0.
+1. If the idea is completely unrelated to the case, return ALL scores = 0.
+2. If the idea is nonsense (e.g., "adsf"), greeting (e.g., "hi"), or testing, return ALL scores = 0.
+3. If the idea is generic but relevant, score it low (e.g., 30-50), DO NOT return 0.
+4. Only return 0 if the input is truly invalid or spam.
 4. Only score ideas that provide a concrete solution relevant to the case.
 5. If unsure, return 0.
+6. SCORING SCALE: 0 to 100 (where 0 is irrelevant, 100 is transformative).
 
 Return JSON only.`
             },
-            { role: "user", content: `Case: ${caseText}\nIdea: ${idea}\nReturn ONLY JSON: {"alignment": number, "feasibility": number, "value": number, "effort": number, "innovation": number}` }
+            { role: "user", content: `Case: ${caseText}\nIdea: ${idea}\nReturn ONLY JSON: {"alignment": number (0-100), "feasibility": number (0-100), "value": number (0-100), "effort": number (0-100), "innovation": number (0-100)}` }
         ],
     });
 

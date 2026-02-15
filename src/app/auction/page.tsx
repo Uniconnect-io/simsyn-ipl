@@ -97,6 +97,11 @@ export default function AuctionPage() {
             return;
         }
 
+        if (auction.currentBidderId === myTeamId) {
+            alert('You are already the highest bidder!');
+            return;
+        }
+
         try {
             const res = await fetch('/api/auction/place-bid', {
                 method: 'POST',
@@ -239,14 +244,19 @@ export default function AuctionPage() {
                                                 return bidOptions.map(amount => {
                                                     const effectiveBase = auction.currentBid && auction.currentBid > 0 ? auction.currentBid : baseAmount;
                                                     const isBaseBid = amount === baseAmount && !auction.currentBidderName;
+                                                    const isLeading = auction.currentBidderId === myTeamId;
 
                                                     return (
                                                         <button
                                                             key={amount}
                                                             onClick={() => handleBid(amount)}
-                                                            className="bg-white/10 hover:bg-accent hover:text-black py-3 rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group"
+                                                            disabled={isLeading}
+                                                            className={`py-3 rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group ${isLeading
+                                                                    ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
+                                                                    : 'bg-white/10 hover:bg-accent hover:text-black'
+                                                                }`}
                                                         >
-                                                            <span className="text-[10px] font-medium text-gray-400 group-hover:text-black/60 uppercase tracking-widest">
+                                                            <span className={`text-[10px] font-medium uppercase tracking-widest ${isLeading ? 'text-gray-700' : 'text-gray-400 group-hover:text-black/60'}`}>
                                                                 {isBaseBid ? 'Bid Base' : `+${(amount - effectiveBase) / 1000}k`}
                                                             </span>
                                                             <span className="text-base">{amount.toLocaleString()}</span>
