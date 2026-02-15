@@ -3,7 +3,7 @@ import db from '@/lib/db';
 
 export async function GET() {
     try {
-        const ideas = db.prepare(`
+        const rs = await db.execute(`
             SELECT 
                 bi.*,
                 m.type as match_type,
@@ -14,7 +14,8 @@ export async function GET() {
             JOIN teams t ON bi.team_id = t.id
             JOIN captains c ON bi.captain_id = c.id
             ORDER BY bi.created_at DESC
-        `).all();
+        `);
+        const ideas = rs.rows;
 
         return NextResponse.json(ideas);
     } catch (error) {

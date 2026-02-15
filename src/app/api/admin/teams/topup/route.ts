@@ -9,7 +9,10 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Team ID and amount required' }, { status: 400 });
         }
 
-        db.prepare('UPDATE teams SET balance = balance + ? WHERE id = ?').run(amount, teamId);
+        await db.execute({
+            sql: 'UPDATE teams SET balance = balance + ? WHERE id = ?',
+            args: [amount, teamId]
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

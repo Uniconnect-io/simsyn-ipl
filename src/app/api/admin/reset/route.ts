@@ -8,12 +8,12 @@ export async function POST(request: Request) {
         switch (type) {
             case 'cases':
                 // Reset case study usage
-                db.prepare('UPDATE case_studies SET is_used = 0').run();
+                await db.execute('UPDATE case_studies SET is_used = 0');
                 break;
 
             case 'results':
                 // Reset matches
-                db.prepare(`
+                await db.execute(`
                     UPDATE matches 
                     SET winner_id = NULL, 
                         score1 = 0, 
@@ -29,10 +29,10 @@ export async function POST(request: Request) {
                         team1_bonus = 0, 
                         team2_bonus = 0, 
                         status = 'SCHEDULED'
-                `).run();
+                `);
                 // Clear idea submissions (correct table is battle_ideas)
                 try {
-                    db.prepare('DELETE FROM battle_ideas').run();
+                    await db.execute('DELETE FROM battle_ideas');
                 } catch (e) {
                     console.error('Failed to clear battle_ideas', e);
                 }
@@ -40,26 +40,26 @@ export async function POST(request: Request) {
 
             case 'players':
                 // Clear team assignments and auction status
-                db.prepare(`
+                await db.execute(`
                     UPDATE players 
                     SET team_id = NULL, 
                         sold_price = NULL, 
                         is_auctioned = 0
-                `).run();
+                `);
                 // Clear bids and auctions
-                db.prepare('DELETE FROM bids').run();
-                db.prepare('DELETE FROM auctions').run();
+                await db.execute('DELETE FROM bids');
+                await db.execute('DELETE FROM auctions');
                 break;
 
             case 'wallets':
                 // Reset team balances
-                db.prepare('UPDATE teams SET balance = 1000000').run();
+                await db.execute('UPDATE teams SET balance = 1000000');
                 break;
 
             case 'captains':
                 // Unlink captains from teams
-                db.prepare('UPDATE captains SET team_id = NULL').run();
-                db.prepare('UPDATE teams SET captain_id = NULL').run();
+                await db.execute('UPDATE captains SET team_id = NULL');
+                await db.execute('UPDATE teams SET captain_id = NULL');
                 break;
 
             default:

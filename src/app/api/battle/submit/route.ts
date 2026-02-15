@@ -138,14 +138,17 @@ export async function POST(request: Request) {
         }
 
         // 1. Validate Match State
-        const match: any = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
+        const matchRs = await db.execute({
+            sql: 'SELECT * FROM matches WHERE id = ?',
+            args: [matchId]
+        });
+        const match = matchRs.rows[0] as any;
+
         if (!match || match.status !== 'IN_PROGRESS') {
             return NextResponse.json({ error: 'Match is not in progress' }, { status: 400 });
         }
 
         const now = new Date();
-        // REMOVED: Time-based end check. Now using Ball Count check below.
-
         const isTeam1 = match.team1_id === teamId;
         const currentWickets = isTeam1 ? match.wickets1 : match.wickets2;
         if (currentWickets >= 10) {
@@ -177,7 +180,6 @@ export async function POST(request: Request) {
         }
 
         // 3. Check for multiple submissions in the same ball window
-        // Cricket timing logic: 10s per ball
         const startTime = new Date(match.start_time).getTime();
         const nowMs = now.getTime();
         const totalSeconds = Math.max(0, (nowMs - startTime) / 1000);
@@ -189,25 +191,29 @@ export async function POST(request: Request) {
         }
 
         // Check if this team has already submitted for this ball index
-        const existingIdeaForBall = db.prepare(`
-            SELECT id FROM battle_ideas 
-            WHERE match_id = ? AND team_id = ? AND ball_index = ?
-        `).get(matchId, teamId, currentBallIndex);
+        const existingIdeaRs = await db.execute({
+            sql: 'SELECT id FROM battle_ideas WHERE match_id = ? AND team_id = ? AND ball_index = ?',
+            args: [matchId, teamId, currentBallIndex]
+        });
+        const existingIdeaForBall = existingIdeaRs.rows[0];
 
         if (existingIdeaForBall) {
             const colRuns = isTeam1 ? 'score1' : 'score2';
-            // Award 1 run for No Ball/Extra (bowler fault for allowing another hit?) or just extra effort
-            // Actually requirement says: "other idea scores should be considered as for no balls and give + 1 points"
-            // Interpretation: It's an extra, so +1 run to the batting team, but ball count does NOT increase.
 
-            db.prepare(`UPDATE matches SET ${colRuns} = ${colRuns} + 1 WHERE id = ?`).run(matchId);
+            await db.execute({
+                sql: `UPDATE matches SET ${colRuns} = ${colRuns} + 1 WHERE id = ?`,
+                args: [matchId]
+            });
 
             // We still record the idea but mark as extra/no-ball
             const ideaId = crypto.randomUUID();
-            db.prepare(`
+            await db.execute({
+                sql: `
                 INSERT INTO battle_ideas (id, match_id, team_id, captain_id, content, score, runs, is_wicket, feedback, ball_index, is_extra)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             `).run(ideaId, matchId, teamId, captainId, content, 0, 1, 0, JSON.stringify({ message: "Extra Idea (No Ball)" }), currentBallIndex, 1);
+             `,
+                args: [ideaId, matchId, teamId, captainId, content, 0, 1, 0, JSON.stringify({ message: "Extra Idea (No Ball)" }), currentBallIndex, 1]
+            });
 
             return NextResponse.json({
                 success: true,
@@ -230,13 +236,19 @@ export async function POST(request: Request) {
 
                 if (relevanceScore < 0.12) {
                     const colWickets = isTeam1 ? 'wickets1' : 'wickets2';
-                    db.prepare(`UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`).run(matchId);
+                    await db.execute({
+                        sql: `UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`,
+                        args: [matchId]
+                    });
 
                     const ideaId = crypto.randomUUID();
-                    db.prepare(`
+                    await db.execute({
+                        sql: `
                         INSERT INTO battle_ideas (id, match_id, team_id, captain_id, content, score, runs, is_wicket, feedback, ball_index)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                     `).run(ideaId, matchId, teamId, captainId, content, 0, 0, 1, JSON.stringify({ message: "Irrelevant Idea", reason: "Low Semantic Relevance" }), currentBallIndex);
+                     `,
+                        args: [ideaId, matchId, teamId, captainId, content, 0, 0, 1, JSON.stringify({ message: "Irrelevant Idea", reason: "Low Semantic Relevance" }), currentBallIndex]
+                    });
 
                     return NextResponse.json({
                         success: true,
@@ -251,17 +263,21 @@ export async function POST(request: Request) {
 
         // 4. AI Detection Check
         const aiCheck = await detectAIGenerated(content);
-        // INCREASED THRESHOLD to 95% to avoid false positives on legitimate business language
         if (aiCheck.isAI && aiCheck.confidence > 95) {
             const colWickets = isTeam1 ? 'wickets1' : 'wickets2';
-            db.prepare(`UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`).run(matchId);
+            await db.execute({
+                sql: `UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`,
+                args: [matchId]
+            });
 
-            // Record the wicket idea
             const ideaId = crypto.randomUUID();
-            db.prepare(`
+            await db.execute({
+                sql: `
                 INSERT INTO battle_ideas (id, match_id, team_id, captain_id, content, score, runs, is_wicket, feedback, ball_index)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             `).run(ideaId, matchId, teamId, captainId, content, 0, 0, 1, JSON.stringify({ message: "AI Detected", reason: "High AI Confidence" }), currentBallIndex);
+             `,
+                args: [ideaId, matchId, teamId, captainId, content, 0, 0, 1, JSON.stringify({ message: "AI Detected", reason: "High AI Confidence" }), currentBallIndex]
+            });
 
             return NextResponse.json({
                 success: true,
@@ -273,8 +289,11 @@ export async function POST(request: Request) {
         }
 
         // 5. Duplicate Detection
-        // currentEmbedding is already fetched above
-        const previousIdeas: any[] = db.prepare('SELECT content FROM battle_ideas WHERE match_id = ? AND team_id = ?').all(matchId, teamId);
+        const previousIdeasRs = await db.execute({
+            sql: 'SELECT content FROM battle_ideas WHERE match_id = ? AND team_id = ?',
+            args: [matchId, teamId]
+        });
+        const previousIdeas = previousIdeasRs.rows as any[];
 
         if (currentEmbedding) {
             for (const prev of previousIdeas) {
@@ -283,14 +302,19 @@ export async function POST(request: Request) {
                     const similarity = cosineSimilarity(currentEmbedding, prevEmbedding);
                     if (similarity > 0.85) {
                         const colWickets = isTeam1 ? 'wickets1' : 'wickets2';
-                        db.prepare(`UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`).run(matchId);
+                        await db.execute({
+                            sql: `UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`,
+                            args: [matchId]
+                        });
 
-                        // Record the wicket idea
                         const ideaId = crypto.randomUUID();
-                        db.prepare(`
+                        await db.execute({
+                            sql: `
                             INSERT INTO battle_ideas (id, match_id, team_id, captain_id, content, score, runs, is_wicket, feedback, ball_index)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                         `).run(ideaId, matchId, teamId, captainId, content, 0, 0, 1, JSON.stringify({ message: "Duplicate Idea", reason: "Semantic Similarity" }), currentBallIndex);
+                         `,
+                            args: [ideaId, matchId, teamId, captainId, content, 0, 0, 1, JSON.stringify({ message: "Duplicate Idea", reason: "Semantic Similarity" }), currentBallIndex]
+                        });
 
                         return NextResponse.json({
                             success: true,
@@ -307,14 +331,19 @@ export async function POST(request: Request) {
             for (const prev of previousIdeas) {
                 if (content.toLowerCase().trim() === prev.content.toLowerCase().trim()) {
                     const colWickets = isTeam1 ? 'wickets1' : 'wickets2';
-                    db.prepare(`UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`).run(matchId);
+                    await db.execute({
+                        sql: `UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`,
+                        args: [matchId]
+                    });
 
-                    // Record the wicket idea
                     const ideaId = crypto.randomUUID();
-                    db.prepare(`
+                    await db.execute({
+                        sql: `
                         INSERT INTO battle_ideas (id, match_id, team_id, captain_id, content, score, runs, is_wicket, feedback, ball_index)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                     `).run(ideaId, matchId, teamId, captainId, content, 0, 0, 1, JSON.stringify({ message: "Duplicate Idea", reason: "Exact Match" }), currentBallIndex);
+                     `,
+                        args: [ideaId, matchId, teamId, captainId, content, 0, 0, 1, JSON.stringify({ message: "Duplicate Idea", reason: "Exact Match" }), currentBallIndex]
+                    });
 
                     return NextResponse.json({
                         success: true,
@@ -338,31 +367,22 @@ export async function POST(request: Request) {
         const colBalls = isTeam1 ? 'balls1' : 'balls2';
         const colOvers = isTeam1 ? 'overs1' : 'overs2';
 
-        // Convert to cricket over format
-        // Logic: activeMatch.balls1 should store total LEGAL balls bowled
-        // We calculate totalBalls from DB + 1 since this is a legal ball.
-        // Wait, the previous logic derived balls from TIME.
-        // "if an idea is not submitted during a ball it should be considered as dot ball."
-        // This implies we should inherently trust time, BUT if we submit multiple times, only 1 counts as legal ball.
-        // So we should probably increment the ball count in DB *only* if it's the first submission or if we fill in dot balls.
-
-        // Revised Approach for Ball Counting:
-        // The DB `balls1/2` field should track valid balls faced.
-        // We increment it here.
-
         const newTotalBalls = (isTeam1 ? match.balls1 : match.balls2) + 1;
         const overs = Math.floor(newTotalBalls / 6);
         const balls = newTotalBalls % 6;
         const cricketOver = overs + (balls / 10); // e.g. 1.2
 
-        db.prepare(`
+        await db.execute({
+            sql: `
             UPDATE matches 
             SET ${colRuns} = ${colRuns} + ?, 
                 ${colWickets} = ${colWickets} + ?,
                 ${colBalls} = ${colBalls} + 1,
                 ${colOvers} = ?
             WHERE id = ?
-        `).run(result.runs, result.wicket ? 1 : 0, cricketOver, matchId);
+        `,
+            args: [result.runs, result.wicket ? 1 : 0, cricketOver, matchId]
+        });
 
         const ideaId = crypto.randomUUID();
         // Helper for commentary
@@ -385,10 +405,13 @@ export async function POST(request: Request) {
             breakdown: rawScores // Adding breakdown for progress bars
         };
 
-        db.prepare(`
+        await db.execute({
+            sql: `
     INSERT INTO battle_ideas (id, match_id, team_id, captain_id, content, score, runs, is_wicket, feedback, ball_index)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-`).run(ideaId, matchId, teamId, captainId, content, weightedScore, result.runs, result.wicket ? 1 : 0, JSON.stringify(feedbackFunc), currentBallIndex);
+`,
+            args: [ideaId, matchId, teamId, captainId, content, weightedScore, result.runs, result.wicket ? 1 : 0, JSON.stringify(feedbackFunc), currentBallIndex]
+        });
 
         return NextResponse.json({
             success: true,

@@ -4,8 +4,8 @@ import crypto from 'crypto';
 
 export async function GET() {
     try {
-        const cases = db.prepare('SELECT * FROM case_studies ORDER BY created_at DESC').all();
-        return NextResponse.json(cases);
+        const check = await db.execute('SELECT * FROM case_studies ORDER BY created_at DESC');
+        return NextResponse.json(check.rows);
     } catch (error) {
         return NextResponse.json({ error: 'Failed to fetch cases' }, { status: 500 });
     }
@@ -18,7 +18,10 @@ export async function PUT(request: Request) {
             return NextResponse.json({ error: 'ID, Title, and Description are required' }, { status: 400 });
         }
 
-        db.prepare('UPDATE case_studies SET title = ?, description = ? WHERE id = ?').run(title, description, id);
+        await db.execute({
+            sql: 'UPDATE case_studies SET title = ?, description = ? WHERE id = ?',
+            args: [title, description, id]
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {
@@ -34,7 +37,10 @@ export async function POST(request: Request) {
         }
 
         const id = crypto.randomUUID();
-        db.prepare('INSERT INTO case_studies (id, title, description) VALUES (?, ?, ?)').run(id, title, description);
+        await db.execute({
+            sql: 'INSERT INTO case_studies (id, title, description) VALUES (?, ?, ?)',
+            args: [id, title, description]
+        });
 
         return NextResponse.json({ success: true, id });
     } catch (error) {
@@ -47,7 +53,10 @@ export async function DELETE(request: Request) {
         const { id } = await request.json();
         if (!id) return NextResponse.json({ error: 'ID is required' }, { status: 400 });
 
-        db.prepare('DELETE FROM case_studies WHERE id = ?').run(id);
+        await db.execute({
+            sql: 'DELETE FROM case_studies WHERE id = ?',
+            args: [id]
+        });
         return NextResponse.json({ success: true });
     } catch (error) {
         return NextResponse.json({ error: 'Failed to delete case' }, { status: 500 });

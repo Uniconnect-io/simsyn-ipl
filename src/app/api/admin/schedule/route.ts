@@ -13,7 +13,10 @@ export async function PATCH(request: Request) {
         const newDate = new Date(date);
         const month = newDate.getMonth() + 1;
 
-        db.prepare('UPDATE matches SET date = ?, month = ? WHERE id = ?').run(date, month, id);
+        await db.execute({
+            sql: 'UPDATE matches SET date = ?, month = ? WHERE id = ?',
+            args: [date, month, id]
+        });
 
         return NextResponse.json({ success: true });
     } catch (error) {

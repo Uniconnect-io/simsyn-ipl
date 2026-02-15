@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import OpenAI from 'openai'; // Added import for OpenAI
+import OpenAI from 'openai';
 
 const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
@@ -31,14 +31,18 @@ export async function GET(request: Request) {
 
         if (!matchId) {
             // Find current active match
-            const activeMatch = db.prepare(`
+            const activeMatchRs = await db.execute({
+                sql: `
                 SELECT m.*, t1.name as team1Name, t2.name as team2Name
                 FROM matches m
                 LEFT JOIN teams t1 ON m.team1_id = t1.id
                 LEFT JOIN teams t2 ON m.team2_id = t2.id
                 WHERE m.status = 'IN_PROGRESS'
                 LIMIT 1
-            `).get() as any;
+            `,
+                args: []
+            });
+            const activeMatch = activeMatchRs.rows[0] as any;
 
             if (!activeMatch) return NextResponse.json({ status: 'NO_ACTIVE_MATCH' });
 
@@ -55,11 +59,7 @@ export async function GET(request: Request) {
 
             // Auto-complete if 20 overs finished (120 balls) ONLY if we truly reached it
             if (activeMatch.status === 'IN_PROGRESS' && currentBallIndex >= MAX_BALLS) {
-                // ... (completion logic same as before, but maybe delay it until loop finishes?)
-                // Actually, if we are >= MAX_BALLS, we should first Ensure all dot balls up to 120 are filled, THEN complete.
-
-                // Let's rely on the loop below to fill up to 120, then next polling triggers completion?
-                // Or just do both.
+                // Logic handled below
             }
 
             if (activeMatch.status === 'IN_PROGRESS') {
@@ -69,9 +69,6 @@ export async function GET(request: Request) {
                     { id: activeMatch.team1_id, isTeam1: true },
                     { id: activeMatch.team2_id, isTeam1: false }
                 ];
-
-                // Get all ideas for this match to check existing indices
-                const existingIdeas = db.prepare('SELECT team_id, ball_index FROM battle_ideas WHERE match_id = ?').all(activeMatch.id) as any[];
 
                 for (const team of teams) {
                     if (!team.id) continue;
@@ -83,65 +80,87 @@ export async function GET(request: Request) {
                     const colBalls = team.isTeam1 ? 'balls1' : 'balls2';
                     const colOvers = team.isTeam1 ? 'overs1' : 'overs2';
 
-                    // Update Match Stats ONCE per team loop, not per missing ball
-                    // We don't need to loop to update the count!
-                    // The count is `limit`.
-                    db.prepare(`UPDATE matches SET ${colBalls} = ? WHERE id = ?`).run(limit, activeMatch.id);
-
+                    // Update Match Stats ONCE per team loop
                     // Recalculate overs
                     const cappedBalls = limit;
                     const overs = Math.floor(cappedBalls / 6);
                     const balls = cappedBalls % 6;
                     const cricketOver = overs + (balls / 10);
-                    db.prepare(`UPDATE matches SET ${colOvers} = ? WHERE id = ?`).run(cricketOver, activeMatch.id);
 
-                    // The inner loop `for (let i = 0; i < limit; i++)` is no longer needed
-                    // because we are not inserting dot balls and the match stats update
-                    // is now handled once per team based on the `limit`.
+                    await db.execute({
+                        sql: `UPDATE matches SET ${colBalls} = ?, ${colOvers} = ? WHERE id = ?`,
+                        args: [limit, cricketOver, activeMatch.id]
+                    });
                 }
             }
 
             // Re-check completion AFTER loop to ensure we filled dots
             if (activeMatch.status === 'IN_PROGRESS' && currentBallIndex >= MAX_BALLS) {
-                const finalCheck = db.prepare('SELECT balls1, balls2 FROM matches WHERE id = ?').get(activeMatch.id) as any;
+                const finalCheckRs = await db.execute({
+                    sql: 'SELECT balls1, balls2 FROM matches WHERE id = ?',
+                    args: [activeMatch.id]
+                });
+                const finalCheck = finalCheckRs.rows[0] as any;
+
                 if (finalCheck.balls1 >= 120 && finalCheck.balls2 >= 120) {
                     const winnerId = activeMatch.score1 > activeMatch.score2 ? activeMatch.team1_id :
                         activeMatch.score2 > activeMatch.score1 ? activeMatch.team2_id : null;
 
                     // GENERATE SUMMARIES
-                    const ideas1 = db.prepare('SELECT content FROM battle_ideas WHERE match_id = ? AND team_id = ?').all(activeMatch.id, activeMatch.team1_id).map((i: any) => i.content);
-                    const ideas2 = db.prepare('SELECT content FROM battle_ideas WHERE match_id = ? AND team_id = ?').all(activeMatch.id, activeMatch.team2_id).map((i: any) => i.content);
+                    const [ideas1Rs, ideas2Rs] = await Promise.all([
+                        db.execute({ sql: 'SELECT content FROM battle_ideas WHERE match_id = ? AND team_id = ?', args: [activeMatch.id, activeMatch.team1_id] }),
+                        db.execute({ sql: 'SELECT content FROM battle_ideas WHERE match_id = ? AND team_id = ?', args: [activeMatch.id, activeMatch.team2_id] })
+                    ]);
+
+                    const ideas1 = ideas1Rs.rows.map((i: any) => i.content as string);
+                    const ideas2 = ideas2Rs.rows.map((i: any) => i.content as string);
 
                     const summary1 = await generateSummary(activeMatch.team1Name, ideas1);
                     const summary2 = await generateSummary(activeMatch.team2Name, ideas2);
 
-                    db.prepare(`
+                    await db.execute({
+                        sql: `
                             UPDATE matches
                             SET status = 'COMPLETED',
                                 winner_id = ?,
                                 team1_summary = ?,
                                 team2_summary = ?
                             WHERE id = ?
-                        `).run(winnerId, summary1, summary2, activeMatch.id);
+                        `,
+                        args: [winnerId, summary1, summary2, activeMatch.id]
+                    });
 
                     activeMatch.status = 'COMPLETED';
                     activeMatch.winner_id = winnerId;
                 }
             }
             // Get ideas for this match
-            const ideas = db.prepare('SELECT * FROM battle_ideas WHERE match_id = ? ORDER BY created_at DESC').all(activeMatch.id);
+            const ideasRs = await db.execute({
+                sql: 'SELECT * FROM battle_ideas WHERE match_id = ? ORDER BY created_at DESC',
+                args: [activeMatch.id]
+            });
+            const ideas = ideasRs.rows;
+
             return NextResponse.json({ match: activeMatch, ideas });
         }
 
-        const match = db.prepare(`
+        const matchRs = await db.execute({
+            sql: `
             SELECT m.*, t1.name as team1Name, t2.name as team2Name
             FROM matches m
             LEFT JOIN teams t1 ON m.team1_id = t1.id
             LEFT JOIN teams t2 ON m.team2_id = t2.id
             WHERE m.id = ?
-        `).get(matchId);
+        `,
+            args: [matchId]
+        });
+        const match = matchRs.rows[0] as any;
 
-        const ideas = db.prepare('SELECT * FROM battle_ideas WHERE match_id = ? ORDER BY created_at DESC').all(matchId);
+        const ideasRs = await db.execute({
+            sql: 'SELECT * FROM battle_ideas WHERE match_id = ? ORDER BY created_at DESC',
+            args: [matchId]
+        });
+        const ideas = ideasRs.rows;
 
         return NextResponse.json({ match, ideas });
     } catch (error) {

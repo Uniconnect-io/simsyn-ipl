@@ -11,18 +11,24 @@ export async function POST(request: Request) {
 
         // Random Selection Logic
         if (!caseDescription) {
-            const randomCase = db.prepare('SELECT * FROM case_studies WHERE is_used = 0 ORDER BY RANDOM() LIMIT 1').get() as any;
+            const randomCaseRs = await db.execute('SELECT * FROM case_studies WHERE is_used = 0 ORDER BY RANDOM() LIMIT 1');
+            const randomCase = randomCaseRs.rows[0] as any;
+
             if (!randomCase) {
                 return NextResponse.json({ error: 'No unused case studies available in library' }, { status: 400 });
             }
             caseDescription = randomCase.description;
-            db.prepare('UPDATE case_studies SET is_used = 1 WHERE id = ?').run(randomCase.id);
+            await db.execute({
+                sql: 'UPDATE case_studies SET is_used = 1 WHERE id = ?',
+                args: [randomCase.id]
+            });
         }
 
         const startTime = new Date();
         const endTime = new Date(startTime.getTime() + durationMins * 60000);
 
-        db.prepare(`
+        await db.execute({
+            sql: `
             UPDATE matches 
             SET case_description = ?, 
                 start_time = ?, 
@@ -35,7 +41,9 @@ export async function POST(request: Request) {
                 overs1 = 0,
                 overs2 = 0
             WHERE id = ?
-        `).run(caseDescription, startTime.toISOString(), endTime.toISOString(), matchId);
+        `,
+            args: [caseDescription, startTime.toISOString(), endTime.toISOString(), matchId]
+        });
 
         return NextResponse.json({ success: true, startTime, endTime });
     } catch (error) {

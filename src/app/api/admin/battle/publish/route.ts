@@ -16,8 +16,17 @@ export async function POST(request: Request) {
             // This ensures that any manual edits to scores are reflected in the final match result
 
             // Get all ideas for this match
-            const ideas = db.prepare('SELECT team_id, score, is_wicket, is_duplicate FROM battle_ideas WHERE match_id = ?').all(matchId) as any[];
-            const match = db.prepare('SELECT team1_id, team2_id FROM matches WHERE id = ?').get(matchId) as any;
+            const ideasRs = await db.execute({
+                sql: 'SELECT team_id, score, is_wicket, is_duplicate FROM battle_ideas WHERE match_id = ?',
+                args: [matchId]
+            });
+            const ideas = ideasRs.rows as any[];
+
+            const matchRs = await db.execute({
+                sql: 'SELECT team1_id, team2_id FROM matches WHERE id = ?',
+                args: [matchId]
+            });
+            const match = matchRs.rows[0] as any;
 
             if (!match) {
                 return NextResponse.json({ error: 'Match not found' }, { status: 404 });
@@ -65,15 +74,21 @@ export async function POST(request: Request) {
             // Draw is null or handled elsewhere? Schema has winner_id. unique constraint? no.
 
             // Update match with new stats
-            db.prepare(`
+            await db.execute({
+                sql: `
                 UPDATE matches 
                 SET score1 = ?, wickets1 = ?, score2 = ?, wickets2 = ?, winner_id = ?, is_published = 1 
                 WHERE id = ?
-            `).run(score1, wickets1, score2, wickets2, winnerId, matchId);
+            `,
+                args: [score1, wickets1, score2, wickets2, winnerId, matchId]
+            });
 
         } else {
             // Unpublish
-            db.prepare('UPDATE matches SET is_published = 0 WHERE id = ?').run(matchId);
+            await db.execute({
+                sql: 'UPDATE matches SET is_published = 0 WHERE id = ?',
+                args: [matchId]
+            });
         }
 
         return NextResponse.json({ success: true, message: `Match results ${isPublished ? 'published' : 'unpublished'} successfully.` });

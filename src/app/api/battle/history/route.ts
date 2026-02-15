@@ -29,7 +29,11 @@ export async function GET(request: Request) {
 
         query += ` ORDER BY bi.created_at DESC`;
 
-        const ideas = db.prepare(query).all(...params);
+        const rs = await db.execute({
+            sql: query,
+            args: params
+        });
+        const ideas = rs.rows;
 
         return NextResponse.json({ ideas });
     } catch (error) {

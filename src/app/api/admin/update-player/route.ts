@@ -9,10 +9,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Player ID and Minimum Bid are required' }, { status: 400 });
         }
 
-        const update = db.prepare('UPDATE players SET min_bid = ? WHERE id = ?');
-
         try {
-            update.run(minBid, playerId);
+            await db.execute({
+                sql: 'UPDATE players SET min_bid = ? WHERE id = ?',
+                args: [minBid, playerId]
+            });
             return NextResponse.json({ success: true });
         } catch (dbError) {
             return NextResponse.json({ error: 'Failed to update player' }, { status: 500 });
