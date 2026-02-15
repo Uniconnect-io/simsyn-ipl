@@ -195,7 +195,7 @@ export default function BattleHistoryTable({ ideas, matches, teamFilter, searchT
                                         <th className="p-3 w-20 text-center">Effort</th>
                                         <th className="p-3 w-20 text-center text-white">Score</th>
                                         <th className="p-3 w-24 text-right">Result</th>
-                                        {editable && <th className="p-3 w-10"></th>}
+                                        {editable && !match?.is_published && <th className="p-3 w-10"></th>}
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5">
@@ -272,7 +272,7 @@ export default function BattleHistoryTable({ ideas, matches, teamFilter, searchT
                                                 </td>
 
                                                 {/* Edit Action */}
-                                                {editable && (
+                                                {editable && !match?.is_published && (
                                                     <td className="p-3 align-top text-right">
                                                         {/* Only allow editing if match is NOT published? Or always allow correction? User said "until then it should show Decision Pending", but admin might want to fix published scores too. Let's allow edit always for Admin. */}
                                                         {isEditing ? (
