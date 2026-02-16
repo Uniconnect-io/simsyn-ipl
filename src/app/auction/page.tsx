@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Timer, TrendingUp, Users, DollarSign, Award, Info } from 'lucide-react';
+import { Timer, TrendingUp, Users, DollarSign, Award, Info, Home } from 'lucide-react';
+import Link from 'next/link';
 
 interface AuctionStatus {
     status: 'ACTIVE' | 'IDLE';
@@ -131,6 +132,12 @@ export default function AuctionPage() {
                     </div>
                 </div>
 
+                <Link
+                    href="/"
+                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-4 py-2 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all font-bold text-sm"
+                >
+                    <Home className="w-4 h-4" /> Home
+                </Link>
             </header>
 
             <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
@@ -252,8 +259,8 @@ export default function AuctionPage() {
                                                             onClick={() => handleBid(amount)}
                                                             disabled={isLeading}
                                                             className={`py-3 rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group ${isLeading
-                                                                    ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
-                                                                    : 'bg-white/10 hover:bg-accent hover:text-black'
+                                                                ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
+                                                                : 'bg-white/10 hover:bg-accent hover:text-black'
                                                                 }`}
                                                         >
                                                             <span className={`text-[10px] font-medium uppercase tracking-widest ${isLeading ? 'text-gray-700' : 'text-gray-400 group-hover:text-black/60'}`}>

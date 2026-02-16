@@ -1,8 +1,32 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Play, CheckCircle, User, Award, Shield, LogOut, RefreshCw, Trophy, Edit2, X, Timer, List, Search, Settings } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+    Users,
+    Trophy,
+    Calendar,
+    Settings,
+    RefreshCw,
+    Search,
+    Plus,
+    Shield,
+    ChevronRight,
+    Gavel,
+    FileText,
+    BarChart,
+    Home,
+    LogOut,
+    Play,
+    CheckCircle,
+    User,
+    Award,
+    Edit2,
+    X,
+    Timer,
+    List
+} from 'lucide-react';
+import Link from 'next/link';
 import BattleHistoryTable from '@/components/BattleHistoryTable';
 
 interface Player {
@@ -106,10 +130,21 @@ export default function AdminPage() {
     const [caseDescription, setCaseDescription] = useState('');
 
     useEffect(() => {
-        const stored = localStorage.getItem('sipl_admin');
-        if (stored) {
-            setLoggedInAdmin(JSON.parse(stored));
-        }
+        const checkSession = async () => {
+            const res = await fetch('/api/auth/me');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.user.role === 'ADMIN') {
+                    setLoggedInAdmin(data.user);
+                    localStorage.setItem('sipl_admin', JSON.stringify(data.user));
+                    return;
+                }
+            }
+            // If session is invalid or wrong role
+            localStorage.removeItem('sipl_admin');
+            setLoggedInAdmin(null);
+        };
+        checkSession();
     }, []);
 
     useEffect(() => {
@@ -216,7 +251,8 @@ export default function AdminPage() {
         }
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem('sipl_admin');
         setLoggedInAdmin(null);
     };
@@ -548,6 +584,14 @@ export default function AdminPage() {
                             Access Console
                         </button>
                     </form>
+                    <div className="mt-8 pt-8 border-t border-white/5 text-center">
+                        <Link
+                            href="/"
+                            className="text-gray-500 hover:text-white transition-colors font-bold uppercase tracking-widest text-xs flex items-center gap-2 justify-center"
+                        >
+                            <Home className="w-3 h-3" /> Back to Home
+                        </Link>
+                    </div>
                 </motion.div>
             </main>
         );
@@ -560,12 +604,20 @@ export default function AdminPage() {
                     <h1 className="text-4xl font-black text-glow">ADMIN CONSOLE</h1>
                     <p className="text-gray-400">Tournament Control & Auction Management</p>
                 </div>
-                <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 bg-white/5 hover:bg-red-500/20 px-6 py-3 rounded-xl border border-white/10 text-gray-400 hover:text-red-500 transition-all font-bold"
-                >
-                    <LogOut className="w-5 h-5" /> Logout
-                </button>
+                <div className="flex items-center gap-4">
+                    <Link
+                        href="/"
+                        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all font-bold"
+                    >
+                        <Home className="w-5 h-5" /> Home
+                    </Link>
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center gap-2 bg-white/5 hover:bg-red-500/20 px-6 py-3 rounded-xl border border-white/10 text-gray-400 hover:text-red-500 transition-all font-bold"
+                    >
+                        <LogOut className="w-5 h-5" /> Logout
+                    </button>
+                </div>
             </header>
 
             <div className="flex gap-4 mb-8 border-b border-white/10 pb-4">

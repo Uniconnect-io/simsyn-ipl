@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { login } from '@/lib/auth';
 
 export async function POST(request: Request) {
     try {
@@ -13,7 +14,9 @@ export async function POST(request: Request) {
             const admin = rs.rows[0];
 
             if (admin) {
-                return NextResponse.json({ success: true, user: { ...admin, role: 'ADMIN' } });
+                const user = { ...admin, role: 'ADMIN' };
+                await login(user);
+                return NextResponse.json({ success: true, user });
             }
         } else {
             const rs = await db.execute({
@@ -23,6 +26,7 @@ export async function POST(request: Request) {
             const captain = rs.rows[0];
 
             if (captain) {
+                await login(captain);
                 return NextResponse.json({ success: true, user: captain });
             }
         }

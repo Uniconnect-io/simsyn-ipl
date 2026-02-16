@@ -2,7 +2,8 @@
 
 import { useState, useEffect, use } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Save, AlertCircle, Trophy, ChevronLeft, Timer } from 'lucide-react';
+import { Play, Save, AlertCircle, Trophy, ChevronLeft, Timer, Home } from 'lucide-react';
+import Link from 'next/link';
 
 interface Match {
   id: string;
@@ -116,12 +117,20 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
       <main className="min-h-screen p-6 lg:p-12 flex flex-col items-center justify-center text-center space-y-6">
         <h1 className="text-4xl font-black text-white/20 uppercase tracking-tighter">In Battle Phase</h1>
         <p className="text-gray-500 max-w-md">Official results and AI summaries will be available here once the match enters the review phase.</p>
-        <button
-          onClick={() => window.location.href = '/league'}
-          className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-bold flex items-center gap-2 transition-all"
-        >
-          <ChevronLeft size={18} /> Back to Standings
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => window.location.href = '/league'}
+            className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-bold flex items-center gap-2 transition-all"
+          >
+            <ChevronLeft size={18} /> Back to Standings
+          </button>
+          <Link
+            href="/"
+            className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-bold flex items-center gap-2 transition-all"
+          >
+            <Home size={18} /> Home
+          </Link>
+        </div>
       </main>
     );
   }
@@ -130,11 +139,22 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
   if ((match.status === 'REVIEW_PENDING' || isCompleted) && isAdmin) {
     return (
       <main className="min-h-screen p-6 lg:p-12 max-w-6xl mx-auto space-y-12 pb-24">
-        <header className="text-center space-y-4">
-          <div className={`inline-block px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest ${isCompleted ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}`}>
-            {isCompleted ? 'Match Finalized - Locked' : 'Admin Review Required'}
+        <header className="flex justify-between items-center bg-black/40 backdrop-blur-md p-8 rounded-2xl border border-white/5 relative">
+          <div className="flex-1"></div>
+          <div className="text-center space-y-4 flex-[2]">
+            <div className={`inline-block px-4 py-1 rounded-full text-xs font-black uppercase tracking-widest ${isCompleted ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}`}>
+              {isCompleted ? 'Match Finalized - Locked' : 'Admin Review Required'}
+            </div>
+            <h1 className="text-4xl lg:text-5xl font-black">{match.team1Name} vs {match.team2Name}</h1>
           </div>
-          <h1 className="text-4xl lg:text-5xl font-black">{match.team1Name} vs {match.team2Name}</h1>
+          <div className="flex-1 flex justify-end">
+            <Link
+              href="/"
+              className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all font-bold"
+            >
+              <Home className="w-5 h-5" /> Home
+            </Link>
+          </div>
         </header>
 
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -319,12 +339,20 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
         </div>
         <h1 className="text-4xl font-black text-white uppercase tracking-tighter">Judging in Progress</h1>
         <p className="text-gray-500 max-w-md">Admins are currently reviewing the pitches and finalizing the summaries. Stand by for the official results!</p>
-        <button
-          onClick={() => window.location.href = '/league'}
-          className="btn-secondary flex items-center gap-2 mt-4"
-        >
-          <ChevronLeft /> Back to League
-        </button>
+        <div className="flex items-center gap-4 mt-4">
+          <button
+            onClick={() => window.location.href = '/league'}
+            className="btn-secondary flex items-center gap-2"
+          >
+            <ChevronLeft /> Back to League
+          </button>
+          <Link
+            href="/"
+            className="btn-secondary flex items-center gap-2"
+          >
+            <Home size={18} /> Home
+          </Link>
+        </div>
       </main>
     );
   }
@@ -445,13 +473,19 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
         </div>
       </div>
 
-      <div className="text-center pt-8">
+      <div className="flex flex-col items-center gap-4 pt-8">
         <button
           onClick={() => window.location.href = '/league'}
           className="text-gray-500 hover:text-white transition-colors font-bold uppercase tracking-widest text-xs flex items-center gap-2 mx-auto"
         >
           <ChevronLeft size={14} /> Back to Standings
         </button>
+        <Link
+          href="/"
+          className="text-gray-500 hover:text-white transition-colors font-bold uppercase tracking-widest text-xs flex items-center gap-2 mx-auto"
+        >
+          <Home size={14} /> Home
+        </Link>
       </div>
     </main>
   );

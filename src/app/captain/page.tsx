@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, User, ArrowRight, RefreshCw, CheckCircle, Shield, List } from 'lucide-react';
+import { Trophy, User, ArrowRight, RefreshCw, CheckCircle, Shield, List, Home } from 'lucide-react';
+import Link from 'next/link';
 
 interface Captain {
     id: string;
@@ -40,17 +41,26 @@ export default function CaptainPage() {
     }, []);
 
     useEffect(() => {
-        const storedCaptain = localStorage.getItem('sipl_captain');
-        if (storedCaptain) {
-            const captainData = JSON.parse(storedCaptain);
-            setLoggedInCaptain(captainData);
-            if (captainData.team_id) {
-                fetchTeamData(captainData.team_id);
+        const checkSession = async () => {
+            const res = await fetch('/api/auth/me');
+            if (res.ok) {
+                const data = await res.json();
+                setLoggedInCaptain(data.user);
+                localStorage.setItem('sipl_captain', JSON.stringify(data.user));
+                if (data.user.team_id) {
+                    fetchTeamData(data.user.team_id);
+                }
+                if (data.user.password_reset_required) {
+                    setShowResetModal(true);
+                }
+                return;
             }
-            if (captainData.password_reset_required) {
-                setShowResetModal(true);
-            }
-        }
+            // Session invalid
+            localStorage.removeItem('sipl_captain');
+            setLoggedInCaptain(null);
+            setAssignedTeam(null);
+        };
+        checkSession();
         fetchCaptains();
     }, []);
 
@@ -129,7 +139,8 @@ export default function CaptainPage() {
         }
     };
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
         localStorage.removeItem('sipl_captain');
         setLoggedInCaptain(null);
         setAssignedTeam(null);
@@ -176,9 +187,17 @@ export default function CaptainPage() {
 
     return (
         <main className="min-h-screen flex flex-col items-center justify-center p-6 gap-8">
-            <header className="text-center">
-                <h1 className="text-6xl font-black text-glow mb-2 uppercase tracking-tighter">Captain HQ</h1>
-                <p className="text-gray-400 max-w-md">Identify yourself to access your team's command center.</p>
+            <header className="w-full flex justify-between items-center max-w-5xl">
+                <div className="text-left">
+                    <h1 className="text-6xl font-black text-glow mb-2 uppercase tracking-tighter">Captain HQ</h1>
+                    <p className="text-gray-400 max-w-md">Identify yourself to access your team's command center.</p>
+                </div>
+                <Link
+                    href="/"
+                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all font-bold"
+                >
+                    <Home className="w-5 h-5" /> Home
+                </Link>
             </header>
 
             <AnimatePresence mode="wait">

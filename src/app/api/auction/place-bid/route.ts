@@ -1,12 +1,23 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { getSession } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { playerId, teamId, amount } = await request.json();
 
     if (!playerId || !teamId || !amount) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Authorization: User must be an ADMIN or the Captain of the specific teamId
+    if (session.user.role !== 'ADMIN' && session.user.team_id !== teamId) {
+      return NextResponse.json({ error: 'Forbidden: You can only bid for your own team' }, { status: 403 });
     }
 
     const auctionRs = await db.execute({

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Clock, Send, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { Trophy, Clock, Send, AlertTriangle, CheckCircle, RefreshCw, Home } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 interface Captain {
@@ -23,12 +24,19 @@ export default function LiveBattlePage() {
     const [pendingIdeas, setPendingIdeas] = useState<any[]>([]);
 
     useEffect(() => {
-        const stored = localStorage.getItem('sipl_captain');
-        if (!stored) {
+        const checkSession = async () => {
+            const res = await fetch('/api/auth/me');
+            if (res.ok) {
+                const data = await res.json();
+                setCaptain(data.user);
+                localStorage.setItem('sipl_captain', JSON.stringify(data.user));
+                return;
+            }
+            // Session invalid
+            localStorage.removeItem('sipl_captain');
             router.push('/captain');
-            return;
-        }
-        setCaptain(JSON.parse(stored));
+        };
+        checkSession();
     }, []);
 
     // Timer & Status Polling
@@ -205,10 +213,13 @@ export default function LiveBattlePage() {
             {/* Header / Timer Bar */}
             <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-white/5 backdrop-blur-md z-10 shrink-0">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => router.push('/captain')} className="text-gray-400 hover:text-white transition-colors">
+                    <button onClick={() => router.push('/captain')} className="text-gray-400 hover:text-white transition-colors text-sm font-bold flex items-center gap-1">
                         &larr; HQ
                     </button>
-                    <h1 className="text-xl font-black uppercase tracking-tighter text-glow flex flex-col">
+                    <Link href="/" className="text-gray-400 hover:text-white transition-colors text-sm font-bold flex items-center gap-1">
+                        <Home className="w-3 h-3" /> Home
+                    </Link>
+                    <h1 className="text-xl font-black uppercase tracking-tighter text-glow flex flex-col pl-4 border-l border-white/10">
                         <span>Battle Arena</span>
                         {/* Team Name */}
                         {activeMatch && captain.team_id && (

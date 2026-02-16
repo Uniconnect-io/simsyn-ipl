@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { getSession } from '@/lib/auth';
 import OpenAI from "openai";
 import crypto from 'crypto';
 
@@ -133,10 +134,20 @@ async function detectAIGenerated(text: string) {
 
 export async function POST(request: Request) {
     try {
+        const session = await getSession();
+        if (!session) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { matchId, teamId, captainId, content } = await request.json();
 
         if (!matchId || !teamId || !content) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Authorization: User must be an ADMIN or the Captain associated with the teamId
+        if (session.user.role !== 'ADMIN' && session.user.team_id !== teamId) {
+            return NextResponse.json({ error: 'Forbidden: You can only submit for your own team' }, { status: 403 });
         }
 
         // 1. Validate Match State

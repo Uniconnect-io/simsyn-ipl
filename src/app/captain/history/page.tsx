@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link'; // Added for the new navigation
+import { Home } from 'lucide-react';
 import BattleHistoryTable from '@/components/BattleHistoryTable';
 
 export default function HistoryPage() {
@@ -11,14 +12,20 @@ export default function HistoryPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const stored = localStorage.getItem('sipl_captain');
-        if (stored) {
-            const cap = JSON.parse(stored);
-            setCaptain(cap);
-            fetchHistory(cap.team_id);
-        } else {
-            setLoading(false);
-        }
+        const checkSession = async () => {
+            const res = await fetch('/api/auth/me');
+            if (res.ok) {
+                const data = await res.json();
+                setCaptain(data.user);
+                localStorage.setItem('sipl_captain', JSON.stringify(data.user));
+                fetchHistory(data.user.team_id);
+                return;
+            }
+            // Session invalid
+            localStorage.removeItem('sipl_captain');
+            window.location.href = '/captain'; // Redirect to HQ for re-auth
+        };
+        checkSession();
     }, []);
 
     const fetchHistory = async (teamId: string) => {
@@ -60,9 +67,14 @@ export default function HistoryPage() {
                     </h1>
                     <p className="text-gray-400 text-sm">Review your past innovation performance.</p>
                 </div>
-                <Link href="/captain" className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold transition-all">
-                    Back to HQ
-                </Link>
+                <div className="flex items-center gap-4">
+                    <Link href="/" className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold transition-all flex items-center gap-2">
+                        <Home className="w-4 h-4" /> Home
+                    </Link>
+                    <Link href="/captain" className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-sm font-bold transition-all">
+                        Back to HQ
+                    </Link>
+                </div>
             </header>
 
             <BattleHistoryTable ideas={historyIdeas} matches={matches} teamFilter={captain.team_id} />

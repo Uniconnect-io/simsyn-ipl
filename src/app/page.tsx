@@ -1,10 +1,22 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Gavel, BarChart2, Shield, ArrowRight, Star } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) setUser(data.user);
+      })
+      .catch(() => { });
+  }, []);
+
   const cards = [
     {
       title: 'Captain HQ',
@@ -12,7 +24,8 @@ export default function Home() {
       icon: Shield,
       href: '/captain',
       color: 'bg-blue-500',
-      tag: 'Step 1'
+      tag: 'Step 1',
+      hide: user?.role === 'ADMIN'
     },
     {
       title: 'Live Auction',
@@ -36,12 +49,38 @@ export default function Home() {
       icon: Trophy,
       href: '/admin',
       color: 'bg-red-500',
-      tag: 'Global'
+      tag: 'Global',
+      hide: user && user.role !== 'ADMIN'
     }
-  ];
+  ].filter(card => !card.hide);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    localStorage.removeItem('sipl_admin');
+    localStorage.removeItem('sipl_captain');
+    setUser(null);
+    window.location.reload();
+  };
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-animate">
+      {user && (
+        <header className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+              Session Active: {user.name} ({user.role || 'CAPTAIN'})
+            </span>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="px-4 py-2 bg-white/5 hover:bg-red-500/20 border border-white/10 rounded-xl text-xs font-bold transition-all text-gray-400 hover:text-red-500 flex items-center gap-2"
+          >
+            Logout
+          </button>
+        </header>
+      )}
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

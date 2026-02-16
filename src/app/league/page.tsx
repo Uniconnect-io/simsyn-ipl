@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Calendar, ChevronRight, Award, BarChart2 } from 'lucide-react';
+import { Trophy, Calendar, ChevronRight, Award, BarChart2, Home } from 'lucide-react';
+import Link from 'next/link';
 
 interface Standing {
     id: string;
@@ -59,11 +60,17 @@ export default function LeaguePage() {
 
     return (
         <main className="min-h-screen p-6 lg:p-12 space-y-12">
-            <header>
+            <header className="flex justify-between items-center bg-black/40 backdrop-blur-md p-6 rounded-2xl border border-white/5 shadow-2xl">
                 <div>
-                    <h1 className="text-4xl font-black text-glow">LEAGUE STANDINGS</h1>
-                    <p className="text-gray-400">Road to the SIPL 2026 Playoffs</p>
+                    <h1 className="text-4xl font-black text-glow tracking-tighter uppercase italic">League Standings</h1>
+                    <p className="text-gray-400 font-bold text-xs tracking-widest uppercase mt-1">Road to the Playoffs • SIPL 2026</p>
                 </div>
+                <Link
+                    href="/"
+                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all font-bold"
+                >
+                    <Home className="w-5 h-5" /> Home
+                </Link>
             </header>
 
             {/* Leaderboard */}
