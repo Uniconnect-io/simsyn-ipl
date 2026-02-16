@@ -44,7 +44,15 @@ export async function POST(request: Request) {
                     UPDATE players 
                     SET team_id = NULL, 
                         sold_price = NULL, 
-                        is_auctioned = 0
+                        is_auctioned = 0,
+                        min_bid = CASE pool
+                            WHEN 'A' THEN 225000
+                            WHEN 'B' THEN 200000
+                            WHEN 'C' THEN 175000
+                            WHEN 'D' THEN 150000
+                            WHEN 'E' THEN 125000
+                            ELSE min_bid
+                        END
                 `);
                 // Clear bids and auctions
                 await db.execute('DELETE FROM bids');

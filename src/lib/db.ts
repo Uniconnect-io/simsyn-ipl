@@ -29,6 +29,8 @@ export const initDb = async () => {
     CREATE TABLE IF NOT EXISTS captains (
       id TEXT PRIMARY KEY,
       name TEXT UNIQUE,
+      password TEXT DEFAULT 'sipl2026',
+      password_reset_required INTEGER DEFAULT 0,
       role TEXT DEFAULT 'CAPTAIN',
       team_id TEXT
     );
