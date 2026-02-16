@@ -8,7 +8,6 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
-    # Increase job-level timeout to allow long deploy commands (minutes)
     timeout-minutes: 120
 
     steps:
