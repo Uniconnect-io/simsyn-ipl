@@ -969,8 +969,8 @@ export default function AdminPage() {
                                         className={`glass-card p-6 flex flex-col justify-between relative overflow-hidden ${isLive ? 'border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : ''}`}
                                     >
                                         {isLive && timeLeft !== null && (
-                                            <div className="absolute top-0 right-0 bg-red-600 text-white px-4 py-1 rounded-bl-xl font-mono font-bold flex items-center gap-2 z-10 animate-pulse">
-                                                <Timer className="w-4 h-4" /> {timeLeft}s
+                                            <div className="absolute top-0 right-0 bg-red-600 text-white px-6 py-2 rounded-bl-2xl font-mono font-bold flex items-center gap-3 z-10 animate-pulse">
+                                                <Timer className="w-6 h-6" /> <span className="text-2xl">{timeLeft}s</span>
                                             </div>
                                         )}
 

@@ -233,8 +233,8 @@ export default function LiveBattlePage() {
                 <div className="flex items-center gap-6">
                     {/* Opponent score removed from here */}
                     <div className="h-8 w-px bg-white/10"></div>
-                    <div className="flex items-center gap-2 text-3xl font-black font-mono text-accent">
-                        <Clock className="w-6 h-6 animate-pulse" />
+                    <div className="flex items-center gap-3 text-6xl font-black font-mono text-accent">
+                        <Clock className="w-10 h-10 animate-pulse" />
                         {timeLeft}
                     </div>
                 </div>

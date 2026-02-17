@@ -37,12 +37,24 @@ export default function AuctionPage() {
     const [myCaptainName, setMyCaptainName] = useState<string | null>(null);
 
     useEffect(() => {
-        const stored = localStorage.getItem('sipl_captain');
-        if (stored) {
-            const data = JSON.parse(stored);
-            setMyTeamId(data.team_id);
-            setMyCaptainName(data.name);
-        }
+        const checkSession = async () => {
+            const res = await fetch('/api/auth/me');
+            if (res.ok) {
+                const data = await res.json();
+                setMyTeamId(data.user.team_id);
+                setMyCaptainName(data.user.name);
+                localStorage.setItem('sipl_captain', JSON.stringify(data.user));
+            } else {
+                // Fallback to local storage if API fails, but clear if unauthorized
+                const stored = localStorage.getItem('sipl_captain');
+                if (stored) {
+                    const data = JSON.parse(stored);
+                    setMyTeamId(data.team_id);
+                    setMyCaptainName(data.name);
+                }
+            }
+        };
+        checkSession();
     }, []);
 
     const fetchData = useCallback(async () => {
@@ -154,9 +166,9 @@ export default function AuctionPage() {
                             >
                                 {/* Timer Badge */}
                                 {timeLeft !== null && (
-                                    <div className={`absolute top-0 left-0 px-4 py-1 rounded-br-xl font-black text-xs tracking-widest z-10 flex items-center gap-2 border-r border-b ${timeLeft < 10 ? 'bg-red-500 text-white border-red-600 animate-pulse' : 'bg-black/60 text-accent border-accent/20'}`}>
-                                        <Timer className="w-3 h-3" />
-                                        <span className="text-lg leading-none">{timeLeft}s</span>
+                                    <div className={`absolute top-0 left-0 px-6 py-3 rounded-br-2xl font-black tracking-widest z-10 flex items-center gap-3 border-r border-b ${timeLeft < 10 ? 'bg-red-500 text-white border-red-600 animate-pulse' : 'bg-black/60 text-accent border-accent/20'}`}>
+                                        <Timer className="w-8 h-8" />
+                                        <span className="text-4xl leading-none">{timeLeft}s</span>
                                     </div>
                                 )}
 
