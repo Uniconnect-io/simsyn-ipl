@@ -34,7 +34,7 @@ jobs:
 
       - name: SSH into CentOS Server and Restart Containers
         uses: appleboy/ssh-action@v0.1.10
-        # Increase step timeout (in minutes) to accommodate long npm installs / pm2 operations
+        
         timeout-minutes: 60
         with:
           host: ${{ secrets.UCENTERPRISE_SERVER_IP }}
@@ -66,7 +66,7 @@ jobs:
               fi
             else
               # Start new PM2 process
-              if pm2 start npm --name "simsyn-ipl" -- start dev; then
+              if pm2 start npm --name "simsyn-ipl" -- run dev; then
                 echo "simsyn-ipl server started successfully"
               else
                 echo "Failed to start simsyn-ipl server" >&2
@@ -77,9 +77,4 @@ jobs:
             # Save PM2 process list
             pm2 save
             
-            if pm2 reload 1; then
-              echo "Application reloaded successfully."
-            else
-              echo "Failed to reload the application." >&2
-              exit 1
-            fi
+  
