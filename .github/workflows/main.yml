@@ -77,9 +77,4 @@ jobs:
             # Save PM2 process list
             pm2 save
             
-            if pm2 reload 1; then
-              echo "Application reloaded successfully."
-            else
-              echo "Failed to reload the application." >&2
-              exit 1
-            fi
+  
