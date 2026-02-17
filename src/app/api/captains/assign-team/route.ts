@@ -1,12 +1,23 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { getSession, login } from '@/lib/auth';
 
 export async function POST(request: Request) {
     try {
+        const session = await getSession();
+        if (!session) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { captainId } = await request.json();
 
         if (!captainId) {
             return NextResponse.json({ error: 'Captain ID is required' }, { status: 400 });
+        }
+
+        // Authorization: Only the captain themselves or an ADMIN can assign a team
+        if (session.user.role !== 'ADMIN' && session.user.id !== captainId) {
+            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
         // Check if captain already has a team
@@ -56,6 +67,10 @@ export async function POST(request: Request) {
                 args: [randomTeam.id, captainId]
             }
         ], 'write');
+
+        // Update the session cookie so the user has the team_id immediately
+        const updatedUser = { ...session.user, team_id: randomTeam.id };
+        await login(updatedUser);
 
         return NextResponse.json({
             success: true,

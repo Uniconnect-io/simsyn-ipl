@@ -49,9 +49,10 @@ export async function middleware(request: NextRequest) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
-            // For auction bidding, we should ideally check if the user is a captain
-            if (request.nextUrl.pathname.startsWith('/api/auction/place-bid') && !user.team_id && user.role !== 'ADMIN') {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            // For auction bidding, we just check if they have a session,
+            // the API route will handle the fine-grained team_id check against the DB.
+            if (request.nextUrl.pathname.startsWith('/api/auction/place-bid')) {
+                // Allow through to API route
             }
         } catch (e) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -935,7 +935,7 @@ export default function AdminPage() {
                                 <Trophy className="text-accent" /> AUCTION CONTROL
                             </h2>
                             <div className="flex gap-4">
-                                <button
+                                {/* <button
                                     onClick={async () => {
                                         if (!confirm('Shuffle and reset all teams? This cannot be undone.')) return;
                                         const res = await fetch('/api/auction/reset', { method: 'POST' });
@@ -948,7 +948,7 @@ export default function AdminPage() {
                                     className="bg-red-500 text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105"
                                 >
                                     RESET TEAMS
-                                </button>
+                                </button> */}
                                 <button
                                     onClick={() => setIsAddingPlayer(true)}
                                     className="bg-accent text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105 flex items-center gap-2"

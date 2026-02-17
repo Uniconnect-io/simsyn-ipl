@@ -16,8 +16,17 @@ export async function POST(request: Request) {
     }
 
     // Authorization: User must be an ADMIN or the Captain of the specific teamId
-    if (session.user.role !== 'ADMIN' && session.user.team_id !== teamId) {
-      return NextResponse.json({ error: 'Forbidden: You can only bid for your own team' }, { status: 403 });
+    if (session.user.role !== 'ADMIN') {
+      // Always fetch the latest team_id from the database to avoid stale session issues
+      const captainRs = await db.execute({
+        sql: 'SELECT team_id FROM captains WHERE id = ?',
+        args: [session.user.id]
+      });
+      const dbTeamId = captainRs.rows[0]?.team_id;
+
+      if (dbTeamId !== teamId) {
+        return NextResponse.json({ error: 'Forbidden: You can only bid for your own team' }, { status: 403 });
+      }
     }
 
     const auctionRs = await db.execute({
