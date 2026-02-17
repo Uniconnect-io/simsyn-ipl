@@ -34,7 +34,7 @@ jobs:
 
       - name: SSH into CentOS Server and Restart Containers
         uses: appleboy/ssh-action@v0.1.10
-        # Increase step timeout (in minutes) to accommodate long npm installs / pm2 operations
+        
         timeout-minutes: 60
         with:
           host: ${{ secrets.UCENTERPRISE_SERVER_IP }}
