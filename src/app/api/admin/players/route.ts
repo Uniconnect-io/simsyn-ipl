@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import db, { initDb } from '@/lib/db';
 import crypto from 'crypto';
 
 export async function POST(request: Request) {
     try {
+        await initDb();
         const { name, rating, pool, min_bid } = await request.json();
 
         const id = 'p' + crypto.randomBytes(4).toString('hex');
@@ -74,10 +75,16 @@ export async function PATCH(request: Request) {
                 args: [id]
             });
         } else if (action === 'assign') {
-            await db.execute({
-                sql: 'UPDATE players SET team_id = ?, is_auctioned = 1 WHERE id = ?',
-                args: [team_id, id]
-            });
+            await db.batch([
+                {
+                    sql: 'UPDATE players SET team_id = ?, is_auctioned = 1 WHERE id = ?',
+                    args: [team_id, id]
+                },
+                {
+                    sql: 'UPDATE scores SET team_id = ? WHERE player_id = ? AND team_id IS NULL',
+                    args: [team_id, id]
+                }
+            ], 'write');
         }
 
         return NextResponse.json({ success: true });

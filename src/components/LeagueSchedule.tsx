@@ -1,22 +1,9 @@
-'use client';
-
-import { useState, useEffect } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Calendar, ChevronRight, Award, BarChart2, Home } from 'lucide-react';
+import { Calendar, Trophy, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
-interface Standing {
-    id: string;
-    name: string;
-    played: number;
-    won: number;
-    tied: number;
-    lost: number;
-    points: number;
-    nrr: number;
-}
-
-interface Match {
+export interface Match {
     id: string;
     team1_id: string;
     team1Name: string | null;
@@ -37,92 +24,16 @@ interface Match {
     is_published?: number;
 }
 
-export default function LeaguePage() {
-    const [standings, setStandings] = useState<Standing[]>([]);
-    const [schedule, setSchedule] = useState<Match[]>([]);
-    const [loading, setLoading] = useState(true);
+interface LeagueScheduleProps {
+    schedule: Match[];
+}
 
-    useEffect(() => {
-        Promise.all([
-            fetch('/api/league/leaderboard').then(res => res.json()),
-            fetch('/api/league/schedule').then(res => res.json())
-        ]).then(([leaderboardData, scheduleData]) => {
-            setStandings(leaderboardData);
-            setSchedule(scheduleData);
-            setLoading(false);
-        });
-    }, []);
-
-    if (loading) return <div className="p-8">Loading...</div>;
-
+export default function LeagueSchedule({ schedule }: LeagueScheduleProps) {
     const leagueMatches = schedule.filter(m => m.type === 'LEAGUE');
     const playoffMatches = schedule.filter(m => m.type !== 'LEAGUE');
 
     return (
-        <main className="min-h-screen p-6 lg:p-12 space-y-12">
-            <header className="flex justify-between items-center bg-black/40 backdrop-blur-md p-6 rounded-2xl border border-white/5 shadow-2xl">
-                <div>
-                    <h1 className="text-4xl font-black text-glow tracking-tighter uppercase italic">League Standings</h1>
-                    <p className="text-gray-400 font-bold text-xs tracking-widest uppercase mt-1">Road to the Playoffs • SIPL 2026</p>
-                </div>
-                <Link
-                    href="/"
-                    className="flex items-center gap-2 bg-white/5 hover:bg-white/10 px-6 py-3 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all font-bold"
-                >
-                    <Home className="w-5 h-5" /> Home
-                </Link>
-            </header>
-
-            {/* Leaderboard */}
-            <section className="glass-card overflow-hidden">
-                <div className="p-6 border-b border-white/5 bg-accent/5 flex items-center gap-2">
-                    <BarChart2 className="text-accent" />
-                    <h2 className="text-xl font-bold uppercase tracking-wider">Points Table</h2>
-                </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="border-b border-white/5 text-gray-400 text-xs uppercase tracking-widest">
-                                <th className="p-6">Pos</th>
-                                <th className="p-6">Team</th>
-                                <th className="p-6">P</th>
-                                <th className="p-6">W</th>
-                                <th className="p-6">D</th>
-                                <th className="p-6">L</th>
-                                <th className="p-6">NRR</th>
-                                <th className="p-6 text-accent">PTS</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {standings.map((team, idx) => (
-                                <tr key={team.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-all">
-                                    <td className="p-6 font-black text-white/30">{idx + 1}</td>
-                                    <td className="p-6 font-bold flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded bg-white/5 border border-white/10 overflow-hidden">
-                                            <img
-                                                src={`/assets/teamlogos/${team.name.toLowerCase().replace(' ', '_')}.png`}
-                                                alt={team.name}
-                                                className="w-full h-full object-cover"
-                                                onError={(e) => (e.currentTarget.style.display = 'none')}
-                                            />
-                                        </div>
-                                        {team.name}
-                                    </td>
-                                    <td className="p-6">{team.played}</td>
-                                    <td className="p-6">{team.won}</td>
-                                    <td className="p-6">{team.tied}</td>
-                                    <td className="p-6">{team.lost}</td>
-                                    <td className={`p-6 text-xs font-mono font-bold ${team.nrr >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                                        {team.nrr > 0 ? '+' : ''}{team.nrr.toFixed(3)}
-                                    </td>
-                                    <td className="p-6 text-accent font-black text-xl">{team.points}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
+        <div className="space-y-12">
             {/* League Schedule */}
             <section className="space-y-8">
                 <div className="flex items-center gap-2">
@@ -161,6 +72,8 @@ export default function LeaguePage() {
                                                     <span className="bg-accent text-white px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest">RESULT</span>
                                                 ) : (match.status === 'REVIEW_PENDING' || (match.status === 'COMPLETED' && !match.is_published)) ? (
                                                     <span className="bg-yellow-500/20 text-yellow-500 px-2 py-0.5 rounded text-[10px] font-bold">DECISION PENDING</span>
+                                                ) : match.status === 'IN_PROGRESS' ? (
+                                                    <span className="bg-red-600 text-white px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest animate-pulse shadow-[0_0_10px_rgba(220,38,38,0.5)]">LIVE NOW</span>
                                                 ) : (
                                                     <span className="bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold">UPCOMING</span>
                                                 )}
@@ -292,6 +205,6 @@ export default function LeaguePage() {
                     </div>
                 </section>
             )}
-        </main>
+        </div>
     );
 }

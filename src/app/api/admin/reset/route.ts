@@ -30,18 +30,14 @@ export async function POST(request: Request) {
                         overs2 = 0,
                         balls1 = 0,
                         balls2 = 0,
-                        team1_summary = NULL, 
-                        team2_summary = NULL, 
-                        team1_bonus = 0, 
-                        team2_bonus = 0, 
-                        status = 'SCHEDULED'
+                        case_description = NULL, 
+                        judgement_scheme_id = NULL, 
+                        status = CASE WHEN type = 'LEAGUE' THEN 'SCHEDULED' ELSE 'PENDING' END
                 `);
-                // Clear idea submissions (correct table is battle_ideas)
-                try {
-                    await db.execute('DELETE FROM battle_ideas');
-                } catch (e) {
-                    console.error('Failed to clear battle_ideas', e);
-                }
+                // Clear unified score data
+                await db.execute('DELETE FROM scores');
+                await db.execute('DELETE FROM individual_battle_answers');
+                await db.execute('DELETE FROM battle_ideas');
                 break;
 
             case 'players':
@@ -70,10 +66,10 @@ export async function POST(request: Request) {
                 await db.execute('UPDATE teams SET balance = 1000000');
                 break;
 
-            case 'captains':
-                // Unlink captains from teams
-                await db.execute('UPDATE captains SET team_id = NULL');
-                await db.execute('UPDATE teams SET captain_id = NULL');
+            case 'owners':
+                // Unlink owners from teams
+                await db.execute("UPDATE players SET team_id = NULL WHERE role = 'OWNER'");
+                await db.execute('UPDATE teams SET owner_id = NULL, captain_id = NULL');
                 break;
 
             default:

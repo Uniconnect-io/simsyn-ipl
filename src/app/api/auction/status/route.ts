@@ -25,10 +25,10 @@ export async function GET() {
     const auction = auctionRs.rows[0];
 
     if (!auction) {
-      // Find next player to auction if none active
-      const nextPlayerRs = await db.execute("SELECT * FROM players WHERE is_auctioned = 0 LIMIT 1");
-      const nextPlayer = nextPlayerRs.rows[0];
-      return NextResponse.json({ status: 'IDLE', nextPlayer });
+      // Find next players to auction if none active
+      const nextPlayersRs = await db.execute("SELECT * FROM players WHERE is_auctioned = 0 LIMIT 10");
+      const nextPlayers = nextPlayersRs.rows;
+      return NextResponse.json({ status: 'IDLE', nextPlayers });
     }
 
     return NextResponse.json(auction);

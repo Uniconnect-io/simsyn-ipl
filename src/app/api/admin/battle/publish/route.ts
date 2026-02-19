@@ -83,6 +83,27 @@ export async function POST(request: Request) {
                 args: [score1, wickets1, score2, wickets2, winnerId, matchId]
             });
 
+            // Unified Scoring: Insert match points into scores table
+            // Delete existing points for this match first
+            await db.execute({
+                sql: 'DELETE FROM scores WHERE match_id = ? AND player_id IS NULL',
+                args: [matchId]
+            });
+
+            const points1 = winnerId === match.team1_id ? 2 : (winnerId === null && score1 === score2 ? 1 : 0);
+            const points2 = winnerId === match.team2_id ? 2 : (winnerId === null && score1 === score2 ? 1 : 0);
+
+            await db.batch([
+                {
+                    sql: 'INSERT INTO scores (id, match_id, player_id, team_id, score, points, nrr_contribution) VALUES (?, ?, NULL, ?, ?, ?, 0)',
+                    args: [crypto.randomUUID(), matchId, match.team1_id, score1, points1]
+                },
+                {
+                    sql: 'INSERT INTO scores (id, match_id, player_id, team_id, score, points, nrr_contribution) VALUES (?, ?, NULL, ?, ?, ?, 0)',
+                    args: [crypto.randomUUID(), matchId, match.team2_id, score2, points2]
+                }
+            ], 'write');
+
         } else {
             // Unpublish
             await db.execute({

@@ -15,6 +15,7 @@ import {
     Gavel,
     FileText,
     BarChart,
+    BarChart3,
     Home,
     LogOut,
     Play,
@@ -24,7 +25,13 @@ import {
     Edit2,
     X,
     Timer,
-    List
+    List,
+    Zap,
+    Trash2,
+    Check,
+    Upload,
+    Edit3,
+    Edit
 } from 'lucide-react';
 import Link from 'next/link';
 import BattleHistoryTable from '@/components/BattleHistoryTable';
@@ -41,7 +48,7 @@ interface Player {
     teamName?: string | null;
 }
 
-interface Captain {
+interface Owner {
     id: string;
     name: string;
     team_id: string | null;
@@ -100,7 +107,7 @@ interface BattleIdea {
 
 export default function AdminPage() {
     const [players, setPlayers] = useState<Player[]>([]);
-    const [captains, setCaptains] = useState<Captain[]>([]);
+    const [owners, setOwners] = useState<Owner[]>([]);
     const [teams, setTeams] = useState<Team[]>([]);
     const [matches, setMatches] = useState<Match[]>([]);
     const [loading, setLoading] = useState(true);
@@ -113,7 +120,40 @@ export default function AdminPage() {
     const [newMinBid, setNewMinBid] = useState<number>(0);
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
     const [auctionStatus, setAuctionStatus] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState<'auction' | 'captains' | 'schedule' | 'cases' | 'insights' | 'maintenance'>('auction');
+    const [activeTab, setActiveTab] = useState<'auction' | 'owners' | 'battles' | 'cases' | 'insights' | 'maintenance'>('auction');
+
+    // Battle Wizard State
+    const [isCreatingBattle, setIsCreatingBattle] = useState(false);
+    const [wizardStep, setWizardStep] = useState(1);
+    const [battleMode, setBattleMode] = useState<'INDIVIDUAL' | 'TEAM_VS_TEAM' | 'TEAMS'>('INDIVIDUAL');
+    const [battleType, setBattleType] = useState('KAHOOT'); // KAHOOT, CASE_STUDY, TECH_TALK
+    const [editingBattleId, setEditingBattleId] = useState<string | null>(null);
+    const [wizardConfig, setWizardConfig] = useState({
+        title: '',
+        description: '',
+        question_timer: 10,
+        team1_id: '',
+        team2_id: '',
+        date: '',
+        time: '',
+        conductor_id: '',
+        points_weight: 1.0
+    });
+
+    const [conductorSearch, setConductorSearch] = useState('');
+    const filteredConductors = players.filter(p => p.name.toLowerCase().includes(conductorSearch.toLowerCase()));
+
+    // Individual Battles State
+    const [individualBattles, setIndividualBattles] = useState<any[]>([]);
+    const [managingQuestionsBattleId, setManagingQuestionsBattleId] = useState<string | null>(null);
+    const [battleQuestions, setBattleQuestions] = useState<any[]>([]);
+    const [isAddingQuestion, setIsAddingQuestion] = useState(false);
+    const [newQuestion, setNewQuestion] = useState({ question: '', options: ['', '', '', ''], correct_option: 0 });
+    const [viewingReportBattleId, setViewingReportBattleId] = useState<string | null>(null);
+    const [reportData, setReportData] = useState<{ answers: any[], scores: any[] } | null>(null);
+
+    // Leaderboard State
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
     // Insights State
     const [battleIdeas, setBattleIdeas] = useState<BattleIdea[]>([]);
@@ -128,6 +168,58 @@ export default function AdminPage() {
     const [schedule, setSchedule] = useState<Match[]>([]);
     const [startingBattleMatch, setStartingBattleMatch] = useState<Match | null>(null);
     const [caseDescription, setCaseDescription] = useState('');
+
+    // Judgement Schemes State
+    const [judgementSchemes, setJudgementSchemes] = useState<any[]>([]);
+    const [isAddingScheme, setIsAddingScheme] = useState(false);
+    const [newScheme, setNewScheme] = useState<any>({
+        name: '',
+        alignment_weight: 0.25,
+        feasibility_weight: 0.20,
+        value_weight: 0.25,
+        effort_weight: 0.15,
+        innovation_weight: 0.15,
+        relevance_threshold: 0.12,
+        is_default: false
+    });
+
+    const fetchSchemes = async () => {
+        const res = await fetch('/api/admin/schemes');
+        if (res.ok) {
+            const data = await res.json();
+            setJudgementSchemes(data);
+        }
+    };
+
+    const fetchHeartbeat = async () => {
+        try {
+            const res = await fetch('/api/admin/heartbeat');
+            if (!res.ok) {
+                if (res.status === 401) setLoggedInAdmin(null);
+                return;
+            }
+            const data = await res.json();
+
+            setPlayers(data.players);
+            setOwners(data.owners);
+            setTeams(data.teams);
+            setMatches(data.matches);
+            setCaseStudies(data.caseStudies);
+            setIndividualBattles(data.individualBattles);
+            setAuctionStatus(data.auction);
+
+            if (data.auction?.status === 'ACTIVE' && data.auction?.timerEnd) {
+                const remaining = Math.max(0, Math.floor((new Date(data.auction.timerEnd).getTime() - Date.now()) / 1000));
+                setTimeLeft(remaining);
+            } else {
+                setTimeLeft(null);
+            }
+
+            setLoading(false);
+        } catch (e) {
+            console.error("Heartbeat failed", e);
+        }
+    };
 
     useEffect(() => {
         const checkSession = async () => {
@@ -149,55 +241,23 @@ export default function AdminPage() {
 
     useEffect(() => {
         if (loggedInAdmin) {
-            fetchPlayers();
+            fetchHeartbeat();
+            fetchSchemes();
         } else {
             setLoading(false);
         }
     }, [loggedInAdmin]);
 
-    const fetchPlayers = async () => {
-        // setLoading(true); // Don't block UI on poll
-        const playersRes = await fetch('/api/players');
-        const playersData = await playersRes.json();
-        setPlayers(playersData);
-
-        const captainsRes = await fetch('/api/captains');
-        const captainsData = await captainsRes.json();
-        setCaptains(captainsData);
-
-        const teamsRes = await fetch('/api/teams');
-        const teamsData = await teamsRes.json();
-        setTeams(teamsData);
-
-        const scheduleRes = await fetch('/api/league/schedule');
-        const scheduleData = await scheduleRes.json();
-        setMatches(scheduleData);
-
-        setLoading(false);
-
-        // Fetch auction status for timer
-        const auctionRes = await fetch('/api/auction/status');
-        const auctionData = await auctionRes.json();
-        setAuctionStatus(auctionData);
-
-        if (auctionData.status === 'ACTIVE' && auctionData.timerEnd) {
-            const remaining = Math.max(0, Math.floor((new Date(auctionData.timerEnd).getTime() - Date.now()) / 1000));
-            setTimeLeft(remaining);
-        } else {
-            setTimeLeft(null);
-        }
-
-        const casesRes = await fetch('/api/admin/cases');
-        const casesData = await casesRes.json();
-        setCaseStudies(casesData);
-    };
+    // fetchPlayers removed in favor of fetchHeartbeat
 
     useEffect(() => {
         if (!loggedInAdmin) return;
 
-        const interval = setInterval(fetchPlayers, 1000); // Poll every second for timer sync
+        // Dynamic polling: 1s during active auction, 10s otherwise
+        const intervalTime = (auctionStatus?.status === 'ACTIVE') ? 1000 : 10000;
+        const interval = setInterval(fetchHeartbeat, intervalTime);
         return () => clearInterval(interval);
-    }, [loggedInAdmin]);
+    }, [loggedInAdmin, auctionStatus?.status]);
 
     useEffect(() => {
         if (activeTab === 'insights') {
@@ -214,14 +274,14 @@ export default function AdminPage() {
             console.error('Error fetching battle ideas:', error);
         }
     };
-    const resetCaptainPassword = async (captainId: string) => {
-        if (!confirm('Are you sure you want to reset this captain\'s password to default (sipl2026)?')) return;
+    const resetOwnerPassword = async (ownerId: string) => {
+        if (!confirm('Are you sure you want to reset this owner\'s password to default (sipl2026)?')) return;
 
         try {
             const res = await fetch('/api/auth/admin/reset-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ captainId }),
+                body: JSON.stringify({ ownerId }),
             });
             const data = await res.json();
             if (data.success) {
@@ -271,7 +331,7 @@ export default function AdminPage() {
         if (data.success) {
             alert('Minimum bid updated!');
             setEditingPlayer(null);
-            fetchPlayers();
+            fetchHeartbeat();
         } else {
             alert(data.error);
         }
@@ -286,7 +346,7 @@ export default function AdminPage() {
         const data = await res.json();
         if (data.success) {
             alert('Auction started!');
-            fetchPlayers();
+            fetchHeartbeat();
         } else {
             alert(data.error);
         }
@@ -302,7 +362,7 @@ export default function AdminPage() {
             if (res.ok) {
                 setIsAddingPlayer(false);
                 setNewPlayer({ name: '', rating: 5, pool: 'D', min_bid: 50000 });
-                fetchPlayers();
+                fetchHeartbeat();
             }
         } catch (error) {
             alert('Failed to add player');
@@ -313,7 +373,7 @@ export default function AdminPage() {
         if (!confirm('Are you sure you want to remove this player?')) return;
         try {
             const res = await fetch(`/api/admin/players?id=${id}`, { method: 'DELETE' });
-            if (res.ok) fetchPlayers();
+            if (res.ok) fetchHeartbeat();
             else {
                 const data = await res.json();
                 alert(data.error || 'Failed to remove player');
@@ -335,7 +395,7 @@ export default function AdminPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id, action, team_id, refund }),
             });
-            if (res.ok) fetchPlayers();
+            if (res.ok) fetchHeartbeat();
         } catch (error) {
             alert('Failed to update player');
         }
@@ -358,7 +418,7 @@ export default function AdminPage() {
             });
             if (res.ok) {
                 alert('Wallet topped up!');
-                fetchPlayers();
+                fetchHeartbeat();
             }
         } catch (error) {
             alert('Failed to topup wallet');
@@ -373,7 +433,7 @@ export default function AdminPage() {
                 body: JSON.stringify({ id, date }),
             });
             if (res.ok) {
-                fetchPlayers();
+                fetchHeartbeat();
             } else {
                 alert('Failed to update schedule');
             }
@@ -400,7 +460,7 @@ export default function AdminPage() {
             setIsEditingCase(false);
             setEditingCaseId(null);
             setNewCase({ title: '', description: '' });
-            fetchPlayers();
+            fetchHeartbeat();
         } else {
             alert('Failed to save case study');
         }
@@ -414,7 +474,7 @@ export default function AdminPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id }),
             });
-            if (res.ok) fetchPlayers();
+            if (res.ok) fetchHeartbeat();
         } catch (error) {
             alert('Failed to delete case study');
         }
@@ -430,10 +490,10 @@ export default function AdminPage() {
         });
 
         if (res.ok) {
-            alert('Battle Started! Captains can now submit ideas.');
+            alert('Battle Started! Owners can now submit ideas.');
             setStartingBattleMatch(null);
             setCaseDescription('');
-            fetchPlayers();
+            fetchHeartbeat();
         } else {
             const data = await res.json();
             alert(data.error || 'Failed to start battle');
@@ -459,11 +519,73 @@ export default function AdminPage() {
             if (res.ok) {
                 alert(`Reset ${type} successful!`);
                 // Refresh data
-                fetchPlayers();
-                setCaptains([]); // Force refresh or fetch captains if there's a fetchCaptains
+                fetchHeartbeat();
             } else {
                 alert(`Failed to reset ${type}`);
             }
+        }
+    };
+
+    const handleCreateBattle = async () => {
+        // Validation Logic
+        if (!wizardConfig.title || !wizardConfig.description || !battleMode || !battleType) {
+            alert('Please fill in Title, Description, Mode and Type.');
+            return;
+        }
+
+        if (battleMode === 'TEAM_VS_TEAM' && (!wizardConfig.team1_id || !wizardConfig.team2_id)) {
+            alert('Please select both Team 1 and Team 2.');
+            return;
+        }
+
+        if (battleType === 'TECH_TALK' && !wizardConfig.conductor_id) {
+            alert('Please select a Conductor for the Tech Talk.');
+            return;
+        }
+
+        if ((battleType === 'TECH_TALK' || wizardConfig.date || wizardConfig.time) && (!wizardConfig.date || !wizardConfig.time)) {
+            alert('Please select both Date and Time if scheduling.');
+            return;
+        }
+
+        const res = await fetch('/api/admin/battles', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: wizardConfig.title,
+                description: wizardConfig.description,
+                question_timer: wizardConfig.question_timer,
+                mode: battleMode,
+                team1_id: wizardConfig.team1_id || null,
+                team2_id: wizardConfig.team2_id || null,
+                battle_type: battleType,
+                start_time: (wizardConfig.date && wizardConfig.time) ? `${wizardConfig.date}T${wizardConfig.time}` : null,
+                conductor_id: wizardConfig.conductor_id || null,
+                points_weight: wizardConfig.points_weight
+            }),
+        });
+
+        if (res.ok) {
+            alert('Battle created successfully!');
+            setIsCreatingBattle(false); // Close the wizard
+            setWizardStep(1); // Reset step
+            setWizardConfig({ // Reset config
+                title: '',
+                description: '',
+                question_timer: 60,
+                team1_id: '',
+                team2_id: '',
+                date: '',
+                time: '',
+                conductor_id: '',
+                points_weight: 1.0 // Reset this too just in case
+            });
+            setBattleMode('INDIVIDUAL'); // Reset default
+            setBattleType('CASE_STUDY'); // Reset default
+            fetchHeartbeat();
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Failed to create battle');
         }
     };
 
@@ -620,162 +742,49 @@ export default function AdminPage() {
                 </div>
             </header>
 
-            <div className="flex gap-4 mb-8 border-b border-white/10 pb-4">
+            <div className="flex gap-4 mb-8 border-b border-white/10 pb-4 overflow-x-auto custom-scrollbar">
                 <button
                     onClick={() => setActiveTab('auction')}
-                    className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'auction' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                    className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'auction' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <Trophy className="inline-block w-4 h-4 mr-2" /> Auction
+                    <Gavel className="inline-block w-4 h-4 mr-2" /> Auction
                 </button>
                 <button
-                    onClick={() => setActiveTab('captains')}
-                    className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'captains' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                    onClick={() => setActiveTab('owners')}
+                    className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'owners' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <User className="inline-block w-4 h-4 mr-2" /> Captains
+                    <Shield className="inline-block w-4 h-4 mr-2" /> Owners
                 </button>
+
+
                 <button
-                    onClick={() => setActiveTab('schedule')}
-                    className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'schedule' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                    onClick={() => setActiveTab('battles')}
+                    className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'battles' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <Trophy className="inline-block w-4 h-4 mr-2" /> Schedule
+                    <Zap className="inline-block w-4 h-4 mr-2" /> Battles
                 </button>
+
+
                 <button
                     onClick={() => setActiveTab('cases')}
-                    className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'cases' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                    className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'cases' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <Award className="inline-block w-4 h-4 mr-2" /> Cases
+                    <FileText className="inline-block w-4 h-4 mr-2" /> Cases
                 </button>
                 <button
                     onClick={() => setActiveTab('insights')}
-                    className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'insights' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                    className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'insights' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <List className="inline-block w-4 h-4 mr-2" /> Insights
+                    <BarChart className="inline-block w-4 h-4 mr-2" /> Insights
                 </button>
                 <button
                     onClick={() => setActiveTab('maintenance')}
-                    className={`px-6 py-2 rounded-lg font-bold transition-all ${activeTab === 'maintenance' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                    className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'maintenance' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
                     <Settings className="inline-block w-4 h-4 mr-2" /> Maintenance
                 </button>
             </div>
 
-            {activeTab === 'schedule' && (
-                <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <h2 className="text-2xl font-black mb-8 flex items-center gap-3">
-                        <Trophy className="text-accent" /> SCHEDULE MANAGEMENT
-                    </h2>
-
-                    <div className="glass-card p-8 space-y-8">
-                        <div>
-                            <div className="flex justify-between items-center mb-6">
-                                <div>
-                                    <h3 className="text-xl font-bold mb-2">League & Playoff Schedule</h3>
-                                    <p className="text-gray-400">View and manually adjust match dates and times.</p>
-                                </div>
-                                <button
-                                    onClick={async () => {
-                                        if (!confirm('Generate new schedule? This will clear all existing matches and results.')) return;
-                                        const res = await fetch('/api/league/generate-schedule', { method: 'POST' });
-                                        const data = await res.json();
-                                        if (data.success) {
-                                            alert(`Schedule generated successfully! ${data.count} matches created.`);
-                                            fetchPlayers();
-                                        } else {
-                                            alert('Failed to generate schedule');
-                                        }
-                                    }}
-                                    className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-500/20 font-black px-6 py-3 rounded-xl transition-all flex items-center gap-2 text-xs"
-                                >
-                                    <RefreshCw className="w-4 h-4" />
-                                    REGENERATE COMPLETE SCHEDULE
-                                </button>
-                            </div>
-
-                            <div className="space-y-4">
-                                {Array.isArray(matches) && matches.map((match) => (
-                                    <div key={match.id} className="bg-black/40 border border-white/5 rounded-xl p-4 flex flex-col md:flex-row justify-between items-center gap-4 hover:border-accent/20 transition-all">
-                                        <div className="flex items-center gap-4 flex-1">
-                                            <div className="px-3 py-1 bg-white/5 rounded-lg text-[10px] font-bold text-gray-500 uppercase">
-                                                {match.type === 'LEAGUE' ? `Month ${match.month}` : match.type}
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="font-bold text-sm min-w-[100px] text-right">
-                                                    {match.team1Name || 'TBD'}
-                                                </span>
-                                                <span className="text-[10px] font-black italic text-gray-600">VS</span>
-                                                <span className="font-bold text-sm min-w-[100px]">
-                                                    {match.team2Name || 'TBD'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-4">
-                                            {match.status === 'SCHEDULED' ? (
-                                                <>
-                                                    <input
-                                                        type="datetime-local"
-                                                        defaultValue={new Date(match.date).toISOString().slice(0, 16)}
-                                                        className="bg-black/60 border border-white/10 rounded-lg p-2 text-xs focus:border-accent outline-none text-white"
-                                                        id={`date-${match.id}`}
-                                                    />
-                                                    <button
-                                                        onClick={() => {
-                                                            const input = document.getElementById(`date-${match.id}`) as HTMLInputElement;
-                                                            handleUpdateSchedule(match.id, new Date(input.value).toISOString());
-                                                        }}
-                                                        className="bg-accent/10 hover:bg-accent text-accent hover:text-white px-4 py-2 rounded-lg text-[10px] font-bold border border-accent/20 transition-all"
-                                                    >
-                                                        UPDATE
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (confirm(`Start Live Battle for ${match.team1Name} vs ${match.team2Name}?`)) {
-                                                                handleStartBattle(match.id);
-                                                            }
-                                                        }}
-                                                        className="bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-white px-4 py-2 rounded-lg text-[10px] font-bold border border-green-500/20 transition-all ml-2"
-                                                    >
-                                                        START BATTLE
-                                                    </button>
-                                                </>
-                                            ) : match.status === 'IN_PROGRESS' ? (
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex flex-col items-end">
-                                                        <span className="text-[10px] text-red-500 font-black animate-pulse">LIVE BATTLE</span>
-                                                        <span className="text-xs font-mono font-bold text-white">
-                                                            {match.score1}/{match.wickets1} vs {match.score2}/{match.wickets2}
-                                                        </span>
-                                                    </div>
-                                                    <button
-                                                        className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-4 py-2 rounded-lg text-[10px] font-bold border border-red-500/20 transition-all"
-                                                    >
-                                                        VIEW LIVE
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <div className="flex flex-col items-end gap-2">
-                                                    <div className="flex flex-col items-end">
-                                                        <span className="text-[10px] text-gray-500 font-bold uppercase">Completed</span>
-                                                        <span className="text-xs font-mono font-bold text-gray-300">
-                                                            {match.score1} - {match.score2}
-                                                        </span>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => window.open(`/match/${match.id}`, '_blank')}
-                                                        className="bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg text-[9px] font-black tracking-widest uppercase border border-white/10"
-                                                    >
-                                                        Review Results
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            )}
 
             {activeTab === 'cases' && (
                 <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -786,16 +795,54 @@ export default function AdminPage() {
                             </h2>
                             <p className="text-gray-400 mt-1">Manage unique problem statements for Match Battles.</p>
                         </div>
-                        <button
-                            onClick={() => {
-                                setIsEditingCase(false);
-                                setNewCase({ title: '', description: '' });
-                                setIsAddingCase(true);
-                            }}
-                            className="bg-accent text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105 flex items-center gap-2"
-                        >
-                            <Play className="w-4 h-4" /> ADD CASE STUDY
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <label className="bg-white/5 text-gray-400 border border-white/10 font-bold px-6 py-2 rounded-lg transition-all hover:bg-white/10 flex items-center gap-2 cursor-pointer text-sm">
+                                <Upload className="w-4 h-4" /> IMPORT CSV
+                                <input
+                                    type="file"
+                                    accept=".csv"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file) return;
+                                        const reader = new FileReader();
+                                        reader.onload = async (ev) => {
+                                            const text = ev.target?.result as string;
+                                            const lines = text.split('\n').filter(l => l.trim());
+                                            const data = lines.slice(1).map(line => {
+                                                const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.trim().replace(/^"|"$/g, ''));
+                                                if (parts.length < 2) return null;
+                                                return { title: parts[0], description: parts[1] };
+                                            }).filter(d => d !== null);
+
+                                            if (data.length > 0) {
+                                                const res = await fetch('/api/admin/cases', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify(data)
+                                                });
+                                                if (res.ok) {
+                                                    alert(`${data.length} cases imported successfully!`);
+                                                    const updated = await fetch('/api/admin/cases');
+                                                    setCaseStudies(await updated.json());
+                                                }
+                                            }
+                                        };
+                                        reader.readAsText(file);
+                                    }}
+                                />
+                            </label>
+                            <button
+                                onClick={() => {
+                                    setIsEditingCase(false);
+                                    setNewCase({ title: '', description: '' });
+                                    setIsAddingCase(true);
+                                }}
+                                className="bg-accent text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105 flex items-center gap-2 text-sm"
+                            >
+                                <Plus className="w-4 h-4" /> ADD CASE
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -848,39 +895,39 @@ export default function AdminPage() {
             }
 
             {
-                activeTab === 'captains' && (
+                activeTab === 'owners' && (
                     <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <h2 className="text-2xl font-black mb-8 flex items-center gap-3">
-                            <Shield className="text-accent" /> CAPTAIN MANAGEMENT
+                            <Shield className="text-accent" /> OWNER MANAGEMENT
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {captains.map(captain => (
-                                <div key={captain.id} className="glass-card p-6 flex flex-col items-center text-center">
+                            {owners.map(owner => (
+                                <div key={owner.id} className="glass-card p-6 flex flex-col items-center text-center">
                                     <div className="w-16 h-16 rounded-full overflow-hidden mb-4 border-2 border-white/10">
                                         <img
-                                            src={`/assets/employee/${captain.name.toLowerCase()}.png`}
-                                            alt={captain.name}
+                                            src={`/assets/employee/${owner.name.toLowerCase()}.png`}
+                                            alt={owner.name}
                                             className="w-full h-full object-cover"
-                                            onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + captain.name)}
+                                            onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + owner.name)}
                                         />
                                     </div>
-                                    <h3 className="font-bold mb-1">{captain.name}</h3>
-                                    <p className="text-xs text-accent font-black mb-1">{captain.teamName || 'NO TEAM'}</p>
-                                    {captain.team_id && (
+                                    <h3 className="font-bold mb-1">{owner.name}</h3>
+                                    <p className="text-xs text-accent font-black mb-1">{owner.teamName || 'NO TEAM'}</p>
+                                    {owner.team_id && (
                                         <div className="mb-4">
                                             <div className="text-[10px] text-gray-500 uppercase font-bold">Wallet Balance</div>
-                                            <div className="text-sm font-black text-white">₹{(captain.balance || 0).toLocaleString()}</div>
+                                            <div className="text-sm font-black text-white">₹{(owner.balance || 0).toLocaleString()}</div>
                                             <button
-                                                onClick={() => handleTopup(captain.team_id!)}
+                                                onClick={() => handleTopup(owner.team_id!)}
                                                 className="text-[9px] text-accent hover:underline font-bold mt-1"
                                             >
                                                 + Topup Wallet
                                             </button>
                                         </div>
                                     )}
-                                    <p className="text-xs text-gray-500 mb-4">{captain.team_id ? 'Assigned' : 'Unassigned'}</p>
+                                    <p className="text-xs text-gray-500 mb-4">{owner.team_id ? 'Assigned' : 'Unassigned'}</p>
                                     <button
-                                        onClick={() => resetCaptainPassword(captain.id)}
+                                        onClick={() => resetOwnerPassword(owner.id)}
                                         className="text-xs bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 py-2 px-4 rounded-lg border border-white/5 transition-all w-full flex items-center justify-center gap-2"
                                     >
                                         <RefreshCw className="w-3 h-3" /> Reset Password
@@ -892,39 +939,247 @@ export default function AdminPage() {
                 )
             }
 
-            {
-                activeTab === 'insights' && (
-                    <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <div className="flex justify-between items-end mb-8">
-                            <div>
-                                <h2 className="text-2xl font-black flex items-center gap-3">
-                                    <List className="text-accent" /> BATTLE INSIGHTS
-                                </h2>
-                                <p className="text-gray-400 mt-1">Audit trail of all innovation ideas submitted during battles.</p>
-                            </div>
-                            <div className="relative">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                                <input
-                                    type="text"
-                                    placeholder="Search ideas, teams, or results..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-accent outline-none text-sm w-64 transition-all"
-                                />
-                            </div>
-                        </div>
 
-                        <BattleHistoryTable
-                            ideas={battleIdeas}
-                            matches={matches}
-                            searchTerm={searchTerm}
-                            editable={true}
-                            onUpdateIdea={handleUpdateIdea}
-                            onPublishMatch={handlePublishMatch}
-                            onUnpublishMatch={handleUnpublishMatch}
-                        />
-                    </section>
-                )
+
+            {activeTab === 'battles' && (
+                <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex justify-between items-end mb-8">
+                        <div>
+                            <h2 className="text-2xl font-black flex items-center gap-3">
+                                <Zap className="text-accent" /> BATTLE MANAGEMENT
+                            </h2>
+                            <p className="text-gray-400 mt-1">Control center for all Match and Individual battles.</p>
+                        </div>
+                        <button
+                            onClick={() => setIsCreatingBattle(true)}
+                            className="bg-accent text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105 flex items-center gap-2 text-sm"
+                        >
+                            <Plus className="w-4 h-4" /> CREATE BATTLE
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        {/* Unified List: Matches (that are battles) + Individual Battles */}
+                        {/* 1. Live/Active Matches */}
+                        {matches.filter(m => m.status === 'IN_PROGRESS' || m.status === 'SCHEDULED').map(match => (
+                            <div key={match.id} className="glass-card p-6 flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 border-l-blue-500 relative group">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] font-black bg-blue-500/20 text-blue-500 px-2 rounded uppercase">MATCH BATTLE</span>
+                                        <span className="text-[10px] text-gray-500 font-mono">{new Date(match.date).toLocaleString()}</span>
+                                    </div>
+                                    <h3 className="text-lg font-bold">{match.team1Name} vs {match.team2Name}</h3>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {match.status === 'SCHEDULED' && (
+                                        <div className="flex items-center gap-2">
+                                            <select
+                                                className="bg-black/60 border border-white/10 rounded-lg p-2 text-[10px] focus:border-accent outline-none text-white max-w-[150px]"
+                                                id={`case-${match.id}`}
+                                            >
+                                                <option value="">Random Case</option>
+                                                {caseStudies.map(cs => (
+                                                    <option key={cs.id} value={cs.id}>{cs.title}</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                onClick={() => {
+                                                    const caseSelect = document.getElementById(`case-${match.id}`) as HTMLSelectElement;
+                                                    handleStartBattle(match.id, caseSelect.value ? caseStudies.find(c => c.id === caseSelect.value)?.description : '');
+                                                }}
+                                                className="bg-green-500/20 text-green-500 border border-green-500/20 px-4 py-2 rounded-lg font-bold text-xs hover:bg-green-500 hover:text-white transition-all"
+                                            >
+                                                START
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    if (!confirm('Delete this match battle?')) return;
+                                                    await fetch('/api/admin/schedule', {
+                                                        method: 'DELETE',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ id: match.id })
+                                                    });
+                                                    fetchHeartbeat();
+                                                }}
+                                                className="p-2 text-gray-500 hover:text-red-500 transition-all"
+                                                title="Delete Match"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
+                                    {match.status === 'IN_PROGRESS' && (
+                                        <span className="text-red-500 font-bold animate-pulse text-xs">LIVE NOW</span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* 2. Individual Battles */}
+                        {individualBattles.map(battle => (
+                            <div key={battle.id} className={`glass-card p-6 flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 ${battle.status === 'ACTIVE' ? 'border-l-green-500' : 'border-l-gray-500'}`}>
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] font-black bg-purple-500/20 text-purple-500 px-2 rounded uppercase">INDIVIDUAL</span>
+                                        <span className="text-[10px] font-black bg-blue-500/20 text-blue-500 px-2 rounded uppercase">{battle.battle_type?.replace('_', ' ') || 'KAHOOT'}</span>
+                                        <span className={`text-[10px] font-black px-2 rounded uppercase ${battle.status === 'ACTIVE' ? 'bg-green-500/20 text-green-500' : 'bg-gray-700/50 text-gray-500'}`}>
+                                            {battle.status}
+                                        </span>
+                                    </div>
+                                    <h3 className="text-lg font-bold">{battle.title}</h3>
+                                    <p className="text-sm text-gray-500 line-clamp-1">{battle.description}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={async () => {
+                                            setManagingQuestionsBattleId(battle.id);
+                                            const res = await fetch(`/api/admin/battles/questions?battleId=${battle.id}`);
+                                            const data = await res.json();
+                                            setBattleQuestions(data);
+                                        }}
+                                        className="bg-white/5 text-gray-400 border border-white/10 px-3 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-white/10 hover:text-white transition-all flex items-center gap-2"
+                                    >
+                                        <List className="w-3 h-3" /> Questions
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            setViewingReportBattleId(battle.id);
+                                            const res = await fetch(`/api/admin/battles/${battle.id}/report`);
+                                            if (res.ok) {
+                                                const data = await res.json();
+                                                setReportData(data);
+                                            }
+                                        }}
+                                        className="bg-blue-600/20 text-blue-500 border border-blue-500/20 px-3 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"
+                                    >
+                                        <FileText className="w-3 h-3" /> Report
+                                    </button>
+                                    {battle.status === 'PENDING' && (
+                                        <button
+                                            onClick={async () => {
+                                                await fetch('/api/admin/battles', {
+                                                    method: 'PATCH',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ id: battle.id, status: 'ACTIVE' })
+                                                });
+                                                fetchHeartbeat();
+                                            }}
+                                            className="bg-green-600/20 text-green-500 border border-green-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-green-600 hover:text-white transition-all"
+                                        >
+                                            START
+                                        </button>
+                                    )}
+                                    {battle.status === 'ACTIVE' && (
+                                        <button
+                                            onClick={async () => {
+                                                if (!confirm('End battle and finalize scores?')) return;
+                                                await fetch('/api/admin/battles', {
+                                                    method: 'PATCH',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ id: battle.id, status: 'COMPLETED' })
+                                                });
+                                                fetchHeartbeat();
+                                            }}
+                                            className="bg-red-600/20 text-red-500 border border-red-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-red-600 hover:text-white transition-all"
+                                        >
+                                            END
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => {
+                                            setEditingBattleId(battle.id);
+                                            setWizardConfig({
+                                                title: battle.title,
+                                                description: battle.description,
+                                                question_timer: battle.question_timer,
+                                                team1_id: battle.team1_id || '',
+                                                team2_id: battle.team2_id || '',
+                                                date: battle.start_time ? battle.start_time.split('T')[0] : '',
+                                                time: battle.start_time ? battle.start_time.split('T')[1]?.substring(0, 5) : '',
+                                                conductor_id: battle.conductor_id || '',
+                                                points_weight: battle.points_weight || 1.0
+                                            });
+                                            setBattleMode(battle.mode);
+                                            setBattleType(battle.battle_type);
+                                            setIsCreatingBattle(true);
+                                            setWizardStep(2); // Jump to configuration
+                                        }}
+                                        className="p-2 text-gray-500 hover:text-white transition-all"
+                                        title="Edit Battle"
+                                    >
+                                        <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (!confirm('RESET this battle? This will clear all answers and scores. Cannot be undone.')) return;
+                                            const res = await fetch(`/api/admin/battles/${battle.id}/reset`, { method: 'POST' });
+                                            if (res.ok) {
+                                                alert('Battle reset successfully!');
+                                                fetchHeartbeat();
+                                            } else {
+                                                alert('Failed to reset battle');
+                                            }
+                                        }}
+                                        className="p-2 text-gray-500 hover:text-orange-500 transition-all"
+                                        title="Reset Battle Data"
+                                    >
+                                        <RefreshCw className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (!confirm('Delete this battle?')) return;
+                                            await fetch('/api/admin/battles', {
+                                                method: 'DELETE',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ id: battle.id })
+                                            });
+                                            fetchHeartbeat();
+                                        }}
+                                        className="p-2 text-gray-500 hover:text-red-500"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+            )}
+
+
+
+            {activeTab === 'insights' && (
+                <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex justify-between items-end mb-8">
+                        <div>
+                            <h2 className="text-2xl font-black flex items-center gap-3">
+                                <List className="text-accent" /> BATTLE INSIGHTS
+                            </h2>
+                            <p className="text-gray-400 mt-1">Audit trail of all innovation ideas submitted during battles.</p>
+                        </div>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                            <input
+                                type="text"
+                                placeholder="Search ideas, teams, or results..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-accent outline-none text-sm w-64 transition-all"
+                            />
+                        </div>
+                    </div>
+
+                    <BattleHistoryTable
+                        ideas={battleIdeas}
+                        matches={matches}
+                        searchTerm={searchTerm}
+                        editable={true}
+                        onUpdateIdea={handleUpdateIdea}
+                        onPublishMatch={handlePublishMatch}
+                        onUnpublishMatch={handleUnpublishMatch}
+                    />
+                </section>
+            )
             }
 
             {
@@ -941,7 +1196,7 @@ export default function AdminPage() {
                                         const res = await fetch('/api/auction/reset', { method: 'POST' });
                                         const data = await res.json();
                                         if (data.success) {
-                                            fetchPlayers();
+                                            fetchHeartbeat();
                                             alert('Auction table and teams reset successfully!');
                                         }
                                     }}
@@ -959,7 +1214,7 @@ export default function AdminPage() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {players.map(player => {
+                            {players.filter(p => p.role !== 'OWNER').map(player => {
                                 const isLive = auctionStatus?.status === 'ACTIVE' && auctionStatus?.playerId === player.id;
                                 const isSold = player.is_auctioned;
 
@@ -996,7 +1251,7 @@ export default function AdminPage() {
                                                 </div>
                                             )}
                                             <div className="flex justify-between items-center">
-                                                <p className="text-gray-400">Min Bid: {player.min_bid.toLocaleString()}</p>
+                                                <p className="text-gray-400">Min Bid: {(player.min_bid ?? 0).toLocaleString()}</p>
                                                 {!player.is_auctioned && !isLive && (
                                                     <button
                                                         onClick={() => {
@@ -1330,6 +1585,642 @@ export default function AdminPage() {
                     </div>
                 )
             }
+
+            {/* Create Battle Wizard */}
+            <AnimatePresence>
+                {isCreatingBattle && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl"
+                        >
+                            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
+                                <h2 className="text-2xl font-black uppercase italic tracking-tighter">Create New Battle</h2>
+                                <button onClick={() => { setIsCreatingBattle(false); setWizardStep(1); }}><X className="w-5 h-5" /></button>
+                            </div>
+
+                            <div className="p-8">
+                                {/* Step Indicator */}
+                                <div className="flex items-center gap-4 mb-8">
+                                    {[1, 2, 3].map(step => (
+                                        <div key={step} className={`flex-1 h-2 rounded-full transition-all ${step <= wizardStep ? 'bg-accent' : 'bg-white/10'}`} />
+                                    ))}
+                                </div>
+
+                                {wizardStep === 1 && (
+                                    <div className="space-y-6">
+                                        <h3 className="text-xl font-bold">Select Battle Mode</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div
+                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${battleMode === 'INDIVIDUAL' ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
+                                                onClick={() => setBattleMode('INDIVIDUAL')}
+                                            >
+                                                <User className="w-8 h-8 text-accent mb-3" />
+                                                <h3 className="font-bold text-lg">Individual</h3>
+                                                <p className="text-sm text-gray-400">Players compete individually for points.</p>
+                                            </div>
+                                            <div
+                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${battleMode === 'TEAM_VS_TEAM' ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
+                                                onClick={() => setBattleMode('TEAM_VS_TEAM')}
+                                            >
+                                                <Users className="w-8 h-8 text-blue-400 mb-3" />
+                                                <h3 className="font-bold text-lg">1 vs 1 Team</h3>
+                                                <p className="text-sm text-gray-400">Two teams compete against each other.</p>
+                                            </div>
+                                            <div
+                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${battleMode === 'TEAMS' ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
+                                                onClick={() => setBattleMode('TEAMS')}
+                                            >
+                                                <Shield className="w-8 h-8 text-green-400 mb-3" />
+                                                <h3 className="font-bold text-lg">All Teams</h3>
+                                                <p className="text-sm text-gray-400">All teams compete in a group battle.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {wizardStep === 2 && (
+                                    <div className="space-y-6">
+                                        <h3 className="text-xl font-bold">Configuration</h3>
+                                        <div className="space-y-4">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-gray-400 font-bold uppercase">Battle Type</label>
+                                                    <select
+                                                        value={battleType}
+                                                        onChange={(e) => setBattleType(e.target.value)}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                                    >
+                                                        <option value="KAHOOT">Kahoot / Quiz</option>
+                                                        <option value="CASE_STUDY">Case Study</option>
+                                                        <option value="TECH_TALK">Tech Talk</option>
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {battleType !== 'TECH_TALK' && (
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="space-y-1">
+                                                                <label className="text-xs text-gray-400 font-bold uppercase">Question Timer (sec)</label>
+                                                                <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
+                                                                    <Timer className="w-4 h-4 text-gray-500 mr-3" />
+                                                                    <input
+                                                                        type="number"
+                                                                        value={wizardConfig.question_timer}
+                                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, question_timer: parseInt(e.target.value) })}
+                                                                        className="bg-transparent border-none outline-none text-white w-full font-mono"
+                                                                        placeholder="10"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <label className="text-xs text-gray-400 font-bold uppercase">Points Weight</label>
+                                                                <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
+                                                                    <Award className="w-4 h-4 text-accent mr-3" />
+                                                                    <input
+                                                                        type="number"
+                                                                        step="0.1"
+                                                                        value={wizardConfig.points_weight}
+                                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, points_weight: parseFloat(e.target.value) })}
+                                                                        className="bg-transparent border-none outline-none text-white w-full font-mono"
+                                                                        placeholder="1.0"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="text-xs text-gray-400 font-bold uppercase">Title</label>
+                                                <input
+                                                    type="text"
+                                                    value={wizardConfig.title}
+                                                    onChange={(e) => setWizardConfig({ ...wizardConfig, title: e.target.value })}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                                    placeholder={battleType === 'TECH_TALK' ? "Topic Name..." : "Battle Title..."}
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <label className="text-xs text-gray-400 font-bold uppercase">Description</label>
+                                                <textarea
+                                                    value={wizardConfig.description}
+                                                    onChange={(e) => setWizardConfig({ ...wizardConfig, description: e.target.value })}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent h-24 resize-none"
+                                                    placeholder="Description or instructions..."
+                                                />
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-gray-400 font-bold uppercase">Date</label>
+                                                    <input
+                                                        type="date"
+                                                        value={wizardConfig.date}
+                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, date: e.target.value })}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-gray-400 font-bold uppercase">Time</label>
+                                                    <input
+                                                        type="time"
+                                                        value={wizardConfig.time}
+                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, time: e.target.value })}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {battleType === 'TECH_TALK' && (
+                                                <div className="space-y-2">
+                                                    <label className="text-xs text-gray-400 font-bold uppercase">Conductor (Player)</label>
+                                                    <div className="bg-black/40 border border-white/10 rounded-xl p-2">
+                                                        <div className="flex items-center px-2 mb-2">
+                                                            <Search className="w-4 h-4 text-gray-500 mr-2" />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Search player..."
+                                                                value={conductorSearch}
+                                                                onChange={(e) => setConductorSearch(e.target.value)}
+                                                                className="bg-transparent border-none outline-none text-white text-sm w-full"
+                                                            />
+                                                        </div>
+                                                        <div className="max-h-32 overflow-y-auto custom-scrollbar">
+                                                            {filteredConductors.map(p => (
+                                                                <div
+                                                                    key={p.id}
+                                                                    onClick={() => setWizardConfig({ ...wizardConfig, conductor_id: p.id })}
+                                                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer ${wizardConfig.conductor_id === p.id ? 'bg-accent text-white' : 'hover:bg-white/5 text-gray-400'}`}
+                                                                >
+                                                                    <div className="w-6 h-6 rounded-full bg-white/10 overflow-hidden">
+                                                                        <img src={`/assets/employee/${p.name.toLowerCase()}.png`} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + p.name)} />
+                                                                    </div>
+                                                                    <span className="text-xs font-bold">{p.name}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                        </div>      {battleMode === 'TEAM_VS_TEAM' && (
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <label className="text-xs font-bold uppercase text-gray-500 tracking-widest">Team 1</label>
+                                                    <select
+                                                        value={wizardConfig.team1_id}
+                                                        onChange={e => setWizardConfig({ ...wizardConfig, team1_id: e.target.value })}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                                    >
+                                                        <option value="">Select Team 1</option>
+                                                        {teams.map(team => (
+                                                            <option key={team.id} value={team.id}>{team.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-xs font-bold uppercase text-gray-500 tracking-widest">Team 2</label>
+                                                    <select
+                                                        value={wizardConfig.team2_id}
+                                                        onChange={e => setWizardConfig({ ...wizardConfig, team2_id: e.target.value })}
+                                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                                    >
+                                                        <option value="">Select Team 2</option>
+                                                        {teams.filter(t => t.id !== wizardConfig.team1_id).map(team => (
+                                                            <option key={team.id} value={team.id}>{team.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-2">
+                                        </div>
+                                    </div>
+                                )}
+
+                                {wizardStep === 3 && (
+                                    <div className="space-y-6">
+                                        <h3 className="text-xl font-bold">Review & Create</h3>
+                                        <div className="bg-white/5 p-6 rounded-2xl space-y-2">
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">Mode</span>
+                                                <span className="font-bold text-white">{battleMode}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">Type</span>
+                                                <span className="font-bold text-white">{battleType}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">Title</span>
+                                                <span className="font-bold text-white">{wizardConfig.title}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">Date/Time</span>
+                                                <span className="font-bold text-white">
+                                                    {wizardConfig.date && wizardConfig.time ? `${wizardConfig.date} ${wizardConfig.time}` : 'Not Scheduled'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="p-8 border-t border-white/5 flex justify-between bg-white/5">
+                                    <button
+                                        onClick={() => setWizardStep(Math.max(1, wizardStep - 1))}
+                                        className={`px-6 py-3 font-bold text-gray-500 hover:text-white transition-all ${wizardStep === 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                                    >
+                                        Back
+                                    </button>
+                                    {wizardStep < 3 ? (
+                                        <button
+                                            onClick={() => setWizardStep(wizardStep + 1)}
+                                            className="bg-white text-black font-black px-8 py-3 rounded-xl hover:scale-105 transition-all"
+                                            disabled={wizardStep === 2 && !wizardConfig.title}
+                                        >
+                                            Next
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleCreateBattle}
+                                            className="bg-accent text-white font-black px-8 py-3 rounded-xl hover:scale-105 transition-all shadow-lg shadow-accent/20"
+                                        >
+                                            Create Battle
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Question Management Modal */}
+            <AnimatePresence>
+                {managingQuestionsBattleId && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+                        >
+                            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
+                                <div>
+                                    <h2 className="text-2xl font-black uppercase italic tracking-tighter">Question Management</h2>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Battle: {individualBattles.find(b => b.id === managingQuestionsBattleId)?.title}</p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <label className="flex items-center gap-2 bg-accent/20 text-accent border border-accent/20 px-4 py-2 rounded-xl text-xs font-black uppercase cursor-pointer hover:bg-accent hover:text-white transition-all">
+                                        <Upload className="w-4 h-4" /> Import CSV
+                                        <input
+                                            type="file"
+                                            accept=".csv"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+
+                                                const reader = new FileReader();
+                                                reader.onload = async (event) => {
+                                                    try {
+                                                        const text = event.target?.result as string;
+                                                        if (!text) {
+                                                            alert('File is empty');
+                                                            return;
+                                                        }
+
+                                                        const lines = text.split(/\r?\n/).filter(l => l.trim());
+                                                        if (lines.length < 2) {
+                                                            alert('CSV must have a header row and at least one data row');
+                                                            return;
+                                                        }
+
+                                                        const data = lines.slice(1).map((line, idx) => {
+                                                            // Split by comma, respecting quotes
+                                                            const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.trim().replace(/^"|"$/g, ''));
+
+                                                            if (parts.length < 6) {
+                                                                console.warn(`Skipping line ${idx + 2}: Insufficient columns`, parts);
+                                                                return null;
+                                                            }
+
+                                                            // Handle 1-indexed correct option from CSV
+                                                            let correctIdx = parseInt(parts[5]);
+                                                            if (isNaN(correctIdx)) {
+                                                                console.warn(`Skipping line ${idx + 2}: Invalid CorrectIndex`, parts[5]);
+                                                                return null;
+                                                            }
+                                                            correctIdx = Math.max(0, correctIdx - 1); // Convert 1-indexed to 0-indexed
+
+                                                            return {
+                                                                battle_id: managingQuestionsBattleId,
+                                                                question: parts[0],
+                                                                options: [parts[1], parts[2], parts[3], parts[4]],
+                                                                correct_option: correctIdx
+                                                            };
+                                                        }).filter(d => d !== null);
+
+                                                        if (data.length === 0) {
+                                                            alert('No valid questions found in CSV. Please check the format.');
+                                                            return;
+                                                        }
+
+                                                        const res = await fetch('/api/admin/battles/questions', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify(data)
+                                                        });
+
+                                                        if (res.ok) {
+                                                            alert(`Successfully imported ${data.length} questions!`);
+                                                            const updated = await fetch(`/api/admin/battles/questions?battleId=${managingQuestionsBattleId}`);
+                                                            setBattleQuestions(await updated.json());
+                                                        } else {
+                                                            const err = await res.json();
+                                                            alert(`Import failed: ${err.error || 'Server error'}`);
+                                                        }
+                                                    } catch (err) {
+                                                        console.error('Import error:', err);
+                                                        alert('Failed to process CSV file.');
+                                                    } finally {
+                                                        // Reset input
+                                                        e.target.value = '';
+                                                    }
+                                                };
+                                                reader.readAsText(file);
+                                            }}
+                                        />
+                                    </label>
+                                    <button
+                                        onClick={() => setManagingQuestionsBattleId(null)}
+                                        className="p-2 text-gray-500 hover:text-white transition-colors"
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                                {/* Questions List */}
+                                <div className="space-y-4">
+                                    {battleQuestions.map((q, idx) => (
+                                        <div key={idx} className="bg-white/5 border border-white/5 p-6 rounded-2xl group relative">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="w-6 h-6 rounded-full bg-accent text-black text-[10px] font-black flex items-center justify-center italic">
+                                                        {idx + 1}
+                                                    </span>
+                                                    <h4 className="font-bold text-lg">{q.question}</h4>
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        if (!confirm('Delete this question?')) return;
+                                                        await fetch('/api/admin/battles/questions', {
+                                                            method: 'DELETE',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ id: q.id })
+                                                        });
+                                                        setBattleQuestions(prev => prev.filter(item => item.id !== q.id));
+                                                    }}
+                                                    className="text-gray-600 hover:text-red-500 transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                {q.options.map((opt: string, i: number) => (
+                                                    <div key={i} className={`p-3 rounded-xl text-xs font-bold border ${i === q.correct_option ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-black/20 border-white/5 text-gray-400'}`}>
+                                                        {opt} {i === q.correct_option && <Check className="w-3 h-3 inline ml-1" />}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {battleQuestions.length === 0 && !isAddingQuestion && (
+                                        <div className="text-center py-20 opacity-20 capitalize italic text-2xl font-black">
+                                            No questions added yet
+                                        </div>
+                                    )}
+
+                                    {isAddingQuestion && (
+                                        <div className="bg-accent/5 border border-accent/20 p-8 rounded-3xl space-y-6 animate-in slide-in-from-bottom-2 duration-300">
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Question Content</label>
+                                                <input
+                                                    type="text"
+                                                    value={newQuestion.question}
+                                                    onChange={e => setNewQuestion({ ...newQuestion, question: e.target.value })}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-accent outline-none text-white font-bold"
+                                                    placeholder="Enter your question here..."
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                {newQuestion.options.map((opt, i) => (
+                                                    <div key={i} className="space-y-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Option {i + 1}</label>
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                value={opt}
+                                                                onChange={e => {
+                                                                    const newOpts = [...newQuestion.options];
+                                                                    newOpts[i] = e.target.value;
+                                                                    setNewQuestion({ ...newQuestion, options: newOpts });
+                                                                }}
+                                                                className={`w-full bg-black/40 border rounded-xl p-4 focus:border-accent outline-none font-bold pr-12 ${newQuestion.correct_option === i ? 'border-green-500/50' : 'border-white/10'}`}
+                                                                placeholder={`Option ${i + 1}`}
+                                                            />
+                                                            <button
+                                                                onClick={() => setNewQuestion({ ...newQuestion, correct_option: i })}
+                                                                className={`absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${newQuestion.correct_option === i ? 'bg-green-500 text-black' : 'bg-white/5 text-gray-600'}`}
+                                                            >
+                                                                <Check className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
+                                                <button
+                                                    onClick={() => setIsAddingQuestion(false)}
+                                                    className="px-6 py-3 text-gray-500 font-black text-xs uppercase"
+                                                >
+                                                    Cancel
+                                                </button>
+                                                <button
+                                                    onClick={async () => {
+                                                        const res = await fetch('/api/admin/battles/questions', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ ...newQuestion, battle_id: managingQuestionsBattleId })
+                                                        });
+                                                        if (res.ok) {
+                                                            setIsAddingQuestion(false);
+                                                            setNewQuestion({ question: '', options: ['', '', '', ''], correct_option: 0 });
+                                                            const updated = await fetch(`/api/admin/battles/questions?battleId=${managingQuestionsBattleId}`);
+                                                            setBattleQuestions(await updated.json());
+                                                        }
+                                                    }}
+                                                    className="bg-accent text-white px-8 py-3 rounded-xl font-black text-xs uppercase shadow-lg shadow-accent/20"
+                                                >
+                                                    Add Question
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="p-8 border-t border-white/5 bg-white/5">
+                                {!isAddingQuestion && (
+                                    <button
+                                        onClick={() => setIsAddingQuestion(true)}
+                                        className="w-full py-4 border-2 border-dashed border-white/10 rounded-2xl text-gray-500 font-bold uppercase tracking-widest hover:border-accent/40 hover:text-accent transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Plus className="w-5 h-5" /> Add Individual Question
+                                    </button>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Battle Report Modal */}
+            <AnimatePresence>
+                {viewingReportBattleId && reportData && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+                        >
+                            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
+                                <div>
+                                    <h2 className="text-2xl font-black uppercase italic tracking-tighter">Battle Report</h2>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">
+                                        Battle: {individualBattles.find(b => b.id === viewingReportBattleId)?.title}
+                                    </p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={() => {
+                                            if (!reportData) return;
+                                            const headers = ['Player', 'Team', 'Question', 'Answer', 'Is Correct', 'Runs', 'Time (s)'];
+                                            const rows = reportData.answers.map(a => [
+                                                a.player_name,
+                                                a.team_name || 'Unassigned',
+                                                a.question,
+                                                a.answer || '-',
+                                                a.is_correct ? 'Yes' : 'No',
+                                                a.runs_awarded,
+                                                (a.response_time / 1000).toFixed(2)
+                                            ]);
+                                            const csvContent = "data:text/csv;charset=utf-8,"
+                                                + headers.join(",") + "\n"
+                                                + rows.map(e => e.join(",")).join("\n");
+                                            const encodedUri = encodeURI(csvContent);
+                                            const link = document.createElement("a");
+                                            link.setAttribute("href", encodedUri);
+                                            link.setAttribute("download", `battle_report_${viewingReportBattleId}.csv`);
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                        }}
+                                        className="bg-green-600/20 text-green-500 border border-green-500/20 px-4 py-2 rounded-xl text-xs font-black uppercase hover:bg-green-600 hover:text-white transition-all flex items-center gap-2"
+                                    >
+                                        <Upload className="w-4 h-4 rotate-180" /> Export CSV
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setViewingReportBattleId(null);
+                                            setReportData(null);
+                                        }}
+                                        className="p-2 text-gray-500 hover:text-white transition-colors"
+                                    >
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-8">
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    <div className="lg:col-span-1 space-y-6">
+                                        <h3 className="text-xl font-bold border-b border-white/10 pb-4">Leaderboard</h3>
+                                        <div className="space-y-2">
+                                            {reportData.scores.map((s, idx) => (
+                                                <div key={idx} className="flex justify-between items-center bg-white/5 p-3 rounded-xl border border-white/5">
+                                                    <div>
+                                                        <div className="font-bold">{s.player_name}</div>
+                                                        <div className="text-[10px] text-gray-500 uppercase">{s.team_name || 'Freelance'}</div>
+                                                    </div>
+                                                    <div className="text-xl font-black text-accent">{s.score}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="lg:col-span-2 space-y-6">
+                                        <h3 className="text-xl font-bold border-b border-white/10 pb-4">Detailed Answer Log</h3>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead>
+                                                    <tr className="text-[10px] text-gray-500 uppercase font-black tracking-wider border-b border-white/10">
+                                                        <th className="p-3">Player</th>
+                                                        <th className="p-3">Question</th>
+                                                        <th className="p-3">Answer</th>
+                                                        <th className="p-3 text-center">Result</th>
+                                                        <th className="p-3 text-center">Time</th>
+                                                        <th className="p-3 text-right">Runs</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="text-sm font-bold">
+                                                    {reportData.answers.map((a, idx) => (
+                                                        <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                                            <td className="p-3">
+                                                                <div>{a.player_name}</div>
+                                                                <div className="text-[9px] text-gray-600 uppercase">{a.team_name}</div>
+                                                            </td>
+                                                            <td className="p-3 max-w-[200px] truncate text-gray-400" title={a.question}>{a.question}</td>
+                                                            <td className="p-3 max-w-[200px] truncate font-mono text-white/70" title={a.answer}>{a.answer || '-'}</td>
+                                                            <td className="p-3 text-center">
+                                                                <span className={`px-2 py-1 rounded text-[10px] uppercase ${a.is_correct ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                                    {a.is_correct ? 'Correct' : 'Wrong'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-3 text-center font-mono text-gray-400">{(a.response_time / 1000).toFixed(1)}s</td>
+                                                            <td className="p-3 text-right text-accent">+{a.runs_awarded}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </main >
     );
 }

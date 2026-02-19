@@ -5,19 +5,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, User, ArrowRight, RefreshCw, CheckCircle, Shield, List, Home } from 'lucide-react';
 import Link from 'next/link';
 
-interface Captain {
+interface Owner {
     id: string;
     name: string;
     team_id: string | null;
 }
 
-export default function CaptainPage() {
-    const [captains, setCaptains] = useState<Captain[]>([]);
-    const [selectedCaptain, setSelectedCaptain] = useState<Captain | null>(null);
+export default function OwnerPage() {
+    const [owners, setOwners] = useState<Owner[]>([]);
+    const [selectedOwner, setSelectedOwner] = useState<Owner | null>(null);
     const [assignedTeam, setAssignedTeam] = useState<{ id: string, name: string } | null>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [loading, setLoading] = useState(true);
-    const [loggedInCaptain, setLoggedInCaptain] = useState<Captain | null>(null);
+    const [loggedInOwner, setLoggedInOwner] = useState<Owner | null>(null);
     const [teamBalance, setTeamBalance] = useState<number | null>(null);
     const [password, setPassword] = useState('');
     const [showResetModal, setShowResetModal] = useState(false);
@@ -45,8 +45,8 @@ export default function CaptainPage() {
             const res = await fetch('/api/auth/me');
             if (res.ok) {
                 const data = await res.json();
-                setLoggedInCaptain(data.user);
-                localStorage.setItem('sipl_captain', JSON.stringify(data.user));
+                setLoggedInOwner(data.user);
+                localStorage.setItem('sipl_owner', JSON.stringify(data.user));
                 if (data.user.team_id) {
                     fetchTeamData(data.user.team_id);
                 }
@@ -56,18 +56,18 @@ export default function CaptainPage() {
                 return;
             }
             // Session invalid
-            localStorage.removeItem('sipl_captain');
-            setLoggedInCaptain(null);
+            localStorage.removeItem('sipl_owner');
+            setLoggedInOwner(null);
             setAssignedTeam(null);
         };
         checkSession();
-        fetchCaptains();
+        fetchOwners();
     }, []);
 
-    const fetchCaptains = async () => {
-        const res = await fetch('/api/captains');
+    const fetchOwners = async () => {
+        const res = await fetch('/api/owners');
         const data = await res.json();
-        setCaptains(data);
+        setOwners(data);
         setLoading(false);
     };
 
@@ -85,7 +85,7 @@ export default function CaptainPage() {
         }
     };
 
-    const handleLogin = async (captain: Captain) => {
+    const handleLogin = async (owner: Owner) => {
         if (!password) {
             alert('Please enter your password');
             return;
@@ -94,13 +94,13 @@ export default function CaptainPage() {
         const res = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: captain.id, password, type: 'captain' }),
+            body: JSON.stringify({ id: owner.id, password, type: 'owner' }),
         });
         const data = await res.json();
 
         if (data.success) {
-            localStorage.setItem('sipl_captain', JSON.stringify(data.user));
-            setLoggedInCaptain(data.user);
+            localStorage.setItem('sipl_owner', JSON.stringify(data.user));
+            setLoggedInOwner(data.user);
             if (data.user.team_id) {
                 fetchTeamData(data.user.team_id);
             }
@@ -122,15 +122,15 @@ export default function CaptainPage() {
         const res = await fetch('/api/auth/update-password', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: loggedInCaptain?.id, newPassword }),
+            body: JSON.stringify({ id: loggedInOwner?.id, newPassword }),
         });
         const data = await res.json();
 
         if (data.success) {
             alert('Password updated successfully!');
-            const updated = { ...loggedInCaptain!, password_reset_required: 0 };
-            localStorage.setItem('sipl_captain', JSON.stringify(updated));
-            setLoggedInCaptain(updated);
+            const updated = { ...loggedInOwner!, password_reset_required: 0 };
+            localStorage.setItem('sipl_owner', JSON.stringify(updated));
+            setLoggedInOwner(updated);
             setShowResetModal(false);
             setNewPassword('');
             setConfirmPassword('');
@@ -141,15 +141,15 @@ export default function CaptainPage() {
 
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
-        localStorage.removeItem('sipl_captain');
-        setLoggedInCaptain(null);
+        localStorage.removeItem('sipl_owner');
+        setLoggedInOwner(null);
         setAssignedTeam(null);
-        setSelectedCaptain(null);
+        setSelectedOwner(null);
         setPassword('');
     };
 
     const handleDrawTeam = async () => {
-        const target = loggedInCaptain || selectedCaptain;
+        const target = loggedInOwner || selectedOwner;
         if (!target) return;
 
         setIsDrawing(true);
@@ -157,18 +157,18 @@ export default function CaptainPage() {
         await new Promise(r => setTimeout(r, 2000));
 
         try {
-            const res = await fetch('/api/captains/assign-team', {
+            const res = await fetch('/api/owners/assign-team', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ captainId: target.id }),
+                body: JSON.stringify({ ownerId: target.id }),
             });
             const data = await res.json();
             setIsDrawing(false);
 
             if (data.success) {
-                const updatedCaptain: Captain = { ...target, team_id: data.team.id };
-                localStorage.setItem('sipl_captain', JSON.stringify(updatedCaptain));
-                setLoggedInCaptain(updatedCaptain);
+                const updatedOwner: Owner = { ...target, team_id: data.team.id };
+                localStorage.setItem('sipl_owner', JSON.stringify(updatedOwner));
+                setLoggedInOwner(updatedOwner);
                 fetchTeamData(data.team.id);
             } else {
                 alert(data.error);
@@ -189,7 +189,7 @@ export default function CaptainPage() {
         <main className="min-h-screen flex flex-col items-center justify-center p-6 gap-8">
             <header className="w-full flex justify-between items-center max-w-5xl">
                 <div className="text-left">
-                    <h1 className="text-6xl font-black text-glow mb-2 uppercase tracking-tighter">Captain HQ</h1>
+                    <h1 className="text-6xl font-black text-glow mb-2 uppercase tracking-tighter">Owner HQ</h1>
                     <p className="text-gray-400 max-w-md">Identify yourself to access your team's command center.</p>
                 </div>
                 <Link
@@ -201,7 +201,7 @@ export default function CaptainPage() {
             </header>
 
             <AnimatePresence mode="wait">
-                {loggedInCaptain ? (
+                {loggedInOwner ? (
                     <motion.div
                         key="dashboard"
                         initial={{ opacity: 0, y: 20 }}
@@ -221,15 +221,15 @@ export default function CaptainPage() {
                                     <div className="flex items-center gap-6">
                                         <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-accent/20">
                                             <img
-                                                src={`/assets/employee/${loggedInCaptain.name.toLowerCase()}.png`}
-                                                alt={loggedInCaptain.name}
+                                                src={`/assets/employee/${loggedInOwner.name.toLowerCase()}.png`}
+                                                alt={loggedInOwner.name}
                                                 className="w-full h-full object-cover"
-                                                onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + loggedInCaptain.name)}
+                                                onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + loggedInOwner.name)}
                                             />
                                         </div>
                                         <div>
-                                            <h2 className="text-3xl font-black text-white">{loggedInCaptain.name}</h2>
-                                            <p className="text-accent uppercase tracking-widest text-sm font-bold">Authenticated Captain</p>
+                                            <h2 className="text-3xl font-black text-white">{loggedInOwner.name}</h2>
+                                            <p className="text-accent uppercase tracking-widest text-sm font-bold">Authenticated Owner</p>
                                         </div>
                                     </div>
                                     <button onClick={handleLogout} className="text-gray-500 hover:text-white transition-colors">Logout</button>
@@ -264,6 +264,12 @@ export default function CaptainPage() {
                                                 <Trophy className="w-5 h-5" /> Enter Auction Arena
                                             </button>
                                             <button
+                                                onClick={() => window.location.href = '/owner/manage'}
+                                                className="btn-primary w-full py-4 flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-800"
+                                            >
+                                                <User className="w-5 h-5" /> Manage Team
+                                            </button>
+                                            <button
                                                 onClick={() => window.location.href = '/league'}
                                                 className="w-full bg-white/5 hover:bg-white/10 py-3 rounded-lg border border-white/10 transition-all text-sm font-bold"
                                             >
@@ -273,8 +279,9 @@ export default function CaptainPage() {
                                     </section>
 
                                     <section className="flex flex-col gap-4">
+
                                         <button
-                                            onClick={() => window.location.href = '/captain/live-battle'}
+                                            onClick={() => window.location.href = '/owner/live-battle'}
                                             className={`flex-1 bg-gradient-to-br from-red-900/40 to-black border border-red-500/30 hover:border-red-500 p-8 rounded-2xl flex flex-col items-center justify-center gap-4 group transition-all ${activeMatch ? 'animate-pulse ring-2 ring-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]' : ''}`}
                                         >
                                             <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center group-hover:scale-110 transition-transform relative">
@@ -287,12 +294,12 @@ export default function CaptainPage() {
                                             </div>
                                             <div className="text-center">
                                                 <h3 className="text-2xl font-black text-white mb-1">LIVE BATTLE</h3>
-                                                <p className="text-gray-400 text-sm">Enter the arena and lead your team</p>
+                                                <p className="text-gray-400 text-sm">Submit ideas and lead your team</p>
                                             </div>
                                         </button>
 
                                         <button
-                                            onClick={() => window.location.href = '/captain/history'}
+                                            onClick={() => window.location.href = '/owner/history'}
                                             className="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 p-8 rounded-2xl flex items-center justify-between group transition-all"
                                         >
                                             <div className="flex items-center gap-4">
@@ -309,7 +316,7 @@ export default function CaptainPage() {
                                     </section>
                                 </div>
                             </div>
-                        ) : (loggedInCaptain && loggedInCaptain.team_id) ? (
+                        ) : (loggedInOwner && loggedInOwner.team_id) ? (
                             <div className="glass-card p-12 text-center border-red-500/20">
                                 <Shield className="w-16 h-16 text-red-500 mx-auto mb-6 opacity-20" />
                                 <h3 className="text-2xl font-black mb-2 uppercase tracking-tighter text-red-500">Synchronization Error</h3>
@@ -317,7 +324,7 @@ export default function CaptainPage() {
                                     We found your assigned team but couldn't retrieve the latest data. Please refresh or contact the Admin.
                                 </p>
                                 <button
-                                    onClick={() => loggedInCaptain && fetchTeamData(loggedInCaptain.team_id!)}
+                                    onClick={() => loggedInOwner && fetchTeamData(loggedInOwner.team_id!)}
                                     className="btn-primary px-8 py-3 flex items-center justify-center gap-2 mx-auto"
                                 >
                                     <RefreshCw className="w-4 h-4" /> Retry Connection
@@ -330,14 +337,14 @@ export default function CaptainPage() {
                                     <div className="flex items-center gap-6">
                                         <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/10">
                                             <img
-                                                src={`/assets/employee/${loggedInCaptain.name.toLowerCase()}.png`}
-                                                alt={loggedInCaptain.name}
+                                                src={`/assets/employee/${loggedInOwner.name.toLowerCase()}.png`}
+                                                alt={loggedInOwner.name}
                                                 className="w-full h-full object-cover"
-                                                onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + loggedInCaptain.name)}
+                                                onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + loggedInOwner.name)}
                                             />
                                         </div>
                                         <div>
-                                            <h2 className="text-2xl font-black text-white">{loggedInCaptain.name}</h2>
+                                            <h2 className="text-2xl font-black text-white">{loggedInOwner.name}</h2>
                                             <p className="text-gray-500 text-xs uppercase tracking-widest font-bold">Awaiting Team Assignment</p>
                                         </div>
                                     </div>
@@ -368,14 +375,14 @@ export default function CaptainPage() {
                     >
                         <section className="glass-card p-8">
                             <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                                <User className="text-accent" /> Identify Captain
+                                <User className="text-accent" /> Identify Owner
                             </h2>
                             <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                                {captains.map(captain => (
+                                {owners.map(owner => (
                                     <button
-                                        key={captain.id}
-                                        onClick={() => setSelectedCaptain(captain)}
-                                        className={`w-full p-4 rounded-xl text-left transition-all flex items-center justify-between ${selectedCaptain?.id === captain.id
+                                        key={owner.id}
+                                        onClick={() => setSelectedOwner(owner)}
+                                        className={`w-full p-4 rounded-xl text-left transition-all flex items-center justify-between ${selectedOwner?.id === owner.id
                                             ? 'bg-accent/20 border-accent border'
                                             : 'bg-white/5 border border-transparent hover:border-white/20'
                                             }`}
@@ -383,15 +390,15 @@ export default function CaptainPage() {
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-accent/20">
                                                 <img
-                                                    src={`/assets/employee/${captain.name.toLowerCase()}.png`}
-                                                    alt={captain.name}
+                                                    src={`/assets/employee/${owner.name.toLowerCase()}.png`}
+                                                    alt={owner.name}
                                                     className="w-full h-full object-cover"
-                                                    onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + captain.name)}
+                                                    onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + owner.name)}
                                                 />
                                             </div>
-                                            <span className="font-medium text-lg">{captain.name}</span>
+                                            <span className="font-medium text-lg">{owner.name}</span>
                                         </div>
-                                        {selectedCaptain?.id === captain.id && <ArrowRight className="w-5 h-5" />}
+                                        {selectedOwner?.id === owner.id && <ArrowRight className="w-5 h-5" />}
                                     </button>
                                 ))}
                             </div>
@@ -399,12 +406,12 @@ export default function CaptainPage() {
 
                         <section className="glass-card p-8 flex flex-col items-center justify-center text-center">
                             <h2 className="text-2xl font-bold mb-4">Login Securely</h2>
-                            {!selectedCaptain ? (
+                            {!selectedOwner ? (
                                 <p className="text-gray-500">Please select your identity to continue</p>
                             ) : (
                                 <div className="space-y-6 w-full">
-                                    <p className="text-gray-400">Welcome, {selectedCaptain.name}. Ready to access the HQ?</p>
-                                    <form onSubmit={(e) => { e.preventDefault(); handleLogin(selectedCaptain); }} className="space-y-4">
+                                    <p className="text-gray-400">Welcome, {selectedOwner.name}. Ready to access the HQ?</p>
+                                    <form onSubmit={(e) => { e.preventDefault(); handleLogin(selectedOwner); }} className="space-y-4">
                                         <div className="space-y-2 text-left">
                                             <label className="text-xs text-gray-500 uppercase font-black px-1">Access Token (Password)</label>
                                             <input
@@ -426,7 +433,8 @@ export default function CaptainPage() {
                             )}
                         </section>
                     </motion.div>
-                )}
+                )
+                }
             </AnimatePresence >
 
             {/* Password Reset Modal */}

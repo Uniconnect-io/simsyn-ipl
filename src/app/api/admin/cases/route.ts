@@ -31,19 +31,32 @@ export async function PUT(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const { title, description } = await request.json();
-        if (!title || !description) {
-            return NextResponse.json({ error: 'Title and Description are required' }, { status: 400 });
+        const body = await request.json();
+
+        if (Array.isArray(body)) {
+            // Bulk Import
+            const queries = body.map(cs => ({
+                sql: 'INSERT INTO case_studies (id, title, description) VALUES (?, ?, ?)',
+                args: [crypto.randomUUID(), cs.title, cs.description]
+            }));
+            await db.batch(queries, 'write');
+        } else {
+            // Single Add
+            const { title, description } = body;
+            if (!title || !description) {
+                return NextResponse.json({ error: 'Title and Description are required' }, { status: 400 });
+            }
+
+            const id = crypto.randomUUID();
+            await db.execute({
+                sql: 'INSERT INTO case_studies (id, title, description) VALUES (?, ?, ?)',
+                args: [id, title, description]
+            });
         }
 
-        const id = crypto.randomUUID();
-        await db.execute({
-            sql: 'INSERT INTO case_studies (id, title, description) VALUES (?, ?, ?)',
-            args: [id, title, description]
-        });
-
-        return NextResponse.json({ success: true, id });
+        return NextResponse.json({ success: true });
     } catch (error) {
+        console.error('Failed to add case:', error);
         return NextResponse.json({ error: 'Failed to add case' }, { status: 500 });
     }
 }

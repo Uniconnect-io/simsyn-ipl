@@ -3,24 +3,24 @@ import db from '@/lib/db';
 
 export async function POST(request: Request) {
     try {
-        const { captainId } = await request.json();
+        const { ownerId } = await request.json();
 
-        if (!captainId) {
-            return NextResponse.json({ error: 'Captain ID is required' }, { status: 400 });
+        if (!ownerId) {
+            return NextResponse.json({ error: 'Owner ID is required' }, { status: 400 });
         }
 
         // Reset password to 'sipl2026' and require reset on next login
         const result = await db.execute({
             sql: `
-            UPDATE captains 
+            UPDATE players 
             SET password = 'sipl2026', password_reset_required = 1 
-            WHERE id = ?
+            WHERE id = ? AND role = 'OWNER'
         `,
-            args: [captainId]
+            args: [ownerId]
         });
 
         if (result.rowsAffected === 0) {
-            return NextResponse.json({ error: 'Captain not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Owner not found' }, { status: 404 });
         }
 
         return NextResponse.json({ success: true });

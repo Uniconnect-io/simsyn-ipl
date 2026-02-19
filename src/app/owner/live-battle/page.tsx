@@ -6,7 +6,7 @@ import { Trophy, Clock, Send, AlertTriangle, CheckCircle, RefreshCw, Home } from
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-interface Captain {
+interface Owner {
     id: string;
     name: string;
     team_id: string | null;
@@ -14,7 +14,7 @@ interface Captain {
 
 export default function LiveBattlePage() {
     const router = useRouter();
-    const [captain, setCaptain] = useState<Captain | null>(null);
+    const [owner, setOwner] = useState<Owner | null>(null);
     const [activeMatch, setActiveMatch] = useState<any>(null);
     const [timeLeft, setTimeLeft] = useState<string>('');
     const [ideaInput, setIdeaInput] = useState('');
@@ -28,20 +28,20 @@ export default function LiveBattlePage() {
             const res = await fetch('/api/auth/me');
             if (res.ok) {
                 const data = await res.json();
-                setCaptain(data.user);
-                localStorage.setItem('sipl_captain', JSON.stringify(data.user));
+                setOwner(data.user);
+                localStorage.setItem('sipl_owner', JSON.stringify(data.user));
                 return;
             }
             // Session invalid
-            localStorage.removeItem('sipl_captain');
-            router.push('/captain');
+            localStorage.removeItem('sipl_owner');
+            router.push('/owner');
         };
         checkSession();
     }, []);
 
     // Timer & Status Polling
     useEffect(() => {
-        if (!captain) return;
+        if (!owner) return;
 
         const tick = () => {
             if (!activeMatch?.start_time) return;
@@ -63,13 +63,13 @@ export default function LiveBattlePage() {
 
         const fetchStatus = async () => {
             try {
-                const res = await fetch(`/api/battle/status?captainId=${captain.id}`);
+                const res = await fetch(`/api/battle/status?captainId=${owner.id}`);
                 const data = await res.json();
                 if (data.match) {
                     setActiveMatch(data.match);
 
                     // Hydrate feed with virtual dot balls
-                    const myTeamId = captain.team_id;
+                    const myTeamId = owner.team_id;
                     const isTeam1 = data.match.team1_id === myTeamId;
                     // balls1/balls2 now accurately reflect the number of balls bowled (time-based)
                     const ballsBowled = isTeam1 ? data.match.balls1 : data.match.balls2;
@@ -122,10 +122,10 @@ export default function LiveBattlePage() {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [captain]);
+    }, [owner]);
 
     const handleSubmit = async () => {
-        if (!ideaInput.trim() || !activeMatch || !captain) return;
+        if (!ideaInput.trim() || !activeMatch || !owner) return;
 
         // Non-blocking submission
         const currentIdea = ideaInput;
@@ -150,8 +150,8 @@ export default function LiveBattlePage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     matchId: activeMatch.id,
-                    teamId: captain.team_id,
-                    captainId: captain.id,
+                    teamId: owner.team_id,
+                    captainId: owner.id,
                     content: currentIdea
                 }),
             }).then(async (res) => {
@@ -178,7 +178,7 @@ export default function LiveBattlePage() {
         }
     };
 
-    if (!captain) return null;
+    if (!owner) return null;
 
     if (!activeMatch) {
         return (
@@ -187,7 +187,7 @@ export default function LiveBattlePage() {
                     <RefreshCw className="w-12 h-12 text-gray-600 mx-auto mb-4 opacity-50 animate-spin-slow" />
                     <h4 className="text-xl font-bold text-gray-500">No Active Battle</h4>
                     <p className="text-sm text-gray-600 mb-6">Waiting for the Admin to start a match...</p>
-                    <button onClick={() => router.push('/captain')} className="text-accent underline text-sm">Return to HQ</button>
+                    <button onClick={() => router.push('/owner')} className="text-accent underline text-sm">Return to HQ</button>
                 </div>
             </main>
         );
@@ -197,7 +197,7 @@ export default function LiveBattlePage() {
     // Pending items should be at top (first) if descending sort
     const mergedFeed = [...pendingIdeas, ...feedItems];
 
-    const myTeamId = captain.team_id;
+    const myTeamId = owner.team_id;
     const isTeam1 = activeMatch.team1_id === myTeamId;
     const myScore = isTeam1 ? activeMatch.score1 : activeMatch.score2;
     const myWickets = isTeam1 ? activeMatch.wickets1 : activeMatch.wickets2;
@@ -213,7 +213,7 @@ export default function LiveBattlePage() {
             {/* Header / Timer Bar */}
             <header className="h-14 border-b border-white/10 flex items-center justify-between px-4 bg-white/5 backdrop-blur-md z-10 shrink-0">
                 <div className="flex items-center gap-4">
-                    <button onClick={() => router.push('/captain')} className="text-gray-400 hover:text-white transition-colors text-sm font-bold flex items-center gap-1">
+                    <button onClick={() => router.push('/owner')} className="text-gray-400 hover:text-white transition-colors text-sm font-bold flex items-center gap-1">
                         &larr; HQ
                     </button>
                     <Link href="/" className="text-gray-400 hover:text-white transition-colors text-sm font-bold flex items-center gap-1">
@@ -222,9 +222,9 @@ export default function LiveBattlePage() {
                     <h1 className="text-xl font-black uppercase tracking-tighter text-glow flex flex-col pl-4 border-l border-white/10">
                         <span>Battle Arena</span>
                         {/* Team Name */}
-                        {activeMatch && captain.team_id && (
+                        {activeMatch && owner.team_id && (
                             <span className="text-[10px] text-accent tracking-widest">
-                                {activeMatch.team1_id === captain.team_id ? activeMatch.team1Name : activeMatch.team2Name}
+                                {activeMatch.team1_id === owner.team_id ? activeMatch.team1Name : activeMatch.team2Name}
                             </span>
                         )}
                     </h1>

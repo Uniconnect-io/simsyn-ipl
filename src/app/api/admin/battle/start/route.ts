@@ -3,7 +3,7 @@ import db from '@/lib/db';
 
 export async function POST(request: Request) {
     try {
-        let { matchId, caseDescription, durationMins = 20 } = await request.json();
+        let { matchId, caseDescription, durationMins = 20, schemeWeights, relevanceThreshold } = await request.json();
 
         if (!matchId) {
             return NextResponse.json({ error: 'Match ID is required' }, { status: 400 });
@@ -24,6 +24,29 @@ export async function POST(request: Request) {
             });
         }
 
+        // Create or Update Judgement Scheme for this match
+        let schemeId = null;
+        if (schemeWeights) {
+            schemeId = crypto.randomUUID();
+            await db.execute({
+                sql: `INSERT INTO judgement_schemes (
+                    id, name, alignment_weight, feasibility_weight, value_weight, effort_weight, innovation_weight, 
+                    relevance_threshold, is_default
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                args: [
+                    schemeId,
+                    `Match ${matchId} Scheme`,
+                    schemeWeights.alignment,
+                    schemeWeights.feasibility,
+                    schemeWeights.value,
+                    schemeWeights.effort,
+                    schemeWeights.innovation,
+                    relevanceThreshold || 0.12,
+                    0
+                ]
+            });
+        }
+
         const startTime = new Date();
         const endTime = new Date(startTime.getTime() + durationMins * 60000);
 
@@ -33,6 +56,7 @@ export async function POST(request: Request) {
             SET case_description = ?, 
                 start_time = ?, 
                 end_time = ?, 
+                judgement_scheme_id = ?,
                 status = 'IN_PROGRESS',
                 score1 = 0,
                 score2 = 0,
@@ -42,7 +66,7 @@ export async function POST(request: Request) {
                 overs2 = 0
             WHERE id = ?
         `,
-            args: [caseDescription, startTime.toISOString(), endTime.toISOString(), matchId]
+            args: [caseDescription, startTime.toISOString(), endTime.toISOString(), schemeId, matchId]
         });
 
         return NextResponse.json({ success: true, startTime, endTime });

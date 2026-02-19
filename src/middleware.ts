@@ -6,15 +6,22 @@ export async function middleware(request: NextRequest) {
 
     // Paths requiring authentication
     const isAdminPath = request.nextUrl.pathname.startsWith('/admin');
-    const isCaptainPath = request.nextUrl.pathname.startsWith('/captain');
+    const isOwnerPath = request.nextUrl.pathname.startsWith('/owner');
+    const isPlayerPath = request.nextUrl.pathname.startsWith('/player');
 
-    if (isAdminPath || isCaptainPath) {
+    if (isAdminPath || isOwnerPath || isPlayerPath) {
         if (session) {
             try {
                 const payload = await decrypt(session);
                 const user = payload.user;
 
                 if (isAdminPath && user.role !== 'ADMIN') {
+                    return NextResponse.redirect(new URL('/', request.url));
+                }
+                if (isOwnerPath && user.role !== 'OWNER') {
+                    return NextResponse.redirect(new URL('/', request.url));
+                }
+                if (isPlayerPath && user.role !== 'PLAYER') {
                     return NextResponse.redirect(new URL('/', request.url));
                 }
             } catch (e) {
@@ -27,12 +34,12 @@ export async function middleware(request: NextRequest) {
     }
 
     // Also protect API routes starts with /api/admin, /api/battle, or /api/auction
-    const isProtectedApi = ['/api/admin', '/api/battle', '/api/auction'].some(path => request.nextUrl.pathname.startsWith(path));
+    const isProtectedApi = ['/api/admin', '/api/battle', '/api/auction', '/api/owner', '/api/player'].some(path => request.nextUrl.pathname.startsWith(path));
 
     // Public auction APIs (e.g., getting status)
     const isPublicApi = [
         '/api/auction/status',
-        '/api/captains',
+        '/api/owners',
         '/api/teams'
     ].some(path => request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith('/api/teams/'));
 
@@ -46,6 +53,14 @@ export async function middleware(request: NextRequest) {
             const user = payload.user;
 
             if (request.nextUrl.pathname.startsWith('/api/admin') && user.role !== 'ADMIN') {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+
+            if (request.nextUrl.pathname.startsWith('/api/owner') && user.role !== 'OWNER') {
+                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+            }
+
+            if (request.nextUrl.pathname.startsWith('/api/player') && user.role !== 'PLAYER') {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
@@ -64,5 +79,5 @@ export async function middleware(request: NextRequest) {
 
 // See "Matching Paths" below to learn more
 export const config = {
-    matcher: ['/admin/:path*', '/captain/:path*', '/api/admin/:path*', '/api/battle/:path*', '/api/auction/:path*'],
+    matcher: ['/admin/:path*', '/owner/:path*', '/player/:path*', '/api/admin/:path*', '/api/battle/:path*', '/api/owner/:path*', '/api/player/:path*', '/api/auction/:path*'],
 };

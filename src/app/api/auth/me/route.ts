@@ -18,14 +18,24 @@ export async function GET() {
             const admin = rs.rows[0];
             if (!admin) return NextResponse.json({ error: 'User not found' }, { status: 401 });
             return NextResponse.json({ user: { ...admin, role: 'ADMIN' } });
-        } else {
+        } else if (session.user.role === 'OWNER') {
             const rs = await db.execute({
-                sql: 'SELECT id, name, team_id, role, password_reset_required FROM captains WHERE id = ?',
+                sql: 'SELECT id, name, team_id, role FROM players WHERE id = ?',
                 args: [session.user.id]
             });
-            const captain = rs.rows[0];
-            if (!captain) return NextResponse.json({ error: 'User not found' }, { status: 401 });
-            return NextResponse.json({ user: captain });
+            const owner = rs.rows[0];
+            if (!owner) return NextResponse.json({ error: 'User not found' }, { status: 401 });
+            return NextResponse.json({ user: owner });
+        } else if (session.user.role === 'PLAYER') {
+            const rs = await db.execute({
+                sql: 'SELECT id, name, team_id, role, rating, pool, sold_price FROM players WHERE id = ?',
+                args: [session.user.id]
+            });
+            const player = rs.rows[0];
+            if (!player) return NextResponse.json({ error: 'User not found' }, { status: 401 });
+            return NextResponse.json({ user: player });
+        } else {
+            return NextResponse.json({ error: 'Invalid role' }, { status: 401 });
         }
     } catch (error) {
         console.error('Auth check error:', error);

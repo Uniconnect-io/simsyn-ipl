@@ -1,47 +1,112 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Trophy, Gavel, BarChart2, Shield, ArrowRight, Star } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Trophy, Gavel, BarChart2, Shield, Calendar, Star, Activity, Play, Zap, LayoutDashboard, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
+  const [activeBattles, setActiveBattles] = useState<{ groupMatches: any[], individualBattles: any[] }>({ groupMatches: [], individualBattles: [] });
+  const [auctionStatus, setAuctionStatus] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/auth/me')
-      .then(res => res.json())
-      .then(data => {
-        if (data.user) setUser(data.user);
-      })
-      .catch(() => { });
+    const fetchData = async () => {
+      try {
+        const [meRes, battlesRes, auctionRes] = await Promise.all([
+          fetch('/api/auth/me'),
+          fetch('/api/active-battles'),
+          fetch('/api/auction/status')
+        ]);
+
+        const meData = await meRes.json();
+        if (meData.user) setUser(meData.user);
+
+        const battlesData = await battlesRes.json();
+        if (battlesData && !battlesData.error) setActiveBattles(battlesData);
+
+        const auctionData = await auctionRes.json();
+        setAuctionStatus(auctionData);
+
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching home data:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    localStorage.removeItem('sipl_admin');
+    localStorage.removeItem('sipl_owner');
+    localStorage.removeItem('sipl_player');
+    setUser(null);
+    window.location.reload();
+  };
+
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
+
+  const isBattleActive = activeBattles.groupMatches.length > 0 || activeBattles.individualBattles.length > 0;
+  const isAuctionActive = auctionStatus?.status === 'ACTIVE';
 
   const cards = [
     {
-      title: 'Captain HQ',
-      desc: 'Identify yourself and draw your team for the 2026 season.',
-      icon: Shield,
-      href: '/captain',
-      color: 'bg-blue-500',
-      tag: 'Step 1',
-      hide: user?.role === 'ADMIN'
+      title: 'Active Battle',
+      desc: 'Battles are LIVE! Enter the War Zone and fight for your team.',
+      icon: Zap,
+      href: user?.role === 'PLAYER' ? '/player' : (activeBattles.individualBattles[0] ? `/battles/leaderboard/${activeBattles.individualBattles[0].id}` : '/player'),
+      color: 'bg-red-600',
+      tag: 'LIVE NOW',
+      hide: !isBattleActive
     },
     {
       title: 'Live Auction',
-      desc: 'Enter the bidding arena. Build your dream team with 1M tokens.',
+      desc: 'The auction is LIVE! Enter the bidding arena now.',
       icon: Gavel,
       href: '/auction',
       color: 'bg-accent',
-      tag: 'Step 2'
+      tag: isAuctionActive ? 'LIVE NOW' : 'Starts 3 PM',
+      hide: false
     },
     {
-      title: 'League Stage',
-      desc: 'View standings, schedule, and enter the battle ground.',
-      icon: BarChart2,
-      href: '/league',
+      title: 'Owner HQ',
+      desc: 'Identify yourself and manage your team for the 2026 season.',
+      icon: Shield,
+      href: '/owner',
+      color: 'bg-blue-500',
+      tag: 'Step 1',
+      hide: user?.role === 'ADMIN' || user?.role === 'PLAYER'
+    },
+    {
+      title: 'Player Hub',
+      desc: 'Access your profile and participate in individual battles.',
+      icon: Star,
+      href: '/player',
+      color: 'bg-green-500',
+      tag: 'Player',
+      hide: user && user.role !== 'PLAYER'
+    },
+    {
+      title: 'Schedule',
+      desc: 'View the full league schedule and upcoming matches.',
+      icon: Calendar,
+      href: '/fixtures',
       color: 'bg-purple-500',
-      tag: 'Step 3'
+      tag: 'League',
+      hide: false
+    },
+    {
+      title: 'Standings',
+      desc: 'Check the latest team and player leaderboards.',
+      icon: BarChart2,
+      href: '/standings',
+      color: 'bg-yellow-500',
+      tag: 'Stats',
+      hide: false
     },
     {
       title: 'Admin Console',
@@ -54,77 +119,71 @@ export default function Home() {
     }
   ].filter(card => !card.hide);
 
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    localStorage.removeItem('sipl_admin');
-    localStorage.removeItem('sipl_captain');
-    setUser(null);
-    window.location.reload();
-  };
-
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-animate">
-      {user && (
-        <header className="fixed top-0 left-0 right-0 p-6 flex justify-between items-center z-50">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
-              Session Active: {user.name} ({user.role || 'CAPTAIN'})
-            </span>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-white/5 hover:bg-red-500/20 border border-white/10 rounded-xl text-xs font-bold transition-all text-gray-400 hover:text-red-500 flex items-center gap-2"
+    <main className="min-h-screen flex flex-col items-center p-6 bg-animate relative overflow-hidden backdrop-blur-3xl">
+      <div className="w-full max-w-6xl animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <header className="text-center mb-16 relative z-10">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
           >
-            Logout
-          </button>
+            <h1 className="text-7xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-gray-400 to-gray-800 tracking-tighter mb-4 drop-shadow-2xl">
+              SIPL 2026
+            </h1>
+            <div className="h-2 w-32 bg-accent mx-auto rounded-full mb-6 shadow-[0_0_20px_rgba(249,115,22,0.6)]" />
+            <p className="text-xl text-gray-400 uppercase tracking-[0.2em] font-bold">Innovation Premier League</p>
+
+            {user && (
+              <div className="mt-8 flex items-center justify-center gap-4">
+                <span className="text-gray-400">Welcome back, <span className="text-white font-bold">{user.name}</span></span>
+                <button onClick={handleLogout} className="text-xs text-red-400 hover:text-red-300 underline font-bold">LOGOUT</button>
+              </div>
+            )}
+          </motion.div>
         </header>
-      )}
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-16"
-      >
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <Star className="text-accent fill-accent w-4 h-4" />
-          <span className="text-accent font-bold tracking-widest text-sm uppercase">Simsyn Innovation</span>
-          <Star className="text-accent fill-accent w-4 h-4" />
-        </div>
-        <h1 className="text-8xl font-black tracking-tighter text-glow truncate w-full max-w-[90vw]">
-          SIPL 2026
-        </h1>
-        <p className="text-gray-400 text-xl max-w-lg mx-auto mt-4">
-          Where Ideas Compete. Products Are Born. The ultimate innovation tournament.
-        </p>
-      </motion.div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full max-w-7xl">
-        {cards.map((card, idx) => (
-          <Link href={card.href} key={idx}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10 max-w-5xl mx-auto">
+          {cards.map((card, idx) => (
             <motion.div
-              whileHover={{ y: -10, scale: 1.02 }}
-              className="glass-card p-8 h-full flex flex-col justify-between group cursor-pointer border-white/5 hover:border-white/20 transition-all"
+              key={idx}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: idx * 0.1 }}
             >
-              <div>
-                <div className={`w-12 h-12 rounded-xl ${card.color} bg-opacity-20 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-                  <card.icon className={card.color.replace('bg-', 'text-')} />
+              <Link href={card.href} className="flex h-full">
+                <div className={`bg-black/40 hover:bg-black/60 border border-white/10 hover:border-accent/50 p-8 rounded-3xl backdrop-blur-sm transition-all group w-full flex flex-col justify-between relative overflow-hidden ${card.tag === 'LIVE NOW' ? 'border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : ''}`}>
+                  <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity ${card.color.replace('bg-', 'text-')}`}>
+                    <card.icon className="w-32 h-32 transform rotate-12 translate-x-8 -translate-y-8" />
+                  </div>
+
+                  <div>
+                    <div className={`w-12 h-12 rounded-2xl ${card.color} flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform ${card.tag === 'LIVE NOW' ? 'animate-pulse' : ''}`}>
+                      <card.icon className="text-white w-6 h-6" />
+                    </div>
+
+                    <div className="flex justify-between items-start mb-2">
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${card.color.replace('bg-', 'text-')} mb-2 block`}>{card.tag}</span>
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2 group-hover:text-accent transition-colors">{card.title}</h2>
+                    <p className="text-gray-400 text-sm leading-relaxed">{card.desc}</p>
+                  </div>
+
+                  <div className="mt-8 flex items-center gap-2 text-sm font-bold text-white/50 group-hover:text-white transition-colors">
+                    Access <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
+                  </div>
                 </div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">{card.tag}</span>
-                <h2 className="text-2xl font-bold mb-3">{card.title}</h2>
-                <p className="text-gray-400 text-sm leading-relaxed">{card.desc}</p>
-              </div>
-              <div className="mt-8 flex items-center gap-2 text-accent font-bold text-sm">
-                Enter <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </div>
+              </Link>
             </motion.div>
-          </Link>
-        ))}
+          ))}
+        </div>
       </div>
 
-      <footer className="mt-20 text-gray-600 text-sm font-medium">
-        Powered by Uniconnect Ecosystem • Built for Simsyn Labs
-      </footer>
+      {/* Background Ambience */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-600/10 rounded-full blur-[120px] animate-pulse-slow" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 rounded-full blur-[120px] animate-pulse-slow delay-1000" />
+      </div>
     </main>
   );
 }

@@ -18,11 +18,11 @@ export async function POST(request: Request) {
     // Authorization: User must be an ADMIN or the Captain of the specific teamId
     if (session.user.role !== 'ADMIN') {
       // Always fetch the latest team_id from the database to avoid stale session issues
-      const captainRs = await db.execute({
-        sql: 'SELECT team_id FROM captains WHERE id = ?',
+      const ownerRs = await db.execute({
+        sql: "SELECT team_id FROM players WHERE id = ? AND role = 'OWNER'",
         args: [session.user.id]
       });
-      const dbTeamId = captainRs.rows[0]?.team_id;
+      const dbTeamId = ownerRs.rows[0]?.team_id;
 
       if (dbTeamId !== teamId) {
         return NextResponse.json({ error: 'Forbidden: You can only bid for your own team' }, { status: 403 });
@@ -71,6 +71,16 @@ export async function POST(request: Request) {
     }
     if (team.balance < amount) {
       return NextResponse.json({ error: 'Insufficient balance' }, { status: 400 });
+    }
+
+    // Check team size limit (max 5 players excluding captain/owner)
+    const playerCountRs = await db.execute({
+      sql: "SELECT COUNT(*) as count FROM players WHERE team_id = ? AND role = 'PLAYER'",
+      args: [teamId]
+    });
+    const playerCount = (playerCountRs.rows[0] as any).count;
+    if (playerCount >= 5) {
+      return NextResponse.json({ error: 'Team is full (Max 5 players + Captain)' }, { status: 400 });
     }
 
     // Update auction and timer

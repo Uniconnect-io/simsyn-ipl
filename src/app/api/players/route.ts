@@ -7,6 +7,7 @@ export async function GET() {
             SELECT p.*, t.name as teamName 
             FROM players p
             LEFT JOIN teams t ON p.team_id = t.id
+            WHERE p.role = 'PLAYER'
         `);
         const players = rs.rows;
         return NextResponse.json(players);

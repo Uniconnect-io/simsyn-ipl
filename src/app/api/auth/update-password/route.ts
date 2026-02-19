@@ -15,6 +15,8 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
+        const table = 'players';
+
         // Ensure user is updating their own password unless they are ADMIN
         if (session.user.role !== 'ADMIN' && session.user.id !== id) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
 
         const result = await db.execute({
             sql: `
-            UPDATE captains 
+            UPDATE ${table} 
             SET password = ?, password_reset_required = 0 
             WHERE id = ?
         `,
@@ -30,7 +32,7 @@ export async function POST(request: Request) {
         });
 
         if (result.rowsAffected === 0) {
-            return NextResponse.json({ error: 'Captain not found' }, { status: 404 });
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
         return NextResponse.json({ success: true });

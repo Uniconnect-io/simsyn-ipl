@@ -16,15 +16,15 @@ export async function GET(
 
         if (!team) return NextResponse.json({ error: 'Team not found' }, { status: 404 });
 
-        const [playersRs, captainRs] = await Promise.all([
-            db.execute({ sql: 'SELECT * FROM players WHERE team_id = ?', args: [teamId] }),
-            db.execute({ sql: 'SELECT * FROM captains WHERE team_id = ?', args: [teamId] })
+        const [playersRs, ownerRs] = await Promise.all([
+            db.execute({ sql: "SELECT * FROM players WHERE team_id = ? AND role = 'PLAYER'", args: [teamId] }),
+            db.execute({ sql: "SELECT * FROM players WHERE team_id = ? AND role = 'OWNER'", args: [teamId] })
         ]);
 
         const players = playersRs.rows;
-        const captain = captainRs.rows[0];
+        const owner = ownerRs.rows[0];
 
-        return NextResponse.json({ ...team, players, captain });
+        return NextResponse.json({ ...team, players, owner });
     } catch (error) {
         return NextResponse.json({ error: 'Failed to fetch team details' }, { status: 500 });
     }

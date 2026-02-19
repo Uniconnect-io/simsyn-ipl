@@ -32,13 +32,13 @@ async function getEmbedding(text: string) {
     }
 }
 
-function calculateWeightedScore(scores: any) {
+function calculateWeightedScore(scores: any, scheme: any) {
     return (
-        scores.alignment * 0.25 +
-        scores.feasibility * 0.2 +
-        scores.value * 0.25 +
-        scores.effort * 0.15 +
-        scores.innovation * 0.15
+        scores.alignment * (scheme.alignment_weight || 0.25) +
+        scores.feasibility * (scheme.feasibility_weight || 0.20) +
+        scores.value * (scheme.value_weight || 0.25) +
+        scores.effort * (scheme.effort_weight || 0.15) +
+        scores.innovation * (scheme.innovation_weight || 0.15)
     );
 }
 
@@ -238,6 +238,16 @@ export async function POST(request: Request) {
         }
 
 
+        // 3a. Fetch Judgement Scheme
+        const schemeId = match.judgement_scheme_id;
+        let schemeRs;
+        if (schemeId) {
+            schemeRs = await db.execute({ sql: 'SELECT * FROM judgement_schemes WHERE id = ?', args: [schemeId] });
+        } else {
+            schemeRs = await db.execute('SELECT * FROM judgement_schemes WHERE is_default = 1 LIMIT 1');
+        }
+        const scheme = schemeRs.rows[0] as any || { alignment_weight: 0.25, feasibility_weight: 0.2, value_weight: 0.25, effort_weight: 0.15, innovation_weight: 0.15, relevance_threshold: 0.12 };
+
         // 3b. SEMANTIC RELEVANCE CHECK
         const currentEmbedding = await getEmbedding(content);
 
@@ -247,7 +257,7 @@ export async function POST(request: Request) {
                 const relevanceScore = cosineSimilarity(currentEmbedding, caseEmbedding);
                 console.log("Relevance Score:", relevanceScore);
 
-                if (relevanceScore < 0.12) {
+                if (relevanceScore < (scheme.relevance_threshold || 0.12)) {
                     const colWickets = isTeam1 ? 'wickets1' : 'wickets2';
                     await db.execute({
                         sql: `UPDATE matches SET ${colWickets} = ${colWickets} + 1 WHERE id = ?`,
@@ -371,7 +381,7 @@ export async function POST(request: Request) {
 
         // 6. Scoring
         const rawScores = await getAIScores(match.case_description, content);
-        const weightedScore = calculateWeightedScore(rawScores);
+        const weightedScore = calculateWeightedScore(rawScores, scheme);
         const result = convertToRuns(weightedScore);
 
         // 7. Update Database

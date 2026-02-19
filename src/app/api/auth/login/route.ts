@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import db from '@/lib/db';
+import db, { initDb } from '@/lib/db';
 import { login } from '@/lib/auth';
 
 export async function POST(request: Request) {
     try {
+        await initDb();
         const { id, password, type } = await request.json();
 
         if (type === 'admin') {
@@ -18,16 +19,27 @@ export async function POST(request: Request) {
                 await login(user);
                 return NextResponse.json({ success: true, user });
             }
-        } else {
+        } else if (type === 'owner') {
             const rs = await db.execute({
-                sql: 'SELECT id, name, team_id, role, password_reset_required FROM captains WHERE id = ? AND password = ?',
+                sql: "SELECT id, name, team_id, role, password_reset_required FROM players WHERE id = ? AND password = ? AND role = 'OWNER'",
                 args: [id, password]
             });
-            const captain = rs.rows[0];
+            const owner = rs.rows[0];
 
-            if (captain) {
-                await login(captain);
-                return NextResponse.json({ success: true, user: captain });
+            if (owner) {
+                await login(owner);
+                return NextResponse.json({ success: true, user: owner });
+            }
+        } else if (type === 'player') {
+            const rs = await db.execute({
+                sql: 'SELECT id, name, team_id, role, password_reset_required FROM players WHERE LOWER(name) = LOWER(?) AND password = ?',
+                args: [id, password]
+            });
+            const player = rs.rows[0];
+
+            if (player) {
+                await login(player);
+                return NextResponse.json({ success: true, user: player });
             }
         }
 

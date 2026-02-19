@@ -24,3 +24,23 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: 'Failed to update schedule' }, { status: 500 });
     }
 }
+
+export async function DELETE(request: Request) {
+    try {
+        const { id } = await request.json();
+
+        if (!id) {
+            return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+        }
+
+        await db.execute({
+            sql: 'DELETE FROM matches WHERE id = ?',
+            args: [id]
+        });
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('Schedule delete error:', error);
+        return NextResponse.json({ error: 'Failed to delete match' }, { status: 500 });
+    }
+}

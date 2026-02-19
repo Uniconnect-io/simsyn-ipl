@@ -11,11 +11,11 @@ export async function GET(request: Request) {
                 bi.*,
                 m.type as match_type,
                 t.name as team_name,
-                c.name as captain_name
+                o.name as captain_name
             FROM battle_ideas bi
             LEFT JOIN matches m ON bi.match_id = m.id
             LEFT JOIN teams t ON bi.team_id = t.id
-            LEFT JOIN captains c ON bi.captain_id = c.id
+            LEFT JOIN players o ON bi.captain_id = o.id
         `;
 
         const params: any[] = [];

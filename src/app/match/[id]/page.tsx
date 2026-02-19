@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Save, AlertCircle, Trophy, ChevronLeft, Timer, Home } from 'lucide-react';
+import { Play, Save, AlertCircle, Trophy, ChevronLeft, Timer, Home, Activity } from 'lucide-react';
 import Link from 'next/link';
 
 interface Match {
@@ -117,19 +117,27 @@ export default function MatchDetailPage({ params: paramsPromise }: { params: Pro
       <main className="min-h-screen p-6 lg:p-12 flex flex-col items-center justify-center text-center space-y-6">
         <h1 className="text-4xl font-black text-white/20 uppercase tracking-tighter">In Battle Phase</h1>
         <p className="text-gray-500 max-w-md">Official results and AI summaries will be available here once the match enters the review phase.</p>
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => window.location.href = '/league'}
-            className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-bold flex items-center gap-2 transition-all"
-          >
-            <ChevronLeft size={18} /> Back to Standings
-          </button>
+        <div className="flex flex-col items-center gap-4">
           <Link
-            href="/"
-            className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-bold flex items-center gap-2 transition-all"
+            href={`/match/${params.id}/live`}
+            className="px-8 py-4 bg-red-600 hover:bg-red-700 text-white rounded-full font-black uppercase tracking-widest flex items-center gap-3 shadow-lg shadow-red-600/20 animate-pulse transition-all transform hover:scale-105"
           >
-            <Home size={18} /> Home
+            <Activity className="w-5 h-5" /> Enter Live Stadium
           </Link>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => window.location.href = '/league'}
+              className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-bold flex items-center gap-2 transition-all"
+            >
+              <ChevronLeft size={18} /> Back to Standings
+            </button>
+            <Link
+              href="/"
+              className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full font-bold flex items-center gap-2 transition-all"
+            >
+              <Home size={18} /> Home
+            </Link>
+          </div>
         </div>
       </main>
     );
