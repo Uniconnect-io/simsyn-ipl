@@ -54,6 +54,8 @@ export default function PlayerDashboard() {
 
                         // Fetch questions if new battle or questions not loaded
                         let questions = battleQuestions;
+                        const answeredIds = data.answeredQuestionIds || [];
+
                         if (prevBattleId !== data.battle.id || battleQuestions.length === 0) {
                             const qRes = await fetch(`/api/player/battles/questions?battleId=${data.battle.id}`);
                             const rawQuestions = await qRes.json();
@@ -66,28 +68,27 @@ export default function PlayerDashboard() {
                                     originalIndex: idx
                                 })))
                             }));
-                            questions = shuffleArray(transformed);
+
+                            // Load only remaining questions
+                            const remaining = transformed.filter((q: any) => !answeredIds.includes(q.id));
+                            questions = shuffleArray(remaining);
                             setBattleQuestions(questions);
+                            setCurrentQuestion(0);
                         }
 
-                        // Calculate progress based on answered IDs
-                        const answeredIds = data.answeredQuestionIds || [];
-                        const nextQuestionIndex = questions.findIndex((q: any) => !answeredIds.includes(q.id));
-
-                        if (nextQuestionIndex !== -1) {
-                            const isFarBehind = Math.abs(nextQuestionIndex - currentQuestion) > 1;
-
-                            if (battleStep === 'lobby' || isFarBehind || isFirstLoad) {
-                                setCurrentQuestion(nextQuestionIndex);
+                        if (questions.length > 0) {
+                            if (battleStep === 'lobby' || isFirstLoad) {
+                                setBattleStep('question');
+                                setTimeLeft(data.battle.question_timer || 10);
+                                setQuestionStartTime(Date.now());
                                 setHasSubmitted(false);
-                                if (battleStep === 'result' || (battleStep === 'lobby' && isFarBehind)) {
-                                    setBattleStep('question');
-                                    setTimeLeft(data.battle.question_timer || 10);
-                                    setQuestionStartTime(Date.now());
-                                }
                             }
-                        } else if (questions.length > 0) {
-                            // All answered
+                        } else if (questions.length === 0 && battleQuestions.length > 0) {
+                            // Only set to result if we actually had questions and finished them
+                            setHasSubmitted(true);
+                            setBattleStep('result');
+                        } else if (isFirstLoad && data.hasSubmitted) {
+                            // If first load and already submitted everything for this battle
                             setHasSubmitted(true);
                             setBattleStep('result');
                         }
