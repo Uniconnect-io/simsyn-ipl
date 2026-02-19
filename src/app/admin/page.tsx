@@ -44,6 +44,7 @@ interface Player {
     min_bid: number;
     tags?: string;
     is_auctioned: boolean;
+    role?: string;
     team_id: string | null;
     teamName?: string | null;
 }
