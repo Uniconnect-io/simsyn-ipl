@@ -11,7 +11,11 @@ const db = createClient({
 
 
 
+let isInitialized = false;
+
 export const initDb = async () => {
+  if (isInitialized) return;
+
   await db.executeMultiple(`
     CREATE TABLE IF NOT EXISTS teams (
       id TEXT PRIMARY KEY,
@@ -453,6 +457,7 @@ export const initDb = async () => {
   } catch (e) {
     console.error("Migration error:", e);
   }
+  isInitialized = true;
 };
 
 // Auto-initialize if running locally or if needed (optimized for serverless to skip if possible, but keeping simple for now)

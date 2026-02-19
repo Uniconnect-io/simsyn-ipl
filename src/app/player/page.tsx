@@ -37,20 +37,36 @@ export default function PlayerDashboard() {
     };
 
     useEffect(() => {
-        const fetchHeartbeat = async () => {
+        const fetchHeartbeat = async (mode: 'full' | 'status_check' = 'full') => {
+            // Optimization: Pause polling if tab is hidden and we are just checking status
+            if (mode === 'status_check' && typeof document !== 'undefined' && document.hidden) return;
+
             try {
-                const res = await fetch('/api/player/heartbeat');
+                const url = mode === 'status_check' ? '/api/player/heartbeat?action=status_check' : '/api/player/heartbeat';
+                const res = await fetch(url);
+
                 if (res.ok) {
                     const data = await res.json();
-                    setUser(data.player);
-                    setStats(data.stats);
-                    setTeamStats(data.teamStats);
+
+                    // Always update critical battle state
                     setHasSubmitted(data.hasSubmitted);
+
+                    // Only update heavy stats on full load
+                    if (!data.isPartial) {
+                        setUser(data.player);
+                        setStats(data.stats);
+                        setTeamStats(data.teamStats);
+                    } else {
+                        // For partial updates, we might want to update user basic info if needed, but usually not necessary
+                        // Just ensure activeBattle logic runs
+                    }
 
                     if (data.battle) {
                         const prevBattleId = activeBattle?.id;
                         const isFirstLoad = !activeBattle;
-                        setActiveBattle(data.battle);
+                        if (JSON.stringify(activeBattle) !== JSON.stringify(data.battle)) {
+                            setActiveBattle(data.battle);
+                        }
 
                         // Fetch questions if new battle or questions not loaded
                         let questions = battleQuestions;
@@ -85,16 +101,20 @@ export default function PlayerDashboard() {
                             }
                         } else {
                             // If no questions remaining (filtered or empty), we are done
-                            setHasSubmitted(true);
-                            setBattleStep('result');
+                            if (!hasSubmitted) { // Only update if not already submitted to avoid flicker
+                                setHasSubmitted(true);
+                                setBattleStep('result');
+                            }
                         }
                     } else {
-                        setActiveBattle(null);
-                        setBattleQuestions([]);
+                        if (activeBattle) {
+                            setActiveBattle(null);
+                            setBattleQuestions([]);
+                        }
                     }
 
-                    // Fetch team details once if not already fetched
-                    if (data.player.team_id && !team) {
+                    // Fetch team details once if not already fetched (only on full load typically)
+                    if (!data.isPartial && data.player.team_id && !team) {
                         const teamRes = await fetch(`/api/teams?id=${data.player.team_id}`);
                         if (teamRes.ok) {
                             const teamData = await teamRes.json();
@@ -111,10 +131,18 @@ export default function PlayerDashboard() {
             }
         };
 
-        fetchHeartbeat();
-        const interval = setInterval(fetchHeartbeat, 5000); // Polling every 5s
+        // Initial full load
+        fetchHeartbeat('full');
+
+        // Adaptive Polling: 
+        // - Fast (1.5s) when waiting in lobby or waiting for next question (result screen) -> "Intense" feel
+        // - Slow (5s) when actually answering (local timer handles UI) or idle
+        const isWaiting = battleStep === 'lobby' || battleStep === 'result' || (activeBattle && !hasSubmitted);
+        const pollInterval = isWaiting ? 1500 : 5000;
+
+        const interval = setInterval(() => fetchHeartbeat('status_check'), pollInterval);
         return () => clearInterval(interval);
-    }, [activeBattle?.id, team?.id, battleQuestions.length, battleStep, currentQuestion]);
+    }, [activeBattle?.id, team?.id, battleQuestions.length, battleStep, currentQuestion, hasSubmitted]);
 
     const [timeLeft, setTimeLeft] = useState(10);
     const [answerFeedback, setAnswerFeedback] = useState<any>(null);

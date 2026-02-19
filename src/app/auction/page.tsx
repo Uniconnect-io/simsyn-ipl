@@ -96,9 +96,11 @@ export default function AuctionPage() {
 
     useEffect(() => {
         fetchData();
-        const interval = setInterval(fetchData, 1000);
+        // Adaptive polling: Fast when active, slower when idle
+        const intervalMs = auction?.status === 'ACTIVE' ? 1000 : 3000;
+        const interval = setInterval(fetchData, intervalMs);
         return () => clearInterval(interval);
-    }, [fetchData]);
+    }, [fetchData, auction?.status]);
 
     const handleBid = async (amount: number) => {
         if (!auction || auction.status !== 'ACTIVE' || !myTeamId) {

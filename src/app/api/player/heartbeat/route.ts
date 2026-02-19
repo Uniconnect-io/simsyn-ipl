@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import db, { initDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
         await initDb();
         const session = await getSession();
@@ -10,8 +10,59 @@ export async function GET() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const { searchParams } = new URL(request.url);
+        const action = searchParams.get('action');
+
         const playerId = session.user.id;
 
+        // LIGHTWEIGHT MODE: Just check for active battle and player status
+        if (action === 'status_check') {
+            const [battleRs, playerBasicRs] = await Promise.all([
+                db.execute({
+                    sql: "SELECT * FROM matches WHERE status = 'ACTIVE' AND type != 'LEAGUE' LIMIT 1",
+                    args: []
+                }),
+                db.execute({
+                    sql: 'SELECT id, name, team_id, rating FROM players WHERE id = ?',
+                    args: [playerId]
+                })
+            ]);
+
+            const battle = battleRs.rows[0] as any;
+            const playerBasic = playerBasicRs.rows[0] as any;
+            let answeredQuestionIds: string[] = [];
+            let hasSubmitted = false;
+
+            if (battle) {
+                const [answerCheckRs, totalQuestionsRs] = await Promise.all([
+                    db.execute({
+                        sql: 'SELECT question_id FROM individual_battle_answers WHERE battle_id = ? AND player_id = ?',
+                        args: [battle.id, playerId]
+                    }),
+                    db.execute({
+                        sql: 'SELECT COUNT(*) as count FROM battle_questions WHERE battle_id = ?',
+                        args: [battle.id]
+                    })
+                ]);
+
+                answeredQuestionIds = answerCheckRs.rows.map((r: any) => r.question_id);
+                const totalQuestions = (totalQuestionsRs.rows[0] as any)?.count || 0;
+
+                if (totalQuestions > 0 && answeredQuestionIds.length >= totalQuestions) {
+                    hasSubmitted = true;
+                }
+            }
+
+            return NextResponse.json({
+                player: playerBasic,
+                battle,
+                answeredQuestionIds,
+                hasSubmitted,
+                isPartial: true
+            });
+        }
+
+        // FULL LOAD MODE (Original Logic)
         // Fetch everything in parallel
         const [playerRs, battleRs, allScoresRs] = await Promise.all([
             db.execute({

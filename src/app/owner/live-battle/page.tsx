@@ -116,13 +116,17 @@ export default function LiveBattlePage() {
         };
 
         fetchStatus();
+
+        // Fast updates for active match, slower for idle/waiting
+        const intervalMs = activeMatch && timeLeft !== 'MATCH ENDED' ? 1000 : 5000;
+
         const interval = setInterval(() => {
             tick();
             fetchStatus();
-        }, 1000);
+        }, intervalMs);
 
         return () => clearInterval(interval);
-    }, [owner]);
+    }, [owner, activeMatch?.id, timeLeft]);
 
     const handleSubmit = async () => {
         if (!ideaInput.trim() || !activeMatch || !owner) return;
