@@ -124,15 +124,15 @@ export default function PlayerDashboard() {
 
     useEffect(() => {
         let timer: NodeJS.Timeout;
-        if (battleStep === 'question' && timeLeft > 0 && !answerFeedback) {
+        if (battleStep === 'question' && timeLeft > 0 && !answerFeedback && !isSubmitting) {
             timer = setInterval(() => {
                 setTimeLeft(prev => prev - 1);
             }, 1000);
-        } else if (timeLeft === 0 && battleStep === 'question' && !answerFeedback) {
+        } else if (timeLeft === 0 && battleStep === 'question' && !answerFeedback && !isSubmitting) {
             handleAnswer(-1); // Auto-fail if time runs out
         }
         return () => clearInterval(timer);
-    }, [battleStep, timeLeft, answerFeedback]);
+    }, [battleStep, timeLeft, answerFeedback, isSubmitting]);
 
     const handleAnswer = async (index: number) => {
         if (answerFeedback || isSubmitting) return;

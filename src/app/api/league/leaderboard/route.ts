@@ -19,12 +19,12 @@ export async function GET() {
                 SELECT 
                     p.name,
                     p.team_id,
-                    SUM(s.score) as total_runs
+                    SUM(s.score) as total_points
                 FROM scores s
                 JOIN players p ON s.player_id = p.id
                 WHERE s.player_id IS NOT NULL
                 GROUP BY p.id, p.name, p.team_id
-                ORDER BY total_runs DESC
+                ORDER BY total_points DESC
                 LIMIT 50
             `)
         ]);

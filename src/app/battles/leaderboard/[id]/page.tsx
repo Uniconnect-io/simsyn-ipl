@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Users, Zap, Award, Star, Shield, Activity } from 'lucide-react';
@@ -14,24 +14,21 @@ export default function LiveLeaderboard() {
     const [showBoundaryOverlay, setShowBoundaryOverlay] = useState<{ player: string, runs: number } | null>(null);
     const [mounted, setMounted] = useState(false);
 
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const lastActionRef = useRef<string | null>(null);
 
     useEffect(() => {
+        setMounted(true);
         const fetchLeaderboard = async () => {
             try {
                 const res = await fetch(`/api/battles/leaderboard?battleId=${battleId}`);
                 if (res.ok) {
                     const json = await res.json();
 
-                    // Check for new high-score events in feed
                     if (json.feed && json.feed.length > 0) {
                         const newTopAction = json.feed[0];
-                        const oldTopAction = feed.length > 0 ? feed[0] : null;
+                        const lastTime = lastActionRef.current;
 
-                        if (oldTopAction && newTopAction.created_at !== oldTopAction.created_at) {
-                            // Trigger Animation for 4s and 6s
+                        if (lastTime && newTopAction.created_at !== lastTime) {
                             if (newTopAction.runs_awarded >= 4) {
                                 setShowBoundaryOverlay({
                                     player: newTopAction.player_name,
@@ -40,6 +37,7 @@ export default function LiveLeaderboard() {
                                 setTimeout(() => setShowBoundaryOverlay(null), 3000);
                             }
                         }
+                        lastActionRef.current = newTopAction.created_at;
                     }
 
                     setData(json);
@@ -54,7 +52,7 @@ export default function LiveLeaderboard() {
         fetchLeaderboard();
         const interval = setInterval(fetchLeaderboard, 3000);
         return () => clearInterval(interval);
-    }, [battleId, feed]);
+    }, [battleId]);
 
     return (
         <main className="min-h-screen bg-black text-white p-8 bg-animate overflow-hidden relative font-sans">
