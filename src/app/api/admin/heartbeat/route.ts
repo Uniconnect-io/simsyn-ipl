@@ -47,7 +47,7 @@ export async function GET() {
                 LEFT JOIN teams t2 ON m.team2_id = t2.id
                 LEFT JOIN teams w ON m.winner_id = w.id
                 LEFT JOIN players p ON m.conductor_id = p.id
-                ORDER BY m.date DESC, m.created_at DESC, m.id DESC
+                ORDER BY m.start_time DESC, m.created_at DESC, m.id DESC
             `),
             // 5. Auction Status
             db.execute(`

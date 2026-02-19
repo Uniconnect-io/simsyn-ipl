@@ -28,12 +28,12 @@ export async function POST(request: Request) {
         await db.execute({
             sql: `INSERT INTO matches (
                 id, title, description, question_timer, mode, team1_id, team2_id, 
-                type, start_time, conductor_id, status, date, points_weight
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+                type, start_time, conductor_id, status, points_weight
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)`,
             args: [
                 id, title, description, question_timer || 10, mode || 'TEAM',
                 team1_id || null, team2_id || null, battle_type || 'KAHOOT',
-                start_time || null, conductor_id || null, 'PENDING', points_weight || 1.0
+                start_time || null, conductor_id || null, points_weight || 1.0
             ]
         });
 

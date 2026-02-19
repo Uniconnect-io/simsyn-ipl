@@ -5,7 +5,7 @@ export async function GET() {
   try {
     const rs = await db.execute(`
       SELECT 
-        m.id, m.date, m.start_time, m.status, m.type, m.score1, m.score2,
+        m.id, m.start_time, m.status, m.type, m.score1, m.score2,
         t1.name as team1Name, 
         t2.name as team2Name,
         w.name as winnerName,
@@ -15,7 +15,7 @@ export async function GET() {
       LEFT JOIN teams t2 ON m.team2_id = t2.id
       LEFT JOIN teams w ON m.winner_id = w.id
       LEFT JOIN players p ON m.conductor_id = p.id
-      ORDER BY m.date ASC, m.id ASC
+      ORDER BY m.start_time ASC, m.id ASC
     `);
 
     const matches = rs.rows;

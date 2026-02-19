@@ -111,13 +111,12 @@ export async function POST() {
     }
 
     const stmts = finalMatches.map(m => ({
-      sql: `INSERT INTO matches (id, team1_id, team2_id, month, status, date, type, case_description) VALUES (?, ?, ?, ?, 'SCHEDULED', ?, ?, ?)`,
+      sql: `INSERT INTO matches (id, team1_id, team2_id, status, start_time, type, case_description) VALUES (?, ?, ?, 'SCHEDULED', ?, ?, ?)`,
       args: [
         m.id,
         m.team1_id,
         m.team2_id,
-        m.month,
-        m.date,
+        m.date, // m.date is already ISO string/start_time
         m.type,
         m.case_description || null
       ]

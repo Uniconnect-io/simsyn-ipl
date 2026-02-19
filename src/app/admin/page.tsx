@@ -530,6 +530,12 @@ export default function AdminPage() {
     const handleCreateBattle = async () => {
         // Validation Logic
         if (!wizardConfig.title || !wizardConfig.description || !battleMode || !battleType) {
+            console.warn('Validation failed:', {
+                title: wizardConfig.title,
+                description: wizardConfig.description,
+                mode: battleMode,
+                type: battleType
+            });
             alert('Please fill in Title, Description, Mode and Type.');
             return;
         }
@@ -550,9 +556,10 @@ export default function AdminPage() {
         }
 
         const res = await fetch('/api/admin/battles', {
-            method: 'POST',
+            method: editingBattleId ? 'PATCH' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                id: editingBattleId,
                 title: wizardConfig.title,
                 description: wizardConfig.description,
                 question_timer: wizardConfig.question_timer,
@@ -567,26 +574,27 @@ export default function AdminPage() {
         });
 
         if (res.ok) {
-            alert('Battle created successfully!');
-            setIsCreatingBattle(false); // Close the wizard
-            setWizardStep(1); // Reset step
-            setWizardConfig({ // Reset config
+            alert(editingBattleId ? 'Battle updated successfully!' : 'Battle created successfully!');
+            setIsCreatingBattle(false);
+            setEditingBattleId(null);
+            setWizardStep(1);
+            setWizardConfig({
                 title: '',
                 description: '',
-                question_timer: 60,
+                question_timer: 10,
                 team1_id: '',
                 team2_id: '',
                 date: '',
                 time: '',
                 conductor_id: '',
-                points_weight: 1.0 // Reset this too just in case
+                points_weight: 1.0
             });
-            setBattleMode('INDIVIDUAL'); // Reset default
-            setBattleType('CASE_STUDY'); // Reset default
+            setBattleMode('INDIVIDUAL');
+            setBattleType('KAHOOT');
             fetchHeartbeat();
         } else {
             const data = await res.json();
-            alert(data.error || 'Failed to create battle');
+            alert(data.error || `Failed to ${editingBattleId ? 'update' : 'create'} battle`);
         }
     };
 
@@ -952,7 +960,24 @@ export default function AdminPage() {
                             <p className="text-gray-400 mt-1">Control center for all Match and Individual battles.</p>
                         </div>
                         <button
-                            onClick={() => setIsCreatingBattle(true)}
+                            onClick={() => {
+                                setEditingBattleId(null);
+                                setWizardConfig({
+                                    title: '',
+                                    description: '',
+                                    question_timer: 10,
+                                    team1_id: '',
+                                    team2_id: '',
+                                    date: '',
+                                    time: '',
+                                    conductor_id: '',
+                                    points_weight: 1.0
+                                });
+                                setBattleMode('INDIVIDUAL');
+                                setBattleType('KAHOOT');
+                                setWizardStep(1);
+                                setIsCreatingBattle(true);
+                            }}
                             className="bg-accent text-white font-bold px-6 py-2 rounded-lg transition-all hover:scale-105 flex items-center gap-2 text-sm"
                         >
                             <Plus className="w-4 h-4" /> CREATE BATTLE
@@ -1101,7 +1126,7 @@ export default function AdminPage() {
                                                 points_weight: battle.points_weight || 1.0
                                             });
                                             setBattleMode(battle.mode);
-                                            setBattleType(battle.battle_type);
+                                            setBattleType(battle.type);
                                             setIsCreatingBattle(true);
                                             setWizardStep(2); // Jump to configuration
                                         }}
@@ -1602,8 +1627,8 @@ export default function AdminPage() {
                             className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl"
                         >
                             <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
-                                <h2 className="text-2xl font-black uppercase italic tracking-tighter">Create New Battle</h2>
-                                <button onClick={() => { setIsCreatingBattle(false); setWizardStep(1); }}><X className="w-5 h-5" /></button>
+                                <h2 className="text-2xl font-black uppercase italic tracking-tighter">{editingBattleId ? 'Edit Battle' : 'Create New Battle'}</h2>
+                                <button onClick={() => { setIsCreatingBattle(false); setEditingBattleId(null); setWizardStep(1); }}><X className="w-5 h-5" /></button>
                             </div>
 
                             <div className="p-8">
@@ -1854,7 +1879,7 @@ export default function AdminPage() {
                                             onClick={handleCreateBattle}
                                             className="bg-accent text-white font-black px-8 py-3 rounded-xl hover:scale-105 transition-all shadow-lg shadow-accent/20"
                                         >
-                                            Create Battle
+                                            {editingBattleId ? 'Update Battle' : 'Create Battle'}
                                         </button>
                                     )}
                                 </div>

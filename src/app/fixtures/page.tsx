@@ -12,7 +12,7 @@ interface Match {
     team2_id: string;
     team2Name: string | null;
     month: number;
-    date: string;
+    start_time: string;
     type: string;
     status: string;
     winnerName: string | null;
@@ -28,6 +28,7 @@ interface Match {
     title?: string;
     description?: string;
     conductor_id?: string;
+    conductorName?: string | null;
 }
 
 export default function FixturesPage() {
@@ -54,9 +55,8 @@ export default function FixturesPage() {
 
     if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;
 
-    // Helper to group by month
     const groupedMatches = schedule.reduce((groups, match) => {
-        const date = new Date(match.date);
+        const date = new Date(match.start_time);
         const month = date.getMonth(); // 0-11
         if (!groups[month]) groups[month] = [];
         groups[month].push(match);
@@ -108,47 +108,50 @@ export default function FixturesPage() {
                                     whileHover={{ scale: 1.02 }}
                                     className={`glass-card p-0 border-white/5 hover:border-accent/20 cursor-pointer group relative overflow-hidden flex flex-col ${match.status === 'COMPLETED' ? 'bg-accent/5' : ''}`}
                                     onClick={() => {
-                                        if (match.type === 'LEAGUE') window.location.href = `/match/${match.id}`;
-                                        if (match.type === 'BATTLE' && match.status === 'COMPLETED') window.location.href = `/battles/leaderboard/${match.id}`;
+                                        const isBattle = ['KAHOOT', 'CASE_STUDY', 'TECH_TALK'].includes(match.type);
+                                        const isMatch = ['LEAGUE', 'QUALIFIER1', 'QUALIFIER2', 'ELIMINATOR', 'FINAL'].includes(match.type);
+
+                                        if (isMatch) window.location.href = `/match/${match.id}`;
+                                        if (isBattle && match.status === 'COMPLETED') window.location.href = `/battles/leaderboard/${match.id}`;
                                     }}
                                 >
                                     {/* Header / Status Bar */}
                                     <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
                                         <div className="flex items-center gap-2">
-                                            {match.type === 'BATTLE' ? (
-                                                match.battle_type === 'TECH_TALK' ? <Video className="w-4 h-4 text-purple-400" /> : <Swords className="w-4 h-4 text-accent" />
+                                            {['KAHOOT', 'CASE_STUDY', 'TECH_TALK'].includes(match.type) ? (
+                                                match.type === 'TECH_TALK' ? <Video className="w-4 h-4 text-purple-400" /> : <Swords className="w-4 h-4 text-accent" />
                                             ) : (
                                                 <Trophy className="w-4 h-4 text-yellow-500" />
                                             )}
                                             <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                                {match.type === 'BATTLE' ? match.battle_type?.replace('_', ' ') : 'LEAGUE MATCH'}
+                                                {match.type.replace('_', ' ')}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-500 text-xs font-mono">
-                                                {new Date(match.date).toLocaleDateString('en-US', { day: 'numeric', weekday: 'short' })}
-                                                {match.date.includes('T') && ` • ${new Date(match.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`}
+                                                {new Date(match.start_time).toLocaleDateString('en-US', { day: 'numeric', weekday: 'short' })}
+                                                {match.start_time.includes('T') && ` • ${new Date(match.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`}
                                             </span>
                                         </div>
                                     </div>
 
                                     {/* Content */}
                                     <div className="p-5 flex-1 flex flex-col justify-center">
-                                        {match.type === 'BATTLE' ? (
+                                        {['KAHOOT', 'CASE_STUDY', 'TECH_TALK'].includes(match.type) ? (
                                             <div className="space-y-4">
                                                 <div>
                                                     <h3 className="font-bold text-lg leading-tight text-white mb-1">{match.title}</h3>
                                                     <p className="text-sm text-gray-400 line-clamp-2">{match.description}</p>
                                                 </div>
 
-                                                {match.conductor_id && (
+                                                {(match.conductorName || match.conductor_id) && (
                                                     <div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
                                                         <div className="w-8 h-8 rounded-full bg-black/40 overflow-hidden border border-white/10">
-                                                            <img src={`/assets/employee/${match.conductor_id.toLowerCase()}.png`} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.conductor_id}`)} />
+                                                            <img src={`/assets/employee/${(match.conductorName || '').toLowerCase()}.png`} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.conductorName || match.conductor_id}`)} />
                                                         </div>
                                                         <div>
                                                             <div className="text-[10px] text-gray-500 uppercase font-bold">Conducted By</div>
-                                                            <div className="text-sm font-bold text-accent">{match.conductor_id}</div>
+                                                            <div className="text-sm font-bold text-accent">{match.conductorName || match.conductor_id}</div>
                                                         </div>
                                                     </div>
                                                 )}
@@ -193,14 +196,14 @@ export default function FixturesPage() {
                                     </div>
 
                                     {/* Footer / Action */}
-                                    {match.type === 'LEAGUE' && (
+                                    {['LEAGUE', 'QUALIFIER1', 'QUALIFIER2', 'ELIMINATOR', 'FINAL'].includes(match.type) && (
                                         <div className="bg-white/5 p-3 flex justify-center border-t border-white/5 group-hover:bg-accent group-hover:text-black transition-colors">
                                             <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                                                 Match Details <ChevronRight className="w-3 h-3" />
                                             </span>
                                         </div>
                                     )}
-                                    {match.type === 'BATTLE' && match.status === 'COMPLETED' && (
+                                    {['KAHOOT', 'CASE_STUDY', 'TECH_TALK'].includes(match.type) && match.status === 'COMPLETED' && (
                                         <div className="bg-white/5 p-3 flex justify-center border-t border-white/5 group-hover:bg-accent group-hover:text-black transition-colors">
                                             <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                                                 View Leaderboard <BarChart2 className="w-3 h-3" />

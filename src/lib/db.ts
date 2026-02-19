@@ -66,9 +66,8 @@ export const initDb = async () => {
       id TEXT PRIMARY KEY,
       team1_id TEXT,
       team2_id TEXT,
-      date DATETIME NOT NULL,
+      start_time DATETIME,
       status TEXT DEFAULT 'SCHEDULED',
-      month INTEGER,
       type TEXT DEFAULT 'LEAGUE',
       score1 INTEGER DEFAULT 0,
       score2 INTEGER DEFAULT 0,
@@ -80,11 +79,9 @@ export const initDb = async () => {
       overs2 REAL DEFAULT 0.0,
       case_description TEXT,
       judgement_scheme_id TEXT,
-      start_time DATETIME,
       end_time DATETIME,
       is_published INTEGER DEFAULT 0,
       winner_id TEXT,
-      -- Unified battle fields
       title TEXT,
       description TEXT,
       points_weight REAL DEFAULT 1.0,
@@ -220,8 +217,30 @@ export const initDb = async () => {
     if (!matchColumns.includes('conductor_id')) {
       await db.execute("ALTER TABLE matches ADD COLUMN conductor_id TEXT REFERENCES players(id)");
     }
+    if (!matchColumns.includes('start_time')) {
+      await db.execute("ALTER TABLE matches ADD COLUMN start_time DATETIME");
+    }
     if (!matchColumns.includes('created_at')) {
       await db.execute("ALTER TABLE matches ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP");
+    }
+
+    // NEW MIGRATION: Backfill start_time from date for legacy matches
+    if (matchColumns.includes('date')) {
+      await db.execute("UPDATE matches SET start_time = date WHERE start_time IS NULL AND date IS NOT NULL");
+    }
+
+    // Optional: Cleanup month/date columns if they exist
+    try {
+      if (matchColumns.includes('month')) {
+        await db.execute("ALTER TABLE matches DROP COLUMN month");
+        console.log("Dropped 'month' column from matches.");
+      }
+      if (matchColumns.includes('date')) {
+        await db.execute("ALTER TABLE matches DROP COLUMN date");
+        console.log("Dropped 'date' column from matches.");
+      }
+    } catch (dropErr) {
+      console.warn("Could not drop month/date columns (LibSQL version might not support it):", dropErr);
     }
 
     // Migration for teams table
@@ -275,13 +294,13 @@ export const initDb = async () => {
     if (ibTableCheck.rows.length > 0) {
       console.log("Migrating 'individual_battles' to 'matches'...");
       await db.execute(`
-        INSERT INTO matches (id, title, description, points_weight, question_timer, mode, team1_id, team2_id, type, start_time, conductor_id, status, created_at, date)
-        SELECT id, title, description, points_weight, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, status, created_at, created_at
+        INSERT INTO matches (id, title, description, points_weight, question_timer, mode, team1_id, team2_id, type, start_time, conductor_id, status, created_at)
+        SELECT id, title, description, points_weight, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, status, created_at
         FROM individual_battles
         WHERE id NOT IN (SELECT id FROM matches)
       `);
-      // Update those that were KAHOOT or TECH_TALK but had no 'date'
-      await db.execute("UPDATE matches SET date = created_at WHERE date IS NULL");
+      // Update start_time if it was null (unlikely but safe)
+      await db.execute("UPDATE matches SET start_time = created_at WHERE start_time IS NULL AND type != 'LEAGUE'");
       console.log("Migrated battles successfully.");
     }
 
