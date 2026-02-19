@@ -36,8 +36,52 @@ export default function PlayerDashboard() {
         return shuffled;
     };
 
+    // --- REAL-TIME UPDATES (SSE) ---
+    useEffect(() => {
+        let eventSource: EventSource | null = null;
+
+        const connectStream = () => {
+            if (activeBattle?.id) return; // Optional: Only connect if needed, or always keep open
+
+            // Use a robust SSE connection
+            eventSource = new EventSource(`/api/stream?playerId=${user?.id || ''}`);
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.type === 'HEARTBEAT') {
+                        // Update critical state from stream
+                        setHasSubmitted(data.hasSubmitted);
+                        if (JSON.stringify(activeBattle) !== JSON.stringify(data.battle)) {
+                            setActiveBattle(data.battle);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Stream parse error", e);
+                }
+            };
+
+            eventSource.onerror = () => {
+                eventSource?.close();
+                // Fallback to polling is handled by the existing interval if stream dies
+            };
+        };
+
+        // Only connect if we have a user
+        if (user?.id) {
+            connectStream();
+        }
+
+        return () => {
+            eventSource?.close();
+        };
+    }, [user?.id, activeBattle]); // Re-connect if user changes
+
+    // --- FALLBACK POLLING (Existing Logic, but slower) ---
     useEffect(() => {
         const fetchHeartbeat = async (mode: 'full' | 'status_check' = 'full') => {
+            // ... (keep existing fetch logic)
             // Optimization: Pause polling if tab is hidden and we are just checking status
             if (mode === 'status_check' && typeof document !== 'undefined' && document.hidden) return;
 
@@ -56,14 +100,11 @@ export default function PlayerDashboard() {
                         setUser(data.player);
                         setStats(data.stats);
                         setTeamStats(data.teamStats);
-                    } else {
-                        // For partial updates, we might want to update user basic info if needed, but usually not necessary
-                        // Just ensure activeBattle logic runs
                     }
 
                     if (data.battle) {
                         const prevBattleId = activeBattle?.id;
-                        const isFirstLoad = !activeBattle;
+                        // ... (rest of battle logic)
                         if (JSON.stringify(activeBattle) !== JSON.stringify(data.battle)) {
                             setActiveBattle(data.battle);
                         }
@@ -76,7 +117,7 @@ export default function PlayerDashboard() {
                             const qRes = await fetch(`/api/player/battles/questions?battleId=${data.battle.id}`);
                             const rawQuestions = await qRes.json();
 
-                            // Transform and Shuffle: Each question gets its options shuffled but remembers original index
+                            // ... (transform logic)
                             const transformed = rawQuestions.map((q: any) => ({
                                 ...q,
                                 shuffledOptions: shuffleArray(q.options.map((opt: string, idx: number) => ({
@@ -85,7 +126,6 @@ export default function PlayerDashboard() {
                                 })))
                             }));
 
-                            // Load only remaining questions
                             const remaining = transformed.filter((q: any) => !answeredIds.includes(q.id));
                             questions = shuffleArray(remaining);
                             setBattleQuestions(questions);
@@ -93,19 +133,19 @@ export default function PlayerDashboard() {
                         }
 
                         if (questions.length > 0) {
-                            if (battleStep === 'lobby' || isFirstLoad) {
+                            if (battleStep === 'lobby' || (!activeBattle)) {
                                 setBattleStep('question');
                                 setTimeLeft(data.battle.question_timer || 10);
                                 setQuestionStartTime(Date.now());
                                 setHasSubmitted(false);
                             }
                         } else {
-                            // If no questions remaining (filtered or empty), we are done
-                            if (!hasSubmitted) { // Only update if not already submitted to avoid flicker
+                            if (activeBattle && !hasSubmitted) {
                                 setHasSubmitted(true);
                                 setBattleStep('result');
                             }
                         }
+
                     } else {
                         if (activeBattle) {
                             setActiveBattle(null);
@@ -113,7 +153,7 @@ export default function PlayerDashboard() {
                         }
                     }
 
-                    // Fetch team details once if not already fetched (only on full load typically)
+                    // Fetch team details once if not already fetched
                     if (!data.isPartial && data.player.team_id && !team) {
                         const teamRes = await fetch(`/api/teams?id=${data.player.team_id}`);
                         if (teamRes.ok) {
@@ -121,6 +161,7 @@ export default function PlayerDashboard() {
                             setTeam(teamData);
                         }
                     }
+
                 } else if (res.status === 401) {
                     router.push('/player/login');
                 }
@@ -131,18 +172,17 @@ export default function PlayerDashboard() {
             }
         };
 
-        // Initial full load
-        fetchHeartbeat('full');
+        // Initial Load
+        if (!user) fetchHeartbeat('full');
 
-        // Adaptive Polling: 
-        // - Fast (1.5s) when waiting in lobby or waiting for next question (result screen) -> "Intense" feel
-        // - Slow (5s) when actually answering (local timer handles UI) or idle
-        const isWaiting = battleStep === 'lobby' || battleStep === 'result' || (activeBattle && !hasSubmitted);
-        const pollInterval = isWaiting ? 1500 : 5000;
+        // Adaptive Polling (Slower now due to SSE)
+        const isWaiting = battleStep === 'lobby' || battleStep === 'result';
+        // Relaxed intervals because SSE handles the fast path: 3s waiting, 8s idle
+        const pollInterval = isWaiting ? 3000 : 8000;
 
         const interval = setInterval(() => fetchHeartbeat('status_check'), pollInterval);
         return () => clearInterval(interval);
-    }, [activeBattle?.id, team?.id, battleStep, currentQuestion, hasSubmitted]);
+    }, [activeBattle?.id, team?.id, battleStep, currentQuestion, hasSubmitted, user]);
 
     const [timeLeft, setTimeLeft] = useState(10);
     const [answerFeedback, setAnswerFeedback] = useState<any>(null);
