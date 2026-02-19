@@ -142,7 +142,7 @@ export default function PlayerDashboard() {
 
         const interval = setInterval(() => fetchHeartbeat('status_check'), pollInterval);
         return () => clearInterval(interval);
-    }, [activeBattle?.id, team?.id, battleQuestions.length, battleStep, currentQuestion, hasSubmitted]);
+    }, [activeBattle?.id, team?.id, battleStep, currentQuestion, hasSubmitted]);
 
     const [timeLeft, setTimeLeft] = useState(10);
     const [answerFeedback, setAnswerFeedback] = useState<any>(null);
