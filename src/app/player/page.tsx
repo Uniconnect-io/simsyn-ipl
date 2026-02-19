@@ -83,12 +83,8 @@ export default function PlayerDashboard() {
                                 setQuestionStartTime(Date.now());
                                 setHasSubmitted(false);
                             }
-                        } else if (questions.length === 0 && battleQuestions.length > 0) {
-                            // Only set to result if we actually had questions and finished them
-                            setHasSubmitted(true);
-                            setBattleStep('result');
-                        } else if (isFirstLoad && data.hasSubmitted) {
-                            // If first load and already submitted everything for this battle
+                        } else {
+                            // If no questions remaining (filtered or empty), we are done
                             setHasSubmitted(true);
                             setBattleStep('result');
                         }

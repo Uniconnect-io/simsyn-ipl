@@ -38,12 +38,25 @@ export async function GET() {
 
         // Check for answered questions in active battle
         let answeredQuestionIds: string[] = [];
+        let hasSubmitted = false;
         if (battle) {
-            const answerCheckRs = await db.execute({
-                sql: 'SELECT question_id FROM individual_battle_answers WHERE battle_id = ? AND player_id = ?',
-                args: [battle.id, playerId]
-            });
+            const [answerCheckRs, totalQuestionsRs] = await Promise.all([
+                db.execute({
+                    sql: 'SELECT question_id FROM individual_battle_answers WHERE battle_id = ? AND player_id = ?',
+                    args: [battle.id, playerId]
+                }),
+                db.execute({
+                    sql: 'SELECT COUNT(*) as count FROM battle_questions WHERE battle_id = ?',
+                    args: [battle.id]
+                })
+            ]);
+
             answeredQuestionIds = answerCheckRs.rows.map((r: any) => r.question_id);
+            const totalQuestions = (totalQuestionsRs.rows[0] as any)?.count || 0;
+
+            if (totalQuestions > 0 && answeredQuestionIds.length >= totalQuestions) {
+                hasSubmitted = true;
+            }
         }
 
         // Stats calculation
@@ -121,7 +134,8 @@ export async function GET() {
             },
             teamStats,
             battle,
-            answeredQuestionIds
+            answeredQuestionIds,
+            hasSubmitted
         });
 
     } catch (error) {
