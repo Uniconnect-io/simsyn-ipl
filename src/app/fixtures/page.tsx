@@ -106,13 +106,15 @@ export default function FixturesPage() {
                                 <motion.div
                                     key={match.id}
                                     whileHover={{ scale: 1.02 }}
-                                    className={`glass-card p-0 border-white/5 hover:border-accent/20 cursor-pointer group relative overflow-hidden flex flex-col ${match.status === 'COMPLETED' ? 'bg-accent/5' : ''}`}
+                                    className={`glass-card p-0 border-white/5 hover:border-accent/20 group relative overflow-hidden flex flex-col 
+                                        ${match.status === 'COMPLETED' ? 'bg-accent/5' : ''} 
+                                        ${(['LEAGUE', 'QUALIFIER1', 'QUALIFIER2', 'ELIMINATOR', 'FINAL'].includes(match.type) || (['KAHOOT', 'CASE_STUDY'].includes(match.type) && match.status === 'COMPLETED')) ? 'cursor-pointer' : 'cursor-default'}`}
                                     onClick={() => {
                                         const isBattle = ['KAHOOT', 'CASE_STUDY', 'TECH_TALK'].includes(match.type);
                                         const isMatch = ['LEAGUE', 'QUALIFIER1', 'QUALIFIER2', 'ELIMINATOR', 'FINAL'].includes(match.type);
 
                                         if (isMatch) window.location.href = `/match/${match.id}`;
-                                        if (isBattle && match.status === 'COMPLETED') window.location.href = `/battles/leaderboard/${match.id}`;
+                                        if (isBattle && match.status === 'COMPLETED' && match.type !== 'TECH_TALK') window.location.href = `/battles/leaderboard/${match.id}`;
                                     }}
                                 >
                                     {/* Header / Status Bar */}
@@ -147,7 +149,7 @@ export default function FixturesPage() {
                                                 {(match.conductorName || match.conductor_id) && (
                                                     <div className="flex items-center gap-3 bg-white/5 p-3 rounded-lg border border-white/5">
                                                         <div className="w-8 h-8 rounded-full bg-black/40 overflow-hidden border border-white/10">
-                                                            <img src={`/assets/employee/${(match.conductorName || '').toLowerCase()}.png`} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.conductorName || match.conductor_id}`)} />
+                                                            <img src={`/assets/employee/thumb/${(match.conductorName || '').toLowerCase()}.png`} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${match.conductorName || match.conductor_id}`)} />
                                                         </div>
                                                         <div>
                                                             <div className="text-[10px] text-gray-500 uppercase font-bold">Conducted By</div>
@@ -203,7 +205,7 @@ export default function FixturesPage() {
                                             </span>
                                         </div>
                                     )}
-                                    {['KAHOOT', 'CASE_STUDY', 'TECH_TALK'].includes(match.type) && match.status === 'COMPLETED' && (
+                                    {['KAHOOT', 'CASE_STUDY'].includes(match.type) && match.status === 'COMPLETED' && (
                                         <div className="bg-white/5 p-3 flex justify-center border-t border-white/5 group-hover:bg-accent group-hover:text-black transition-colors">
                                             <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                                                 View Leaderboard <BarChart2 className="w-3 h-3" />

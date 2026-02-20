@@ -257,7 +257,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                 <div className="flex items-center gap-3 md:gap-4">
                     <div className="w-12 h-12 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-accent/20">
                         <img
-                            src={`/assets/employee/${user?.name?.toLowerCase()}.png`}
+                            src={`/assets/employee/thumb/${user?.name?.toLowerCase()}.png`}
                             alt={user?.name}
                             className="w-full h-full object-cover"
                             onError={(e) => (e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.name}`)}
@@ -370,9 +370,9 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
 
                 {/* Individual Battles Card */}
                 <div className="glass-card p-6 md:p-8 border-green-500/10 relative overflow-hidden group bg-green-500/5 order-1 lg:order-3">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 animate-pulse text-green-500">
+                    {/* <div className="absolute top-0 right-0 p-4 opacity-10 animate-pulse text-green-500">
                         <Zap className="w-24 h-24" />
-                    </div>
+                    </div> */}
                     <h3 className="text-lg md:text-xl font-bold mb-6 flex items-center gap-2 text-green-400">
                         <Zap className="w-5 h-5 fill-green-400" /> War Zone
                     </h3>

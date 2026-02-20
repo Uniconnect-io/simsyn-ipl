@@ -9,16 +9,18 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false } // Required for Supabase
 });
 
+let isInitialized = false;
 export const initDb = async () => {
-  // Database initialization is now handled via Supabase SQL Editor / Migrations.
-  // We keep this function to avoid breaking imports that might call it, 
-  // but it's effectively a no-op or a connection check.
+  if (isInitialized) return;
+
   try {
     const client = await pool.connect();
     client.release();
-    console.log("Database connected successfully.");
+    console.log("🐘 Database pool initialized successfully.");
+    isInitialized = true;
   } catch (err) {
-    console.error("Database connection failed:", err);
+    console.error("❌ Database connection failed:", err);
+    throw err; // Better to throw so the API fails properly
   }
 };
 

@@ -479,7 +479,7 @@ export default function AuctionPage() {
                                             <div className="aspect-square rounded-full bg-accent/20 border border-accent/50 overflow-hidden relative" title={`Captain: ${team.captain?.name || 'Unknown'}`}>
                                                 {team.captain ? (
                                                     <img
-                                                        src={`/assets/employee/${team.captain.name.toLowerCase()}.png`}
+                                                        src={`/assets/employee/thumb/${team.captain.name.toLowerCase()}.png`}
                                                         alt={team.captain.name}
                                                         className="w-full h-full object-cover object-top"
                                                         onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + team.captain?.name)}
@@ -497,7 +497,7 @@ export default function AuctionPage() {
                                                     return (
                                                         <div key={player.id} className="aspect-square rounded-full bg-white/5 border border-white/10 overflow-hidden" title={player.name}>
                                                             <img
-                                                                src={`/assets/employee/${player.name.toLowerCase()}.png`}
+                                                                src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
                                                                 alt={player.name}
                                                                 className="w-full h-full object-cover object-top"
                                                                 onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
@@ -512,7 +512,7 @@ export default function AuctionPage() {
                                                         <div key={i} className={`aspect-square rounded-full overflow-hidden flex items-center justify-center ${player ? 'bg-white/10 border border-white/20' : 'bg-white/5 border border-white/5 border-dashed'}`} title={player?.name || 'Empty Slot'}>
                                                             {player ? (
                                                                 <img
-                                                                    src={`/assets/employee/${player.name.toLowerCase()}.png`}
+                                                                    src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
                                                                     alt={player.name}
                                                                     className="w-full h-full object-cover object-top"
                                                                     onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}

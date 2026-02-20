@@ -185,7 +185,7 @@ export default function OwnerClient({ user }: OwnerClientProps) {
                                 <div className="flex items-center gap-6">
                                     <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-accent/20">
                                         <img
-                                            src={`/assets/employee/${loggedInOwner.name.toLowerCase()}.png`}
+                                            src={`/assets/employee/thumb/${loggedInOwner.name.toLowerCase()}.png`}
                                             alt={loggedInOwner.name}
                                             className="w-full h-full object-cover"
                                             onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + loggedInOwner.name)}
@@ -307,7 +307,7 @@ export default function OwnerClient({ user }: OwnerClientProps) {
                                 <div className="flex items-center gap-6">
                                     <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/10">
                                         <img
-                                            src={`/assets/employee/${loggedInOwner.name.toLowerCase()}.png`}
+                                            src={`/assets/employee/thumb/${loggedInOwner.name.toLowerCase()}.png`}
                                             alt={loggedInOwner.name}
                                             className="w-full h-full object-cover"
                                             onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + loggedInOwner.name)}

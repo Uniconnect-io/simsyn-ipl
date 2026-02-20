@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://sipl.uniconnect.io'),
   title: "Simsyn IPL 2026 | The Innovation League",
   description: "Where Ideas Compete. Products Are Born. The ultimate innovation tournament for tech leaders.",
   icons: {
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Simsyn IPL 2026",
     description: "The ultimate innovation tournament. Where Ideas Compete and Products Are Born.",
-    url: "https://sipl.simsyn.io",
+    url: "https://sipl.uniconnect.io",
     siteName: "Simsyn IPL",
     images: [
       {

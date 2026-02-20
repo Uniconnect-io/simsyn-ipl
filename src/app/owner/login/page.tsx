@@ -129,7 +129,7 @@ export default function OwnerLoginPage() {
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-accent/20">
                                         <img
-                                            src={`/assets/employee/${owner.name.toLowerCase()}.png`}
+                                            src={`/assets/employee/thumb/${owner.name.toLowerCase()}.png`}
                                             alt={owner.name}
                                             className="w-full h-full object-cover"
                                             onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + owner.name)}

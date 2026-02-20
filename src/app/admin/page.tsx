@@ -953,7 +953,7 @@ export default function AdminPage() {
                                 <div key={owner.id} className="glass-card p-6 flex flex-col items-center text-center">
                                     <div className="w-16 h-16 rounded-full overflow-hidden mb-4 border-2 border-white/10">
                                         <img
-                                            src={`/assets/employee/${owner.name.toLowerCase()}.png`}
+                                            src={`/assets/employee/thumb/${owner.name.toLowerCase()}.png`}
                                             alt={owner.name}
                                             className="w-full h-full object-cover"
                                             onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + owner.name)}
@@ -1917,7 +1917,7 @@ export default function AdminPage() {
                                                                     className={`flex items-center gap-2 p-2 rounded cursor-pointer ${wizardConfig.conductor_id === p.id ? 'bg-accent text-white' : 'hover:bg-white/5 text-gray-400'}`}
                                                                 >
                                                                     <div className="w-6 h-6 rounded-full bg-white/10 overflow-hidden">
-                                                                        <img src={`/assets/employee/${p.name.toLowerCase()}.png`} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + p.name)} />
+                                                                        <img src={`/assets/employee/thumb/${p.name.toLowerCase()}.png`} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + p.name)} />
                                                                     </div>
                                                                     <span className="text-xs font-bold">{p.name}</span>
                                                                 </div>

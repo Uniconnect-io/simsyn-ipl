@@ -118,7 +118,7 @@ export default function LeagueStandings({ standings }: LeagueStandingsProps) {
                                     <td className="p-6 font-bold flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 overflow-hidden">
                                             <img
-                                                src={`/assets/employee/${player.name.toLowerCase()}.png`}
+                                                src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
                                                 alt={player.name}
                                                 className="w-full h-full object-cover"
                                                 onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
