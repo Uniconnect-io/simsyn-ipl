@@ -6,7 +6,7 @@ export async function GET(request: Request) {
     try {
         await initDb();
         const session = await getSession();
-        if (!session || session.user.role !== 'PLAYER') {
+        if (!session || (session.user.role !== 'PLAYER' && session.user.role !== 'OWNER')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -51,6 +51,9 @@ export async function GET(request: Request) {
                 if (totalQuestions > 0 && answeredQuestionIds.length >= totalQuestions) {
                     hasSubmitted = true;
                 }
+
+                // Add metadata to battle object
+                battle.total_questions = totalQuestions;
             }
 
             return NextResponse.json({
@@ -64,7 +67,7 @@ export async function GET(request: Request) {
 
         // FULL LOAD MODE (Original Logic)
         // Fetch everything in parallel
-        const [playerRs, battleRs, allScoresRs] = await Promise.all([
+        const [playerRs, battleRs, leaderboardRs, historyRs] = await Promise.all([
             db.execute({
                 sql: 'SELECT id, name, team_id, rating, pool, sold_price FROM players WHERE id = ?',
                 args: [playerId]
@@ -79,13 +82,25 @@ export async function GET(request: Request) {
                 WHERE player_id IS NOT NULL 
                 GROUP BY player_id 
                 ORDER BY total DESC
-            `)
+            `),
+            db.execute({
+                sql: `
+                    SELECT m.title, s.score, s.points, m.type, m.created_at
+                    FROM scores s
+                    JOIN matches m ON s.match_id = m.id
+                    WHERE s.player_id = ? AND m.type != 'LEAGUE'
+                    ORDER BY m.created_at DESC
+                    LIMIT 5
+                `,
+                args: [session.user.id]
+            })
         ]);
 
         const player = playerRs.rows[0] as any;
         if (!player) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
 
         const battle = battleRs.rows[0] as any;
+        const battleHistory = historyRs.rows || [];
 
         // Check for answered questions in active battle
         let answeredQuestionIds: string[] = [];
@@ -108,10 +123,13 @@ export async function GET(request: Request) {
             if (totalQuestions > 0 && answeredQuestionIds.length >= totalQuestions) {
                 hasSubmitted = true;
             }
+
+            // Add metadata to battle object
+            battle.total_questions = totalQuestions;
         }
 
         // Stats calculation
-        const playerRankData = allScoresRs.rows as any[];
+        const playerRankData = leaderboardRs.rows as any[];
         const totalRuns = playerRankData.find(r => r.player_id === playerId)?.total || 0;
         const rankIndex = playerRankData.findIndex(r => r.player_id === playerId);
         const rank = rankIndex === -1 ? playerRankData.length + 1 : rankIndex + 1;
@@ -185,6 +203,7 @@ export async function GET(request: Request) {
             },
             teamStats,
             battle,
+            battleHistory,
             answeredQuestionIds,
             hasSubmitted
         });

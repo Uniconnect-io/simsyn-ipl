@@ -27,6 +27,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
 
     const [stats, setStats] = useState<any>(null);
     const [teamStats, setTeamStats] = useState<any>(null);
+    const [battleHistory, setBattleHistory] = useState<any[]>([]);
     const [questionStartTime, setQuestionStartTime] = useState<number>(0);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
@@ -59,6 +60,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     setUser(data.player);
                     setStats(data.stats);
                     setTeamStats(data.teamStats);
+                    setBattleHistory(data.battleHistory || []);
                 } else if (data.player) {
                     // Update player basic info even in partial
                     setUser((prev: any) => ({ ...prev, ...data.player }));
@@ -72,6 +74,22 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     if (JSON.stringify(activeBattle) !== JSON.stringify(data.battle)) {
                         setActiveBattle(data.battle);
                     }
+
+                    // --- EXPIRY CHECK ---
+                    const now = Date.now();
+                    const startTime = new Date(data.battle.start_time).getTime();
+                    const totalQuestions = data.battle.total_questions || 10;
+                    const perQuestionTime = data.battle.question_timer || 10;
+                    const totalDurationMs = totalQuestions * (perQuestionTime + 2) * 1000; // +2s for transitions
+                    const buffer = 20000; // 20s grace period
+
+                    if (data.battle.start_time && now > (startTime + totalDurationMs + buffer)) {
+                        console.warn("Battle session expired based on start time");
+                        setHasSubmitted(true);
+                        setBattleStep('result');
+                        return;
+                    }
+                    // --------------------
 
                     let questions = battleQuestions;
                     const answeredIds = data.answeredQuestionIds || [];
@@ -190,6 +208,27 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
         }
         return () => clearInterval(timer);
     }, [battleStep, timeLeft, answerFeedback, isSubmitting]);
+
+    // Session Expiry Tracker (Precise)
+    useEffect(() => {
+        const timer = setInterval(() => {
+            if (activeBattle && battleStep === 'question' && activeBattle.start_time) {
+                const now = Date.now();
+                const startTime = new Date(activeBattle.start_time).getTime();
+                const totalQuestions = activeBattle.total_questions || 10;
+                const perQuestionTime = activeBattle.question_timer || 10;
+                const totalDurationMs = totalQuestions * (perQuestionTime + 2) * 1000;
+                const buffer = 20000; // 20s grace period
+
+                if (now > (startTime + totalDurationMs + buffer)) {
+                    console.warn("Battle session expired (active tracker)");
+                    setHasSubmitted(true);
+                    setBattleStep('result');
+                }
+            }
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [activeBattle, battleStep]);
 
     const handleAnswer = async (index: number) => {
         if (answerFeedback || isSubmitting) return;
@@ -515,10 +554,56 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
             </div>
 
             {/* Recent Performance Section */}
-            <section className="max-w-7xl mx-auto mt-12 h-64 glass-card border-white/5 p-8 flex flex-col justify-center items-center opacity-30">
-                <BarChart3 className="w-12 h-12 text-gray-600 mb-4" />
-                <h3 className="text-xl font-black uppercase tracking-tighter italic">Battle History</h3>
-                <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-2">No individual battles recorded yet</p>
+            <section className="max-w-7xl mx-auto mt-12 mb-20">
+                <div className="flex items-center justify-between mb-8 px-4 md:px-0">
+                    <div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter italic">Battle History</h3>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Your recent combat performance</p>
+                    </div>
+                    <div className="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent ml-8 hidden md:block" />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 px-4 md:px-0">
+                    {battleHistory.length > 0 ? (
+                        battleHistory.map((h, i) => (
+                            <motion.div
+                                key={i}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.1 }}
+                                className="glass-card p-6 border-white/5 relative overflow-hidden group"
+                            >
+                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+                                    <Trophy className="w-12 h-12" />
+                                </div>
+                                <div className="flex justify-between items-start mb-4">
+                                    <span className="text-[10px] font-black bg-accent/20 text-accent px-2 py-0.5 rounded uppercase tracking-widest italic">{h.type || 'BATTLE'}</span>
+                                    <span className="text-[10px] font-bold text-gray-500">{new Date(h.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <h4 className="text-lg font-bold mb-4 line-clamp-1">{h.title}</h4>
+                                <div className="flex items-center gap-6">
+                                    <div>
+                                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Score</p>
+                                        <div className="flex items-center gap-1">
+                                            <Zap className="w-3 h-3 text-accent fill-accent" />
+                                            <span className="text-xl font-black">{h.score}</span>
+                                        </div>
+                                    </div>
+                                    <div className="w-px h-8 bg-white/5" />
+                                    <div>
+                                        <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest mb-1">Points</p>
+                                        <span className="text-xl font-black text-green-400">+{h.points || 0}</span>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))
+                    ) : (
+                        <div className="col-span-full h-64 glass-card border-white/5 p-8 flex flex-col justify-center items-center opacity-30">
+                            <BarChart3 className="w-12 h-12 text-gray-600 mb-4" />
+                            <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-2">No individual battles recorded yet</p>
+                        </div>
+                    )}
+                </div>
             </section >
         </main >
     );

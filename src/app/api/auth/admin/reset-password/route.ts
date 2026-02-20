@@ -3,10 +3,23 @@ import db from '@/lib/db';
 
 export async function POST(request: Request) {
     try {
-        const { ownerId } = await request.json();
+        const { ownerId, resetAllPlayers } = await request.json();
+
+        if (resetAllPlayers) {
+            // Bulk reset for all PLAYERS
+            await db.execute({
+                sql: `
+                    UPDATE players 
+                    SET password = 'sipl2026', password_reset_required = 1 
+                    WHERE role = 'PLAYER'
+                `,
+                args: []
+            });
+            return NextResponse.json({ success: true, message: 'All player passwords reset' });
+        }
 
         if (!ownerId) {
-            return NextResponse.json({ error: 'Owner ID is required' }, { status: 400 });
+            return NextResponse.json({ error: 'ID is required' }, { status: 400 });
         }
 
         // Reset password to 'sipl2026' and require reset on next login
@@ -14,13 +27,13 @@ export async function POST(request: Request) {
             sql: `
             UPDATE players 
             SET password = 'sipl2026', password_reset_required = 1 
-            WHERE id = ? AND role = 'OWNER'
+            WHERE id = ?
         `,
             args: [ownerId]
         });
 
         if (result.rowsAffected === 0) {
-            return NextResponse.json({ error: 'Owner not found' }, { status: 404 });
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
 
         return NextResponse.json({ success: true });

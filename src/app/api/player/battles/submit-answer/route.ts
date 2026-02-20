@@ -7,20 +7,34 @@ export async function POST(request: Request) {
     try {
         await initDb();
         const session = await getSession();
-        if (!session || session.user.role !== 'PLAYER') {
+        if (!session || (session.user.role !== 'PLAYER' && session.user.role !== 'OWNER')) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { battleId, questionId, selectedOption, answer, startTime, endTime } = await request.json();
 
-        // Check if battle is still active
-        const battleRs = await db.execute({
-            sql: 'SELECT status FROM matches WHERE id = ?',
-            args: [battleId]
-        });
+        // Check if battle is still active and within time window
+        const [battleRs, questionsRs] = await Promise.all([
+            db.execute({
+                sql: 'SELECT status, start_time, question_timer FROM matches WHERE id = ?',
+                args: [battleId]
+            }),
+            db.execute({
+                sql: 'SELECT COUNT(*) as count FROM battle_questions WHERE battle_id = ?',
+                args: [battleId]
+            })
+        ]);
 
-        if (battleRs.rows.length === 0 || (battleRs.rows[0] as any).status !== 'ACTIVE') {
+        const battle = battleRs.rows[0] as any;
+        if (!battle || battle.status !== 'ACTIVE') {
             return NextResponse.json({ error: 'Battle is no longer active' }, { status: 403 });
+        }
+
+        // Enforce time window: Start + (Q * (Timer + 2s)) + 30s buffer
+        const totalQuestions = (questionsRs.rows[0] as any).count || 10;
+        const totalDurationMs = totalQuestions * ((battle.question_timer || 10) + 2) * 1000 + 30000;
+        if (battle.start_time && Date.now() > (new Date(battle.start_time).getTime() + totalDurationMs)) {
+            return NextResponse.json({ error: 'Battle session has expired' }, { status: 403 });
         }
 
         // 0. Check if already answered (Idempotency)
@@ -50,13 +64,8 @@ export async function POST(request: Request) {
         let runsAwarded = 0;
 
         if (isCorrect) {
-            // Get match timer to calculate score based on speed
-            const matchRs = await db.execute({
-                sql: 'SELECT question_timer FROM matches WHERE id = ?',
-                args: [battleId]
-            });
-
-            const totalTime = (matchRs.rows[0] as any)?.question_timer || 10;
+            // Calculate score based on speed (reusing timer from above)
+            const totalTime = battle.question_timer || 10;
             const timeLeft = Math.max(0, totalTime - responseTime);
             const percentageLeft = (timeLeft / totalTime) * 100;
 

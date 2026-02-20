@@ -190,10 +190,17 @@ export async function PATCH(request: Request) {
                 }
             }
 
-            await db.execute({
-                sql: 'UPDATE matches SET status = ? WHERE id = ?',
-                args: [status, id]
-            });
+            if (status === 'ACTIVE') {
+                await db.execute({
+                    sql: 'UPDATE matches SET status = ?, start_time = CURRENT_TIMESTAMP WHERE id = ?',
+                    args: [status, id]
+                });
+            } else {
+                await db.execute({
+                    sql: 'UPDATE matches SET status = ? WHERE id = ?',
+                    args: [status, id]
+                });
+            }
         } else {
             // General Update (Edit Battle)
             await db.execute({

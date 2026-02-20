@@ -56,6 +56,7 @@ interface Owner {
     team_id: string | null;
     teamName?: string | null;
     balance?: number;
+    role?: string;
 }
 
 interface Match {
@@ -80,6 +81,8 @@ interface Match {
 interface Team {
     id: string;
     name: string;
+    captain_id?: string | null;
+    owner_id?: string | null;
 }
 
 interface CaseStudy {
@@ -311,14 +314,14 @@ export default function AdminPage() {
             console.error('Error fetching battle ideas:', error);
         }
     };
-    const resetOwnerPassword = async (ownerId: string) => {
-        if (!confirm('Are you sure you want to reset this owner\'s password to default (sipl2026)?')) return;
+    const resetUserPassword = async (userId: string) => {
+        if (!confirm('Are you sure you want to reset this user\'s password to default (sipl2026)?')) return;
 
         try {
             const res = await fetch('/api/auth/admin/reset-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ownerId }),
+                body: JSON.stringify({ ownerId: userId }),
             });
             const data = await res.json();
             if (data.success) {
@@ -801,7 +804,7 @@ export default function AdminPage() {
                     onClick={() => setActiveTab('owners')}
                     className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'owners' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
-                    <Shield className="inline-block w-4 h-4 mr-2" /> Owners
+                    <Shield className="inline-block w-4 h-4 mr-2" /> Players
                 </button>
 
 
@@ -945,43 +948,58 @@ export default function AdminPage() {
             {
                 activeTab === 'owners' && (
                     <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                        <h2 className="text-2xl font-black mb-8 flex items-center gap-3">
-                            <Shield className="text-accent" /> OWNER MANAGEMENT
-                        </h2>
+                        <div className="flex justify-between items-center mb-8">
+                            <h2 className="text-2xl font-black flex items-center gap-3">
+                                <Shield className="text-accent" /> PLAYER & OWNER MANAGEMENT
+                            </h2>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {owners.map(owner => (
-                                <div key={owner.id} className="glass-card p-6 flex flex-col items-center text-center">
-                                    <div className="w-16 h-16 rounded-full overflow-hidden mb-4 border-2 border-white/10">
-                                        <img
-                                            src={`/assets/employee/thumb/${owner.name.toLowerCase()}.png`}
-                                            alt={owner.name}
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + owner.name)}
-                                        />
-                                    </div>
-                                    <h3 className="font-bold mb-1">{owner.name}</h3>
-                                    <p className="text-xs text-accent font-black mb-1">{owner.teamName || 'NO TEAM'}</p>
-                                    {owner.team_id && (
-                                        <div className="mb-4">
-                                            <div className="text-[10px] text-gray-500 uppercase font-bold">Wallet Balance</div>
-                                            <div className="text-sm font-black text-white">₹{(owner.balance || 0).toLocaleString()}</div>
-                                            <button
-                                                onClick={() => handleTopup(owner.team_id!)}
-                                                className="text-[9px] text-accent hover:underline font-bold mt-1"
-                                            >
-                                                + Topup Wallet
-                                            </button>
+                            {[...owners, ...players].sort((a, b) => a.name.localeCompare(b.name)).map(person => {
+                                const isOwner = person.role === 'OWNER';
+                                const isCaptain = teams.some(t => t.captain_id === person.id);
+                                const personBalance = isOwner ? (person as Owner).balance : null;
+
+                                return (
+                                    <div key={person.id} className={`glass-card p-6 flex flex-col items-center text-center relative overflow-hidden ${isOwner ? 'border-accent/30' : isCaptain ? 'border-purple-500/30' : 'border-white/5'}`}>
+                                        {isOwner && (
+                                            <div className="absolute top-0 right-0 bg-accent text-[8px] font-black px-2 py-0.5 rounded-bl uppercase tracking-widest text-white">Owner</div>
+                                        )}
+                                        {isCaptain && (
+                                            <div className="absolute top-0 right-0 bg-purple-600 text-[8px] font-black px-2 py-0.5 rounded-bl uppercase tracking-widest text-white">Captain</div>
+                                        )}
+
+                                        <div className="w-16 h-16 rounded-full overflow-hidden mb-4 border-2 border-white/10">
+                                            <img
+                                                src={`/assets/employee/thumb/${person.name.toLowerCase()}.png`}
+                                                alt={person.name}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + person.name)}
+                                            />
                                         </div>
-                                    )}
-                                    <p className="text-xs text-gray-500 mb-4">{owner.team_id ? 'Assigned' : 'Unassigned'}</p>
-                                    <button
-                                        onClick={() => resetOwnerPassword(owner.id)}
-                                        className="text-xs bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 py-2 px-4 rounded-lg border border-white/5 transition-all w-full flex items-center justify-center gap-2"
-                                    >
-                                        <RefreshCw className="w-3 h-3" /> Reset Password
-                                    </button>
-                                </div>
-                            ))}
+                                        <h3 className="font-bold mb-1">{person.name}</h3>
+                                        <p className="text-xs text-accent font-black mb-1">{person.teamName || 'NO TEAM'}</p>
+                                        {person.team_id && isOwner && (
+                                            <div className="mb-4">
+                                                <div className="text-[10px] text-gray-500 uppercase font-bold">Wallet Balance</div>
+                                                <div className="text-sm font-black text-white">₹{(personBalance || 0).toLocaleString()}</div>
+                                                <button
+                                                    onClick={() => handleTopup(person.team_id!)}
+                                                    className="text-[9px] text-accent hover:underline font-bold mt-1"
+                                                >
+                                                    + Topup Wallet
+                                                </button>
+                                            </div>
+                                        )}
+                                        <p className="text-xs text-gray-500 mb-4">{person.team_id ? (isOwner ? 'Franchise Owner' : isCaptain ? 'Team Captain' : 'Active Player') : 'Unassigned'}</p>
+                                        <button
+                                            onClick={() => resetUserPassword(person.id)}
+                                            className="text-xs bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 py-2 px-4 rounded-lg border border-white/5 transition-all w-full flex items-center justify-center gap-2"
+                                        >
+                                            <RefreshCw className="w-3 h-3" /> Reset Password
+                                        </button>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </section>
                 )
@@ -2293,7 +2311,7 @@ export default function AdminPage() {
                                                 a.answer || '-',
                                                 a.is_correct ? 'Yes' : 'No',
                                                 a.runs_awarded,
-                                                (a.response_time / 1000).toFixed(2)
+                                                (a.response_time || 0).toFixed(2)
                                             ]);
                                             const csvContent = "data:text/csv;charset=utf-8,"
                                                 + headers.join(",") + "\n"
@@ -2367,7 +2385,7 @@ export default function AdminPage() {
                                                                     {a.is_correct ? 'Correct' : 'Wrong'}
                                                                 </span>
                                                             </td>
-                                                            <td className="p-3 text-center font-mono text-gray-400">{(a.response_time / 1000).toFixed(1)}s</td>
+                                                            <td className="p-3 text-center font-mono text-gray-400">{(a.response_time || 0).toFixed(1)}s</td>
                                                             <td className="p-3 text-right text-accent">+{a.runs_awarded}</td>
                                                         </tr>
                                                     ))}

@@ -5,8 +5,8 @@ import PlayerClient from './PlayerClient';
 export default async function PlayerPage() {
     const session = await getSession();
 
-    // Check if session exists and is a player.
-    if (!session || !session.user || session.user.role !== 'PLAYER') {
+    // Check if session exists and is a player or owner.
+    if (!session || !session.user || (session.user.role !== 'PLAYER' && session.user.role !== 'OWNER')) {
         redirect('/player/login');
     }
 
