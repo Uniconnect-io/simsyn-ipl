@@ -20,7 +20,7 @@ export async function GET() {
             return NextResponse.json({ user: { ...admin, role: 'ADMIN' } });
         } else if (session.user.role === 'OWNER') {
             const rs = await db.execute({
-                sql: 'SELECT id, name, team_id, role FROM players WHERE id = ?',
+                sql: 'SELECT id, name, team_id, role, password_reset_required FROM players WHERE id = ?',
                 args: [session.user.id]
             });
             const owner = rs.rows[0];
@@ -28,7 +28,7 @@ export async function GET() {
             return NextResponse.json({ user: owner });
         } else if (session.user.role === 'PLAYER') {
             const rs = await db.execute({
-                sql: 'SELECT id, name, team_id, role, rating, pool, sold_price FROM players WHERE id = ?',
+                sql: 'SELECT id, name, team_id, role, rating, pool, sold_price, password_reset_required FROM players WHERE id = ?',
                 args: [session.user.id]
             });
             const player = rs.rows[0];

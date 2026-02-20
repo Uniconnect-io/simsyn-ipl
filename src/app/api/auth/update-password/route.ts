@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
-import { getSession } from '@/lib/auth';
+import { getSession, login } from '@/lib/auth';
 
 export async function POST(request: Request) {
     try {
@@ -33,6 +33,18 @@ export async function POST(request: Request) {
 
         if (result.rowsAffected === 0) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+
+        // 3. Refresh session if user is updating their own password
+        if (session.user.id === id) {
+            const freshUserRs = await db.execute({
+                sql: 'SELECT id, name, team_id, role, password_reset_required FROM players WHERE id = ?',
+                args: [id]
+            });
+            const freshUser = freshUserRs.rows[0];
+            if (freshUser) {
+                await login(freshUser);
+            }
         }
 
         return NextResponse.json({ success: true });

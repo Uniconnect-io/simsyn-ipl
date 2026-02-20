@@ -77,7 +77,7 @@ export default function Home() {
       title: 'Active Battle',
       desc: 'Battles are LIVE! Enter the War Zone and fight for your team.',
       icon: Zap,
-      href: user?.role === 'PLAYER' ? '/player' : (activeBattles.individualBattles[0] ? `/battles/leaderboard/${activeBattles.individualBattles[0].id}` : '/player'),
+      href: (user?.role === 'PLAYER' || user?.role === 'OWNER') ? '/player' : (activeBattles.individualBattles[0] ? `/battles/leaderboard/${activeBattles.individualBattles[0].id}` : '/player'),
       color: 'bg-red-600',
       tag: 'LIVE NOW',
       hide: !isBattleActive
@@ -107,7 +107,7 @@ export default function Home() {
       href: '/player',
       color: 'bg-green-500',
       tag: 'Player',
-      hide: user && user.role !== 'PLAYER'
+      hide: user && user.role !== 'PLAYER' && user.role !== 'OWNER'
     },
     {
       title: 'Schedule',
