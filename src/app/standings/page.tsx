@@ -4,22 +4,40 @@ import { useState, useEffect } from 'react';
 import { Award, Home, Calendar, BarChart2 } from 'lucide-react';
 import Link from 'next/link';
 import { Standing, PlayerStanding } from '@/components/LeagueStandings';
+import { supabase } from '@/lib/supabase';
 
 export default function StandingsPage() {
     const [standings, setStandings] = useState<{ teams: Standing[], players: PlayerStanding[] }>({ teams: [], players: [] });
     const [loading, setLoading] = useState(true);
 
+
+
     useEffect(() => {
-        fetch('/api/league/leaderboard')
-            .then(res => res.json())
-            .then(data => {
-                if (data.teams) {
-                    setStandings(data);
-                } else {
-                    setStandings({ teams: Array.isArray(data) ? data : [], players: [] });
-                }
-                setLoading(false);
-            });
+        const fetchData = () => {
+            fetch('/api/league/leaderboard')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.teams) {
+                        setStandings(data);
+                    } else {
+                        setStandings({ teams: Array.isArray(data) ? data : [], players: [] });
+                    }
+                    setLoading(false);
+                });
+        };
+
+        fetchData();
+
+        const channel = supabase
+            .channel('leaderboard_updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, fetchData)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, fetchData)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, fetchData) // For player standings
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
     if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>;

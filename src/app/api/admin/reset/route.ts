@@ -47,6 +47,10 @@ export async function POST(request: Request) {
                     SET team_id = NULL, 
                         sold_price = NULL, 
                         is_auctioned = 0,
+                        auction_status = 'IDLE',
+                        auction_current_bid = 0,
+                        auction_current_bidder_id = NULL,
+                        auction_timer_end = NULL,
                         min_bid = CASE pool
                             WHEN 'A' THEN 225000
                             WHEN 'B' THEN 200000

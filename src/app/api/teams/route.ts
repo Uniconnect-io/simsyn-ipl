@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
@@ -34,8 +36,8 @@ export async function GET(request: Request) {
 
         const [teamsRs, playersRs, ownersRs] = await Promise.all([
             db.execute('SELECT * FROM teams'),
-            db.execute('SELECT id, name, team_id, rating FROM players WHERE team_id IS NOT NULL AND role = "PLAYER"'),
-            db.execute('SELECT id, name, team_id FROM players WHERE role = "OWNER"')
+            db.execute("SELECT id, name, team_id, rating FROM players WHERE team_id IS NOT NULL AND role = 'PLAYER'"),
+            db.execute("SELECT id, name, team_id FROM players WHERE role = 'OWNER'")
         ]);
 
         const teams = teamsRs.rows as any[];

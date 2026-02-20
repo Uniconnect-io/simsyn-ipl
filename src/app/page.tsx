@@ -15,9 +15,9 @@ export default function Home() {
     const fetchData = async () => {
       try {
         const [meRes, battlesRes, auctionRes] = await Promise.all([
-          fetch('/api/auth/me'),
-          fetch('/api/active-battles'),
-          fetch('/api/auction/status')
+          fetch('/api/auth/me?_=' + Date.now(), { cache: 'no-store' }),
+          fetch('/api/active-battles?_=' + Date.now(), { cache: 'no-store' }),
+          fetch('/api/auction/status?_=' + Date.now(), { cache: 'no-store' })
         ]);
 
         const meData = await meRes.json();
@@ -37,6 +37,25 @@ export default function Home() {
     };
 
     fetchData();
+
+    // Import Supabase
+    const { supabase } = require('@/lib/supabase');
+
+    // Subscribe to auction updates
+    // Subscribe to realtime updates
+    const channel = supabase
+      .channel('home_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => {
+        fetch('/api/auction/status?_=' + Date.now(), { cache: 'no-store' }).then(res => res.json()).then(data => setAuctionStatus(data));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
+        fetch('/api/active-battles?_=' + Date.now(), { cache: 'no-store' }).then(res => res.json()).then(data => setActiveBattles(data));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleLogout = async () => {

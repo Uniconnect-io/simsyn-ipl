@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import db, { initDb } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
     try {
         await initDb();

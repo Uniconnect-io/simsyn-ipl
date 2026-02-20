@@ -71,13 +71,13 @@ export async function PATCH(request: Request) {
             }
 
             await db.execute({
-                sql: 'UPDATE players SET team_id = NULL, is_auctioned = 0, sold_price = NULL WHERE id = ?',
+                sql: 'UPDATE players SET team_id = NULL, is_auctioned = 0, sold_price = NULL, auction_status = \'IDLE\', auction_current_bidder_id = NULL, auction_current_bid = 0 WHERE id = ?',
                 args: [id]
             });
         } else if (action === 'assign') {
             await db.batch([
                 {
-                    sql: 'UPDATE players SET team_id = ?, is_auctioned = 1 WHERE id = ?',
+                    sql: 'UPDATE players SET team_id = ?, is_auctioned = 1, auction_status = \'SOLD\' WHERE id = ?',
                     args: [team_id, id]
                 },
                 {

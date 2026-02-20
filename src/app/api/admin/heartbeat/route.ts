@@ -20,7 +20,7 @@ export async function GET() {
         ] = await Promise.all([
             // 1. Players
             db.execute(`
-                SELECT p.*, t.name as teamName 
+                SELECT p.*, t.name as "teamName" 
                 FROM players p
                 LEFT JOIN teams t ON p.team_id = t.id
                 WHERE p.role = 'PLAYER'
@@ -29,7 +29,7 @@ export async function GET() {
             db.execute('SELECT * FROM teams'),
             // 3. Owners
             db.execute(`
-                SELECT c.*, t.name as teamName, t.balance
+                SELECT c.*, t.name as "teamName", t.balance
                 FROM players c
                 LEFT JOIN teams t ON c.team_id = t.id
                 WHERE c.role = 'OWNER'
@@ -38,10 +38,10 @@ export async function GET() {
             db.execute(`
                 SELECT 
                     m.*, 
-                    t1.name as team1Name, 
-                    t2.name as team2Name,
-                    w.name as winnerName,
-                    p.name as conductorName
+                    t1.name as "team1Name", 
+                    t2.name as "team2Name",
+                    w.name as "winnerName",
+                    p.name as "conductorName"
                 FROM matches m
                 LEFT JOIN teams t1 ON m.team1_id = t1.id
                 LEFT JOIN teams t2 ON m.team2_id = t2.id
@@ -51,15 +51,21 @@ export async function GET() {
             `),
             // 5. Auction Status
             db.execute(`
-                SELECT 
-                    a.id, a.player_id as playerId, a.current_bid as currentBid, 
-                    a.current_bidder_id as currentBidderId, a.timer_end as timerEnd, 
-                    a.status, p.name as playerName, p.rating, p.pool, 
-                    p.min_bid as basePrice, p.tags, t.name as currentBidderName
-                FROM auctions a
-                JOIN players p ON a.player_id = p.id
-                LEFT JOIN teams t ON a.current_bidder_id = t.id
-                WHERE a.status = 'ACTIVE'
+                SELECT
+                    p.id as "playerId", 
+                    p.auction_current_bid as "currentBid",
+                    p.auction_current_bidder_id as "currentBidderId", 
+                    p.auction_timer_end as "timerEnd",
+                    p.auction_status as status, 
+                    p.name as "playerName", 
+                    p.rating, 
+                    p.pool,
+                    p.min_bid as "basePrice", 
+                    p.tags, 
+                    t.name as "currentBidderName"
+                FROM players p
+                LEFT JOIN teams t ON p.auction_current_bidder_id = t.id
+                WHERE p.auction_status = 'ACTIVE'
                 LIMIT 1
             `),
             // 6. Case Studies

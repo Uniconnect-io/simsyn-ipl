@@ -1,32 +1,32 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const auctionRs = await db.execute(`
       SELECT 
-        a.id, 
-        a.player_id as playerId, 
-        a.current_bid as currentBid, 
-        a.current_bidder_id as currentBidderId, 
-        a.timer_end as timerEnd, 
-        a.status,
-        p.name as playerName, 
+        p.id as "playerId", 
+        p.name as "playerName",
+        p.auction_current_bid as "currentBid", 
+        p.auction_current_bidder_id as "currentBidderId", 
+        p.auction_timer_end as "timerEnd", 
+        p.auction_status as status,
         p.rating, 
         p.pool, 
-        p.min_bid as basePrice,
+        p.min_bid as "basePrice",
         p.tags,
-        t.name as currentBidderName
-      FROM auctions a
-      JOIN players p ON a.player_id = p.id
-      LEFT JOIN teams t ON a.current_bidder_id = t.id
-      WHERE a.status = 'ACTIVE'
+        t.name as "currentBidderName"
+      FROM players p
+      LEFT JOIN teams t ON p.auction_current_bidder_id = t.id
+      WHERE p.auction_status = 'ACTIVE'
     `);
     const auction = auctionRs.rows[0];
 
     if (!auction) {
       // Find next players to auction if none active
-      const nextPlayersRs = await db.execute("SELECT * FROM players WHERE is_auctioned = 0 LIMIT 10");
+      const nextPlayersRs = await db.execute("SELECT * FROM players WHERE is_auctioned = 0 AND role = 'PLAYER' ORDER BY pool ASC, name ASC LIMIT 10");
       const nextPlayers = nextPlayersRs.rows;
       return NextResponse.json({ status: 'IDLE', nextPlayers });
     }

@@ -6,10 +6,10 @@ export async function GET() {
     const rs = await db.execute(`
       SELECT 
         m.id, m.start_time, m.status, m.type, m.score1, m.score2,
-        t1.name as team1Name, 
-        t2.name as team2Name,
-        w.name as winnerName,
-        m.title, m.description, m.type as battle_type, p.name as conductorName
+        t1.name as "team1Name", 
+        t2.name as "team2Name",
+        w.name as "winnerName",
+        m.title, m.description, m.type as "battle_type", p.name as "conductorName"
       FROM matches m
       LEFT JOIN teams t1 ON m.team1_id = t1.id
       LEFT JOIN teams t2 ON m.team2_id = t2.id
@@ -22,6 +22,7 @@ export async function GET() {
 
     return NextResponse.json(matches);
   } catch (error) {
+    console.error('Failed to fetch schedule:', error);
     return NextResponse.json({ error: 'Failed to fetch schedule' }, { status: 500 });
   }
 }

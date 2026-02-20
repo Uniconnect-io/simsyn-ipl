@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import BattleHistoryTable from '@/components/BattleHistoryTable';
+import { supabase } from '@/lib/supabase';
 
 interface Player {
     id: string;
@@ -122,6 +123,7 @@ export default function AdminPage() {
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
     const [auctionStatus, setAuctionStatus] = useState<any>(null);
     const [activeTab, setActiveTab] = useState<'auction' | 'owners' | 'battles' | 'cases' | 'insights' | 'maintenance'>('auction');
+    const [startingAuctionId, setStartingAuctionId] = useState<string | null>(null);
 
     // Battle Wizard State
     const [isCreatingBattle, setIsCreatingBattle] = useState(false);
@@ -138,7 +140,7 @@ export default function AdminPage() {
         date: '',
         time: '',
         conductor_id: '',
-        points_weight: 1.0
+        points_config: '5, 3, 1'
     });
 
     const [conductorSearch, setConductorSearch] = useState('');
@@ -194,7 +196,7 @@ export default function AdminPage() {
 
     const fetchHeartbeat = async () => {
         try {
-            const res = await fetch('/api/admin/heartbeat');
+            const res = await fetch('/api/admin/heartbeat?_=' + Date.now(), { cache: 'no-store' });
             if (!res.ok) {
                 if (res.status === 401) setLoggedInAdmin(null);
                 return;
@@ -249,16 +251,50 @@ export default function AdminPage() {
         }
     }, [loggedInAdmin]);
 
+    // Timer Countdown Effect
+    useEffect(() => {
+        if (auctionStatus?.status === 'ACTIVE' && auctionStatus.timerEnd) {
+            // Initial calculation
+            const calculateTime = () => {
+                const end = new Date(auctionStatus.timerEnd!).getTime();
+                const now = Date.now();
+                const remaining = Math.max(0, Math.floor((end - now) / 1000));
+                setTimeLeft(remaining);
+            };
+
+            calculateTime(); // Update immediately
+
+            const timer = setInterval(calculateTime, 1000);
+            return () => clearInterval(timer);
+        } else {
+            // If not active or no timer, timeLeft logic handled by heartbeat or reset here
+            // But let's respect heartbeat's decision mostly, or just reset if status changes
+            if (auctionStatus?.status !== 'ACTIVE') {
+                setTimeLeft(null);
+            }
+        }
+    }, [auctionStatus]);
+
     // fetchPlayers removed in favor of fetchHeartbeat
 
     useEffect(() => {
         if (!loggedInAdmin) return;
 
-        // Dynamic polling: 1s during active auction, 10s otherwise
-        const intervalTime = (auctionStatus?.status === 'ACTIVE') ? 1000 : 10000;
-        const interval = setInterval(fetchHeartbeat, intervalTime);
-        return () => clearInterval(interval);
-    }, [loggedInAdmin, auctionStatus?.status]);
+        // Initial fetch
+        fetchHeartbeat();
+
+        const channel = supabase
+            .channel('admin_updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, () => fetchHeartbeat())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, () => fetchHeartbeat())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => fetchHeartbeat())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'case_studies' }, () => fetchHeartbeat())
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [loggedInAdmin]);
 
     useEffect(() => {
         if (activeTab === 'insights') {
@@ -339,17 +375,23 @@ export default function AdminPage() {
     };
 
     const startAuction = async (playerId: string) => {
-        const res = await fetch('/api/auction/start', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ playerId }),
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert('Auction started!');
-            fetchHeartbeat();
-        } else {
-            alert(data.error);
+        setStartingAuctionId(playerId);
+        try {
+            const res = await fetch('/api/auction/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ playerId }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                fetchHeartbeat();
+            } else {
+                alert(data.error);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setStartingAuctionId(null);
         }
     };
 
@@ -501,12 +543,12 @@ export default function AdminPage() {
         }
     };
 
-    const handleReset = async (type: 'results' | 'players' | 'wallets' | 'captains' | 'cases') => {
+    const handleReset = async (type: 'results' | 'players' | 'wallets' | 'owners' | 'cases') => {
         const descriptions = {
             results: 'This will reset all match scores, summaries, and winners. Schedule and month assignments will remain.',
             players: 'This will remove all team assignments from players and clear the auction history.',
             wallets: 'This will reset all team wallets back to 1,000,000 tokens.',
-            captains: 'This will unlink all captains from their assigned teams.',
+            owners: 'This will unlink all owners from their assigned teams.',
             cases: 'This will remove all case studies status.'
         };
 
@@ -555,21 +597,18 @@ export default function AdminPage() {
             return;
         }
 
+        const points_array = wizardConfig.points_config.split(',').map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
+
         const res = await fetch('/api/admin/battles', {
             method: editingBattleId ? 'PATCH' : 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                ...wizardConfig,
                 id: editingBattleId,
-                title: wizardConfig.title,
-                description: wizardConfig.description,
-                question_timer: wizardConfig.question_timer,
                 mode: battleMode,
-                team1_id: wizardConfig.team1_id || null,
-                team2_id: wizardConfig.team2_id || null,
                 battle_type: battleType,
-                start_time: (wizardConfig.date && wizardConfig.time) ? `${wizardConfig.date}T${wizardConfig.time}` : null,
-                conductor_id: wizardConfig.conductor_id || null,
-                points_weight: wizardConfig.points_weight
+                points_config: points_array,
+                start_time: (wizardConfig.date && wizardConfig.time) ? `${wizardConfig.date}T${wizardConfig.time}` : null
             }),
         });
 
@@ -587,7 +626,7 @@ export default function AdminPage() {
                 date: '',
                 time: '',
                 conductor_id: '',
-                points_weight: 1.0
+                points_config: '5, 3, 1'
             });
             setBattleMode('INDIVIDUAL');
             setBattleType('KAHOOT');
@@ -971,7 +1010,7 @@ export default function AdminPage() {
                                     date: '',
                                     time: '',
                                     conductor_id: '',
-                                    points_weight: 1.0
+                                    points_config: '5, 3, 1'
                                 });
                                 setBattleMode('INDIVIDUAL');
                                 setBattleType('KAHOOT');
@@ -1123,7 +1162,7 @@ export default function AdminPage() {
                                                 date: battle.start_time ? battle.start_time.split('T')[0] : '',
                                                 time: battle.start_time ? battle.start_time.split('T')[1]?.substring(0, 5) : '',
                                                 conductor_id: battle.conductor_id || '',
-                                                points_weight: battle.points_weight || 1.0
+                                                points_config: battle.points_config ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config).join(', ') : battle.points_config.join(', ')) : '5, 3, 1'
                                             });
                                             setBattleMode(battle.mode);
                                             setBattleType(battle.type);
@@ -1240,8 +1279,14 @@ export default function AdminPage() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {players.filter(p => p.role !== 'OWNER').map(player => {
-                                const isLive = auctionStatus?.status === 'ACTIVE' && auctionStatus?.playerId === player.id;
+                            {players.filter(p => p.role !== 'OWNER').sort((a, b) => {
+                                const poolA = a.pool || 'Z';
+                                const poolB = b.pool || 'Z';
+                                if (poolA < poolB) return -1;
+                                if (poolA > poolB) return 1;
+                                return (a.name || '').localeCompare(b.name || '');
+                            }).map(player => {
+                                const isLive = auctionStatus?.status === 'ACTIVE' && auctionStatus?.playerId === player.id && (timeLeft === null || timeLeft > 0);
                                 const isSold = player.is_auctioned;
 
                                 return (
@@ -1278,7 +1323,7 @@ export default function AdminPage() {
                                             )}
                                             <div className="flex justify-between items-center">
                                                 <p className="text-gray-400">Min Bid: {(player.min_bid ?? 0).toLocaleString()}</p>
-                                                {!player.is_auctioned && !isLive && (
+                                                {!isLive && !player.teamName && (
                                                     <button
                                                         onClick={() => {
                                                             setEditingPlayer(player);
@@ -1294,57 +1339,139 @@ export default function AdminPage() {
                                         </div>
 
                                         <div className="mt-6">
-                                            {player.is_auctioned ? (
-                                                <div className="space-y-4">
-                                                    <div className="flex items-center gap-2 text-green-500">
-                                                        <CheckCircle className="w-5 h-5" /> Sold: <span className="font-bold">{player.teamName}</span>
-                                                    </div>
-                                                    <button
-                                                        onClick={() => handlePlayerAction(player.id, 'release')}
-                                                        className="w-full text-xs text-red-400 hover:text-red-300 py-2 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-all font-bold"
-                                                    >
-                                                        RELEASE FROM TEAM
-                                                    </button>
-                                                </div>
-                                            ) : isLive ? (
-                                                <div className="w-full bg-red-500/20 text-red-500 py-3 rounded-xl font-bold flex items-center justify-center gap-2 border border-red-500/50">
-                                                    <Timer className="w-5 h-5 animate-spin" /> AUCTION LIVE
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-3">
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => startAuction(player.id)}
-                                                            className="flex-1 btn-primary flex items-center justify-center gap-2 py-3 text-xs"
-                                                            disabled={auctionStatus?.status === 'ACTIVE'}
+                                            {(() => {
+                                                // Unified Status Check
+                                                if (isLive) {
+                                                    return (
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="w-full bg-red-500/10 text-red-500 py-4 rounded-xl font-bold flex flex-col items-center justify-center gap-2 border border-red-500/20">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Timer className="w-5 h-5 animate-spin text-red-500" />
+                                                                    <span className="text-red-500 text-sm tracking-widest uppercase">Auction Live</span>
+                                                                </div>
+                                                                {auctionStatus?.currentBidderName && (
+                                                                    <div className="flex flex-col items-center">
+                                                                        <span className="text-white font-black text-xl leading-none">{(auctionStatus.currentBid || 0).toLocaleString()}</span>
+                                                                        <span className="text-[10px] text-gray-500 uppercase mt-1">Leading: <span className="text-accent">{auctionStatus.currentBidderName}</span></span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <button
+                                                                onClick={async () => {
+                                                                    if (confirm('Force stop this auction?')) {
+                                                                        await fetch('/api/auction/finalize', {
+                                                                            method: 'POST',
+                                                                            headers: { 'Content-Type': 'application/json' },
+                                                                            body: JSON.stringify({ force: true })
+                                                                        });
+                                                                        fetchHeartbeat();
+                                                                    }
+                                                                }}
+                                                                className="w-full bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl text-xs font-bold transition-all"
+                                                            >
+                                                                FORCE STOP
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                if (player.team_id || player.teamName) {
+                                                    const soldTeamName = player.teamName || teams.find(t => t.id === player.team_id)?.name || 'Team';
+                                                    return (
+                                                        <div className="space-y-4">
+                                                            <div className="flex items-center gap-2 text-green-500">
+                                                                <CheckCircle className="w-5 h-5" /> Sold to: <span className="font-bold text-accent">{soldTeamName}</span>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => handlePlayerAction(player.id, 'release')}
+                                                                className="w-full text-xs text-red-400 hover:text-red-300 py-2 border border-red-500/20 rounded-lg hover:bg-red-500/10 transition-all font-bold"
+                                                            >
+                                                                RELEASE FROM TEAM
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                if (player.is_auctioned) {
+                                                    const isStarting = startingAuctionId === player.id;
+                                                    return (
+                                                        <div className="space-y-4">
+                                                            <div className="flex items-center gap-2 text-orange-500">
+                                                                <X className="w-5 h-5" /> <span className="font-bold">UNSOLD</span>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => startAuction(player.id)}
+                                                                    disabled={isStarting}
+                                                                    className={`flex-1 btn-primary py-2 text-xs font-bold flex items-center justify-center gap-2 ${isStarting ? 'opacity-50 cursor-wait' : ''}`}
+                                                                >
+                                                                    {isStarting ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />} RE-AUCTION
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRemovePlayer(player.id)}
+                                                                    className="px-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all rounded-xl"
+                                                                    title="Remove Player"
+                                                                >
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                            <select
+                                                                onChange={(e) => {
+                                                                    if (e.target.value) {
+                                                                        handlePlayerAction(player.id, 'assign', e.target.value);
+                                                                        e.target.value = '';
+                                                                    }
+                                                                }}
+                                                                className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs outline-none focus:border-accent appearance-none text-center cursor-pointer"
+                                                                defaultValue=""
+                                                            >
+                                                                <option value="" disabled className="bg-gray-900">Assign to Team...</option>
+                                                                {teams.map(t => (
+                                                                    <option key={t.id} value={t.id} className="bg-gray-900">{t.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    );
+                                                }
+
+                                                // Default: IDLE / Ready to start
+                                                const isStarting = startingAuctionId === player.id;
+                                                return (
+                                                    <div className="space-y-3">
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => startAuction(player.id)}
+                                                                disabled={isStarting}
+                                                                className={`flex-1 btn-primary flex items-center justify-center gap-2 py-3 text-xs ${isStarting ? 'opacity-50 cursor-wait' : ''}`}
+                                                            >
+                                                                {isStarting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />} Start Auction
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleRemovePlayer(player.id)}
+                                                                className="px-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all rounded-xl"
+                                                                title="Remove Player"
+                                                            >
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                        <select
+                                                            onChange={(e) => {
+                                                                if (e.target.value) {
+                                                                    handlePlayerAction(player.id, 'assign', e.target.value);
+                                                                    e.target.value = '';
+                                                                }
+                                                            }}
+                                                            className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs outline-none focus:border-accent appearance-none text-center cursor-pointer"
+                                                            defaultValue=""
                                                         >
-                                                            <Play className="w-4 h-4" /> Start Auction
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleRemovePlayer(player.id)}
-                                                            className="px-3 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 transition-all rounded-xl"
-                                                            title="Remove Player"
-                                                        >
-                                                            <X className="w-4 h-4" />
-                                                        </button>
+                                                            <option value="" disabled className="bg-gray-900">Assign to Team...</option>
+                                                            {teams.map(t => (
+                                                                <option key={t.id} value={t.id} className="bg-gray-900">{t.name}</option>
+                                                            ))}
+                                                        </select>
                                                     </div>
-                                                    <select
-                                                        onChange={(e) => {
-                                                            if (e.target.value) {
-                                                                handlePlayerAction(player.id, 'assign', e.target.value);
-                                                                e.target.value = '';
-                                                            }
-                                                        }}
-                                                        className="w-full bg-white/5 border border-white/10 rounded-xl p-2 text-xs outline-none focus:border-accent appearance-none text-center cursor-pointer"
-                                                        defaultValue=""
-                                                    >
-                                                        <option value="" disabled className="bg-gray-900">Assign to Team...</option>
-                                                        {teams.map(t => (
-                                                            <option key={t.id} value={t.id} className="bg-gray-900">{t.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            )}
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 );
@@ -1541,23 +1668,23 @@ export default function AdminPage() {
                                 </button>
                             </div>
 
-                            {/* Reset Captains */}
+                            {/* Reset Owners */}
                             <div className="glass-card p-8 border-red-500/20 space-y-4">
                                 <div className="flex items-center gap-3 mb-2">
                                     <div className="p-3 rounded-xl bg-red-500/10 text-red-500">
                                         <Shield className="w-6 h-6" />
                                     </div>
-                                    <h3 className="text-xl font-bold uppercase tracking-widest">Reset Captains</h3>
+                                    <h3 className="text-xl font-bold uppercase tracking-widest">Reset Owners</h3>
                                 </div>
                                 <p className="text-gray-400 text-sm leading-relaxed">
-                                    Unlinks all captains from their current teams. Requires re-assignment
-                                    from the Team Management tab.
+                                    Unlinks all owners from their current teams. Requires re-assignment
+                                    from the Owner HQ or Destiny Draw.
                                 </p>
                                 <button
-                                    onClick={() => handleReset('captains')}
+                                    onClick={() => handleReset('owners')}
                                     className="w-full bg-red-600/10 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/20 px-6 py-4 rounded-xl font-black transition-all uppercase tracking-widest text-xs"
                                 >
-                                    Reset Captain Assignments
+                                    Reset Owner Assignments
                                 </button>
                             </div>
                         </div>
@@ -1690,38 +1817,41 @@ export default function AdminPage() {
                                                 </div>
                                                 <div className="space-y-2">
                                                     {battleType !== 'TECH_TALK' && (
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div className="space-y-1">
-                                                                <label className="text-xs text-gray-400 font-bold uppercase">Question Timer (sec)</label>
-                                                                <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
-                                                                    <Timer className="w-4 h-4 text-gray-500 mr-3" />
-                                                                    <input
-                                                                        type="number"
-                                                                        value={wizardConfig.question_timer}
-                                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, question_timer: parseInt(e.target.value) })}
-                                                                        className="bg-transparent border-none outline-none text-white w-full font-mono"
-                                                                        placeholder="10"
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                            <div className="space-y-1">
-                                                                <label className="text-xs text-gray-400 font-bold uppercase">Points Weight</label>
-                                                                <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
-                                                                    <Award className="w-4 h-4 text-accent mr-3" />
-                                                                    <input
-                                                                        type="number"
-                                                                        step="0.1"
-                                                                        value={wizardConfig.points_weight}
-                                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, points_weight: parseFloat(e.target.value) })}
-                                                                        className="bg-transparent border-none outline-none text-white w-full font-mono"
-                                                                        placeholder="1.0"
-                                                                    />
-                                                                </div>
+                                                        <div className="space-y-1">
+                                                            <label className="text-xs text-gray-400 font-bold uppercase">Question Timer (sec)</label>
+                                                            <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
+                                                                <Timer className="w-4 h-4 text-gray-500 mr-3" />
+                                                                <input
+                                                                    type="number"
+                                                                    value={wizardConfig.question_timer}
+                                                                    onChange={(e) => setWizardConfig({ ...wizardConfig, question_timer: parseInt(e.target.value) })}
+                                                                    className="bg-transparent border-none outline-none text-white w-full font-mono"
+                                                                    placeholder="10"
+                                                                />
                                                             </div>
                                                         </div>
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {battleType !== 'TECH_TALK' && (
+                                                <div className="space-y-2 p-4 bg-white/5 border border-white/5 rounded-2xl w-full">
+                                                    <div className="flex justify-between items-center">
+                                                        <label className="text-xs text-gray-400 font-bold uppercase flex items-center gap-2">
+                                                            <Award className="w-4 h-4 text-accent" /> Team Points Ladder
+                                                        </label>
+                                                        <span className="text-[10px] text-gray-500 font-mono bg-black/40 px-2 py-0.5 rounded">[1st, 2nd, 3rd, ...]</span>
+                                                    </div>
+                                                    <input
+                                                        type="text"
+                                                        value={wizardConfig.points_config}
+                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, points_config: e.target.value })}
+                                                        className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent font-mono text-sm tracking-wider"
+                                                        placeholder="5, 3, 1"
+                                                    />
+                                                    <p className="text-[10px] text-gray-500 italic">Enter points separated by commas. First value is for 1st place, second for 2nd, and so on.</p>
+                                                </div>
+                                            )}
 
                                             <div className="space-y-2">
                                                 <label className="text-xs text-gray-400 font-bold uppercase">Title</label>
@@ -1854,6 +1984,10 @@ export default function AdminPage() {
                                                 <span className="font-bold text-white">
                                                     {wizardConfig.date && wizardConfig.time ? `${wizardConfig.date} ${wizardConfig.time}` : 'Not Scheduled'}
                                                 </span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">PointsConfig</span>
+                                                <span className="font-bold text-accent">[{wizardConfig.points_config}]</span>
                                             </div>
                                         </div>
                                     </div>

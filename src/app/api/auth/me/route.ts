@@ -37,7 +37,11 @@ export async function GET() {
         } else {
             return NextResponse.json({ error: 'Invalid role' }, { status: 401 });
         }
-    } catch (error) {
+    } catch (error: any) {
+        if (error.code === '22P02') {
+            console.warn('Detected invalid UUID (stale session) in /auth/me check, returning 401.');
+            return NextResponse.json({ error: 'Invalid session format' }, { status: 401 });
+        }
         console.error('Auth check error:', error);
         return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }

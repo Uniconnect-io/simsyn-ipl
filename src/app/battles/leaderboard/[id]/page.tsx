@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Users, Zap, Award, Star, Shield, Activity } from 'lucide-react';
 
+import { supabase } from '@/lib/supabase';
+
 export default function LiveLeaderboard() {
     const params = useParams();
     const battleId = params.id as string;
@@ -49,9 +51,39 @@ export default function LiveLeaderboard() {
             }
         };
 
+        // Initial fetch
         fetchLeaderboard();
-        const interval = setInterval(fetchLeaderboard, 3000);
-        return () => clearInterval(interval);
+
+        // Supabase Realtime Subscription
+        const channel = supabase
+            .channel(`leaderboard_${battleId}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'individual_battle_answers',
+                filter: `battle_id=eq.${battleId}`
+            }, () => {
+                console.log('New answer detected, refreshing leaderboard...');
+                fetchLeaderboard();
+            })
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'scores',
+                filter: `match_id=eq.${battleId}`
+            }, () => {
+                console.log('Score update detected, refreshing leaderboard...');
+                fetchLeaderboard();
+            })
+            .subscribe();
+
+        // Fallback polling (60s)
+        const interval = setInterval(fetchLeaderboard, 60000);
+
+        return () => {
+            supabase.removeChannel(channel);
+            clearInterval(interval);
+        };
     }, [battleId]);
 
     return (

@@ -4,6 +4,7 @@ import { useState, useEffect, use, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, Home, Activity, Zap, Play, AlertCircle, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 interface Idea {
     id: string;
@@ -42,6 +43,8 @@ export default function LiveMatchDashboard({ params: paramsPromise }: { params: 
     const [showBoundaryOverlay, setShowBoundaryOverlay] = useState<{ team: string, runs: number } | null>(null);
     const [feed, setFeed] = useState<Idea[]>([]);
 
+
+
     useEffect(() => {
         const fetchMatch = async () => {
             try {
@@ -77,13 +80,36 @@ export default function LiveMatchDashboard({ params: paramsPromise }: { params: 
                     });
                 }
             } catch (e) {
-                console.error("Polling error", e);
+                console.error("Fetch error", e);
             }
         };
 
         fetchMatch();
-        const interval = setInterval(fetchMatch, 2000); // 2s polling
-        return () => clearInterval(interval);
+
+        // 🟢 Realtime Subscription
+        const channel = supabase
+            .channel(`match_${params.id}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'matches', filter: `id=eq.${params.id}` },
+                (payload) => {
+                    console.log('Match Update:', payload);
+                    fetchMatch();
+                }
+            )
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'battle_ideas', filter: `match_id=eq.${params.id}` },
+                (payload) => {
+                    console.log('New Idea:', payload);
+                    fetchMatch();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [params.id, lastIdeaId]);
 
     if (!match) return (

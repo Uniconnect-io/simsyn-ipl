@@ -22,18 +22,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { title, description, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, points_weight } = await request.json();
+        const { title, description, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, points_config } = await request.json();
         const id = crypto.randomUUID();
 
         await db.execute({
             sql: `INSERT INTO matches (
                 id, title, description, question_timer, mode, team1_id, team2_id, 
-                type, start_time, conductor_id, status, points_weight
+                type, start_time, conductor_id, status, points_config
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)`,
             args: [
                 id, title, description, question_timer || 10, mode || 'TEAM',
                 team1_id || null, team2_id || null, battle_type || 'KAHOOT',
-                start_time || null, conductor_id || null, points_weight || 1.0
+                start_time || null, conductor_id || null,
+                points_config ? JSON.stringify(points_config) : JSON.stringify([5, 3, 1])
             ]
         });
 
@@ -51,17 +52,17 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id, status, title, description, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, points_weight } = await request.json();
+        const { id, status, title, description, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, points_config } = await request.json();
 
         if (status) {
             // If marking as COMPLETED, calculate team stats
             if (status === 'COMPLETED') {
                 const battleRs = await db.execute({
-                    sql: 'SELECT type, conductor_id, points_weight FROM matches WHERE id = ?',
+                    sql: 'SELECT type, conductor_id, points_config FROM matches WHERE id = ?',
                     args: [id]
                 });
                 const battle = battleRs.rows[0] as any;
-                const pointsWeight = battle?.points_weight || 1.0;
+                const pointsConfig = battle?.points_config ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config) : battle.points_config) : [5, 3, 1];
 
                 if (battle && battle.type === 'TECH_TALK' && battle.conductor_id) {
                     const conductorRs = await db.execute({
@@ -73,9 +74,9 @@ export async function PATCH(request: Request) {
                     const teamsCountRs = await db.execute('SELECT COUNT(*) as count FROM teams');
                     const teamsCount = (teamsCountRs.rows[0] as any).count;
 
-                    // Tech Talk Awards: 50 runs, (teams-1) points, 0.5 nrr (all weights applied)
-                    const points = (teamsCount - 1) * pointsWeight;
-                    const nrr = 0.5 * pointsWeight;
+                    // Tech Talk Awards: 50 runs, 5 points, 0.5 nrr
+                    const points = 5;
+                    const nrr = 0.5;
                     const runs = 50;
 
                     // Insert ONE unified record for both player and team stats
@@ -101,13 +102,12 @@ export async function PATCH(request: Request) {
 
                     const scores = scoresRs.rows as any[];
 
-                    // 2. Get total number of questions to calculate overs
+                    // 2. Get total number of questions to calculate NRR
                     const questionsRs = await db.execute({
                         sql: 'SELECT COUNT(*) as count FROM battle_questions WHERE battle_id = ?',
                         args: [id]
                     });
-                    const totalQuestions = (questionsRs.rows[0] as any).count;
-                    const totalOvers = totalQuestions > 0 ? totalQuestions / 6 : 1;
+                    const totalQuestions = (questionsRs.rows[0] as any).count || 1;
 
                     // 3. Group by team
                     const teamStats: Record<string, { totalScore: number, id: string, topPlayerScore: number, topPlayerScoreId: string | null }> = {};
@@ -132,22 +132,25 @@ export async function PATCH(request: Request) {
                     const teamList = Object.values(teamStats);
                     const numberOfTeams = teamList.length;
 
+                    // Sort by score DESC
                     teamList.sort((a, b) => b.totalScore - a.totalScore);
+
+                    // Calculate Average Team Score for NRR
+                    const totalAllScores = teamList.reduce((sum, t) => sum + t.totalScore, 0);
+                    const averageTeamScore = numberOfTeams > 0 ? totalAllScores / numberOfTeams : 0;
 
                     const finalStats = teamList.map((team, index) => {
                         if (team.totalScore === 0) {
-                            return { team_id: team.id, total_score: 0, points: 0, nrr: 0, targetScoreId: null };
+                            return { team_id: team.id, total_score: 0, points: 0, nrr: -averageTeamScore / totalQuestions, targetScoreId: null };
                         }
 
+                        // Get points from config based on rank
+                        // Handle ties: teams with same score get same rank points (first occurrence in sorted list)
                         const firstEqualScoreIndex = teamList.findIndex(t => t.totalScore === team.totalScore);
-                        const points = Math.max(0, numberOfTeams - 1 - firstEqualScoreIndex) * pointsWeight;
+                        const points = pointsConfig[firstEqualScoreIndex] || 0;
 
-                        const totalAllScores = teamList.reduce((sum, t) => sum + t.totalScore, 0);
-                        const otherTeamsScore = totalAllScores - team.totalScore;
-
-                        const averageOtherScore = numberOfTeams > 1 ? otherTeamsScore / (numberOfTeams - 1) : 0;
-                        const rawNrr = totalOvers > 0 ? ((team.totalScore - averageOtherScore) / totalOvers) : 0;
-                        const nrr = Math.max(-pointsWeight, Math.min(rawNrr, pointsWeight));
+                        // NRR calculations - (My team score - Average Team Score)/number of questions
+                        const nrr = (team.totalScore - averageTeamScore) / totalQuestions;
 
                         return {
                             team_id: team.id,
@@ -169,8 +172,6 @@ export async function PATCH(request: Request) {
                     });
 
                     for (const stat of finalStats) {
-                        if (stat.points === 0 && stat.nrr === 0) continue;
-
                         if (stat.targetScoreId) {
                             // Merge team points into the top player's record
                             await db.execute({
@@ -178,7 +179,7 @@ export async function PATCH(request: Request) {
                                 args: [stat.points, stat.nrr, stat.targetScoreId]
                             });
                         } else {
-                            // Fallback: This team had no participants but somehow earned points (unlikely)
+                            // Team had no active players this battle, but they still get NRR hit/boost
                             await db.execute({
                                 sql: `INSERT INTO scores (id, match_id, player_id, team_id, score, points, nrr_contribution)
                                        VALUES (?, ?, NULL, ?, 0, ?, ?)`,
@@ -195,17 +196,16 @@ export async function PATCH(request: Request) {
             });
         } else {
             // General Update (Edit Battle)
-            // variables are already destructured at the top of the function
-
             await db.execute({
                 sql: `UPDATE matches 
                       SET title = ?, description = ?, question_timer = ?, mode = ?, 
-                          team1_id = ?, team2_id = ?, type = ?, start_time = ?, conductor_id = ?, points_weight = ?
+                          team1_id = ?, team2_id = ?, type = ?, start_time = ?, conductor_id = ?, points_config = ?
                       WHERE id = ?`,
                 args: [
                     title, description, question_timer, mode,
                     team1_id || null, team2_id || null, battle_type,
-                    start_time || null, conductor_id || null, points_weight || 1.0, id
+                    start_time || null, conductor_id || null,
+                    points_config ? JSON.stringify(points_config) : null, id
                 ]
             });
         }

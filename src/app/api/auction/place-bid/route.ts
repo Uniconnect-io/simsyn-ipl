@@ -29,32 +29,29 @@ export async function POST(request: Request) {
       }
     }
 
-    const auctionRs = await db.execute({
-      sql: "SELECT * FROM auctions WHERE player_id = ? AND status = 'ACTIVE'",
+    const playerRs = await db.execute({
+      sql: "SELECT * FROM players WHERE id = ? AND auction_status = 'ACTIVE'",
       args: [playerId]
     });
-    const auction = auctionRs.rows[0] as any;
+    const player = playerRs.rows[0] as any;
 
-    if (!auction) {
+    if (!player) {
       return NextResponse.json({ error: 'No active auction for this player' }, { status: 404 });
     }
 
     // Check timer
     const now = new Date();
-    if (auction.timer_end && new Date(auction.timer_end) < now) {
+    if (player.auction_timer_end && new Date(player.auction_timer_end) < now) {
       return NextResponse.json({ error: 'Auction has ended' }, { status: 400 });
     }
 
-    // Check if bid is higher
     // Check if bid is valid
-    // If no bidder yet, bid must be >= current_bid (which is min_bid)
-    // If bidder exists, bid must be > current_bid
-    if (auction.current_bidder_id) {
-      if (amount <= auction.current_bid) {
+    if (player.auction_current_bidder_id) {
+      if (amount <= player.auction_current_bid) {
         return NextResponse.json({ error: 'Bid must be higher than current bid' }, { status: 400 });
       }
     } else {
-      if (amount < auction.current_bid) {
+      if (amount < player.auction_current_bid) {
         return NextResponse.json({ error: 'Bid must be at least the base price' }, { status: 400 });
       }
     }
@@ -83,13 +80,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Team is full (Max 5 players + Captain)' }, { status: 400 });
     }
 
-    // Update auction and timer
-    const timerEnd = new Date(Date.now() + 30 * 1000).toISOString();
-
+    // Update player auction status and timer
     await db.batch([
       {
-        sql: `UPDATE auctions SET current_bid = ?, current_bidder_id = ?, timer_end = ? WHERE id = ?`,
-        args: [amount, teamId, timerEnd, auction.id]
+        sql: `UPDATE players SET 
+                auction_current_bid = ?, 
+                auction_current_bidder_id = ?, 
+                auction_timer_end = NOW() + INTERVAL '30 seconds' 
+              WHERE id = ?`,
+        args: [amount, teamId, playerId]
       },
       {
         sql: `INSERT INTO bids (id, player_id, team_id, amount) VALUES (?, ?, ?, ?)`,
@@ -97,7 +96,7 @@ export async function POST(request: Request) {
       }
     ], 'write');
 
-    return NextResponse.json({ success: true, timer_end: timerEnd });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Bidding error:', error);
     return NextResponse.json({ error: 'Failed to place bid' }, { status: 500 });

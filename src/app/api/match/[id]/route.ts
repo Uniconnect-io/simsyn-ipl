@@ -15,9 +15,9 @@ export async function GET(
       sql: `
       SELECT 
         m.*, 
-        t1.name as team1Name, 
-        t2.name as team2Name,
-        w.name as winnerName
+        t1.name as "team1Name", 
+        t2.name as "team2Name",
+        w.name as "winnerName"
       FROM matches m
       JOIN teams t1 ON m.team1_id = t1.id
       JOIN teams t2 ON m.team2_id = t2.id

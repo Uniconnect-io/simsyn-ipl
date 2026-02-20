@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Timer, TrendingUp, Users, DollarSign, Award, Info, Home } from 'lucide-react';
+import { Timer, TrendingUp, Users, DollarSign, Award, Info, Home, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 interface AuctionStatus {
     status: 'ACTIVE' | 'IDLE';
@@ -37,6 +38,10 @@ export default function AuctionPage() {
     const [myTeamId, setMyTeamId] = useState<string | null>(null);
     const [myCaptainName, setMyCaptainName] = useState<string | null>(null);
     const [nextPlayerIndex, setNextPlayerIndex] = useState(0);
+    const [isBidding, setIsBidding] = useState(false);
+    const [celebration, setCelebration] = useState<{ type: 'SOLD' | 'UNSOLD', playerName: string, teamName?: string, price?: number } | null>(null);
+    const finalizedRef = useRef<string | null>(null);
+    const prevAuctionRef = useRef<AuctionStatus | null>(null);
 
     // Rotate next player every 5 seconds
     useEffect(() => {
@@ -51,28 +56,36 @@ export default function AuctionPage() {
             const res = await fetch('/api/auth/me');
             if (res.ok) {
                 const data = await res.json();
-                setMyTeamId(data.user.team_id);
-                setMyCaptainName(data.user.name);
-                localStorage.setItem('sipl_captain', JSON.stringify(data.user));
-            } else {
-                // Fallback to local storage if API fails, but clear if unauthorized
-                const stored = localStorage.getItem('sipl_captain');
-                if (stored) {
-                    const data = JSON.parse(stored);
-                    setMyTeamId(data.team_id);
-                    setMyCaptainName(data.name);
+                console.log('Session data:', data);
+                if (data.user && data.user.role === 'OWNER') {
+                    setMyTeamId(data.user.team_id);
+                    setMyCaptainName(data.user.name);
+                    localStorage.setItem('sipl_captain', JSON.stringify(data.user));
+                } else {
+                    setMyTeamId(null);
+                    setMyCaptainName(null);
+                    localStorage.removeItem('sipl_captain');
                 }
+            } else {
+                setMyTeamId(null);
+                setMyCaptainName(null);
+                localStorage.removeItem('sipl_captain');
             }
         };
         checkSession();
     }, []);
 
+
+
     const fetchData = useCallback(async () => {
         try {
             const [auctionRes, teamsRes] = await Promise.all([
-                fetch('/api/auction/status'),
-                fetch('/api/teams')
+                fetch('/api/auction/status?_=' + Date.now(), { cache: 'no-store' }),
+                fetch('/api/teams?_=' + Date.now(), { cache: 'no-store' })
             ]);
+            // Check responses
+            if (!auctionRes.ok || !teamsRes.ok) return;
+
             const auctionData = await auctionRes.json();
             const teamsData = await teamsRes.json();
 
@@ -83,9 +96,10 @@ export default function AuctionPage() {
                 const remaining = Math.max(0, Math.floor((new Date(auctionData.timerEnd).getTime() - Date.now()) / 1000));
                 setTimeLeft(remaining);
 
-                if (remaining === 0) {
-                    fetch('/api/auction/finalize', { method: 'POST' });
-                }
+                // Disable auto-finalize to prevent clock skew issues
+                // if (remaining === 0) {
+                //     fetch('/api/auction/finalize', { method: 'POST' });
+                // }
             } else {
                 setTimeLeft(null);
             }
@@ -95,12 +109,75 @@ export default function AuctionPage() {
     }, []);
 
     useEffect(() => {
+        if (auction?.status === 'ACTIVE' && auction.timerEnd) {
+            const calculateTime = () => {
+                const end = new Date(auction.timerEnd!).getTime();
+                const now = Date.now();
+                const remaining = Math.max(0, Math.floor((end - now) / 1000));
+                setTimeLeft(remaining);
+
+                if (remaining <= 0 && finalizedRef.current !== auction.id) {
+                    finalizedRef.current = auction.id || null;
+                    fetch('/api/auction/finalize', { method: 'POST' });
+                }
+            };
+
+            calculateTime();
+            const timer = setInterval(calculateTime, 1000);
+            return () => clearInterval(timer);
+        } else {
+            if (auction?.status !== 'ACTIVE') {
+                setTimeLeft(null);
+            }
+        }
+    }, [auction]);
+
+    useEffect(() => {
+        if (prevAuctionRef.current?.status === 'ACTIVE' && auction?.status === 'IDLE') {
+            const prev = prevAuctionRef.current;
+            const wasSold = !!prev.currentBidderId;
+            setCelebration({
+                type: wasSold ? 'SOLD' : 'UNSOLD',
+                playerName: prev.playerName || 'Player',
+                teamName: prev.currentBidderName || undefined,
+                price: prev.currentBid || undefined
+            });
+            setTimeout(() => setCelebration(null), 5000);
+        }
+        prevAuctionRef.current = auction;
+    }, [auction]);
+
+    useEffect(() => {
         fetchData();
-        // Adaptive polling: Fast when active, slower when idle
-        const intervalMs = auction?.status === 'ACTIVE' ? 1000 : 3000;
-        const interval = setInterval(fetchData, intervalMs);
-        return () => clearInterval(interval);
-    }, [fetchData, auction?.status]);
+
+        const channel = supabase
+            .channel('auction_updates')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'bids' },
+                () => fetchData()
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'players' }, // Catch team assignments
+                () => fetchData()
+            )
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'teams' }, // Catch balance updates
+                () => fetchData()
+            )
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('Connected to auction realtime');
+                }
+            });
+
+        return () => {
+            console.log('Unsubscribing from auction realtime');
+            supabase.removeChannel(channel);
+        };
+    }, [fetchData]);
 
     const handleBid = async (amount: number) => {
         if (!auction || auction.status !== 'ACTIVE' || !myTeamId) {
@@ -127,6 +204,7 @@ export default function AuctionPage() {
             return;
         }
 
+        setIsBidding(true);
         try {
             const res = await fetch('/api/auction/place-bid', {
                 method: 'POST',
@@ -139,9 +217,11 @@ export default function AuctionPage() {
             });
             const data = await res.json();
             if (!data.success) alert(data.error);
-            else fetchData();
+            // No strict need to fetchData here as the subscription will catch it, but good for local optimistic UI if we added that.
         } catch (err) {
             console.error(err);
+        } finally {
+            setIsBidding(false);
         }
     };
 
@@ -153,7 +233,7 @@ export default function AuctionPage() {
     });
 
     return (
-        <main className="h-screen flex flex-col p-4 overflow-hidden bg-black text-white">
+        <main className="min-h-screen lg:h-screen flex flex-col p-4 overflow-y-auto lg:overflow-hidden bg-black text-white">
             <header className="flex justify-between items-center mb-4 shrink-0">
                 <div className="flex items-center gap-4">
                     <img src="/assets/logo.png" alt="SIPL" className="h-12 w-auto" onError={(e) => e.currentTarget.style.display = 'none'} />
@@ -171,11 +251,11 @@ export default function AuctionPage() {
                 </Link>
             </header>
 
-            <div className="flex-1 grid grid-cols-12 gap-6 min-h-0">
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
                 {/* Left Column: Active Auction (5 cols) */}
-                <div className="col-span-5 flex flex-col gap-4 min-h-0">
+                <div className="col-span-1 lg:col-span-5 flex flex-col gap-4 min-h-0">
                     <AnimatePresence mode="wait">
-                        {auction?.status === 'ACTIVE' ? (
+                        {auction?.status === 'ACTIVE' && (timeLeft === null || timeLeft > 0) ? (
                             <motion.div
                                 key={auction.id}
                                 initial={{ opacity: 0, scale: 0.95 }}
@@ -288,16 +368,22 @@ export default function AuctionPage() {
                                                         <button
                                                             key={amount}
                                                             onClick={() => handleBid(amount)}
-                                                            disabled={isLeading}
-                                                            className={`py-3 rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group ${isLeading
+                                                            disabled={isLeading || isBidding}
+                                                            className={`h-[56px] rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group relative ${isLeading
                                                                 ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
-                                                                : 'bg-white/10 hover:bg-accent hover:text-black'
+                                                                : isBidding ? 'bg-white/5 text-gray-400 cursor-wait' : 'bg-white/10 hover:bg-accent hover:text-black'
                                                                 }`}
                                                         >
-                                                            <span className={`text-[10px] font-medium uppercase tracking-widest ${isLeading ? 'text-gray-700' : 'text-gray-400 group-hover:text-black/60'}`}>
-                                                                {isBaseBid ? 'Bid Base' : `+${(amount - effectiveBase) / 1000}k`}
-                                                            </span>
-                                                            <span className="text-base">{amount.toLocaleString()}</span>
+                                                            {isBidding ? (
+                                                                <RefreshCw className="w-5 h-5 animate-spin text-accent" />
+                                                            ) : (
+                                                                <>
+                                                                    <span className={`text-[10px] font-medium uppercase tracking-widest ${isLeading ? 'text-gray-700' : 'text-gray-400 group-hover:text-black/60'}`}>
+                                                                        {isBaseBid ? 'Bid Base' : `+${(amount - effectiveBase) / 1000}k`}
+                                                                    </span>
+                                                                    <span className="text-base">{amount.toLocaleString()}</span>
+                                                                </>
+                                                            )}
                                                         </button>
                                                     );
                                                 });
@@ -341,7 +427,7 @@ export default function AuctionPage() {
                 </div>
 
                 {/* Right Column: Team Standings (7 cols) */}
-                <div className="col-span-7 flex flex-col min-h-0">
+                <div className="col-span-1 lg:col-span-7 flex flex-col min-h-0">
                     <div className="glass-card flex-1 p-4 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
                         <div className="flex justify-between items-center mb-4 sticky top-0 bg-black/80 backdrop-blur-md p-2 -mx-2 z-10 rounded-lg">
                             <h2 className="font-bold flex items-center gap-2">
@@ -359,7 +445,7 @@ export default function AuctionPage() {
                                     <motion.div
                                         key={team.id}
                                         layout
-                                        className={`bg-white/5 p-3 rounded-xl border ${myTeamId === team.id ? 'border-accent bg-accent/5' : 'border-white/5'} flex flex-col gap-3 group hover:bg-white/10 transition-colors`}
+                                        className={`bg-white/5 p-3 rounded-xl border ${myTeamId && myTeamId === team.id ? 'border-accent bg-accent/5' : 'border-white/5'} flex flex-col gap-3 group hover:bg-white/10 transition-colors`}
                                     >
                                         <div className="flex justify-between items-center mb-2">
                                             <div className="flex items-center gap-3">
@@ -447,6 +533,95 @@ export default function AuctionPage() {
                     </div>
                 </div>
             </div>
+            {/* CELEBRATION OVERLAY */}
+            <AnimatePresence>
+                {celebration && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md pointer-events-none"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.5, y: 50, opacity: 0 }}
+                            animate={{ scale: 1, y: 0, opacity: 1 }}
+                            exit={{ scale: 1.5, y: -50, opacity: 0 }}
+                            transition={{ type: "spring", damping: 12, stiffness: 100 }}
+                            className="text-center relative"
+                        >
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0, transition: { delay: 0.1 } }}
+                                className="text-accent text-sm font-black uppercase tracking-[0.5em] mb-4"
+                            >
+                                Auction Result
+                            </motion.div>
+
+                            <motion.div
+                                animate={{ scale: [1, 1.1, 1] }}
+                                transition={{ repeat: Infinity, duration: 2 }}
+                                className={`text-[10rem] font-black italic leading-none text-transparent bg-clip-text ${celebration.type === 'SOLD' ? 'bg-gradient-to-b from-green-300 via-green-500 to-green-700' : 'bg-gradient-to-b from-red-300 via-red-500 to-red-700'} drop-shadow-[0_10px_30px_rgba(0,0,0,0.5)]`}
+                            >
+                                {celebration.type}
+                            </motion.div>
+
+                            <motion.div
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1, transition: { delay: 0.3 } }}
+                                className="mt-8 space-y-2"
+                            >
+                                <div className="text-5xl font-black uppercase tracking-tighter text-white">
+                                    {celebration.playerName}
+                                </div>
+                                {celebration.type === 'SOLD' && (
+                                    <div className="flex flex-col items-center gap-2">
+                                        <div className="px-6 py-2 bg-accent/20 border border-accent/20 rounded-full text-2xl font-black italic text-accent">
+                                            Sold to {celebration.teamName}
+                                        </div>
+                                        <div className="text-4xl font-bold text-gray-400">
+                                            ${celebration.price?.toLocaleString()}
+                                        </div>
+                                    </div>
+                                )}
+                                {celebration.type === 'UNSOLD' && (
+                                    <div className="px-6 py-2 bg-red-500/20 border border-red-500/20 rounded-full text-2xl font-black italic text-red-500">
+                                        Returning to Pool
+                                    </div>
+                                )}
+                            </motion.div>
+                        </motion.div>
+
+                        {/* Particle effects could go here if using a library, but CSS can work too */}
+                        {celebration.type === 'SOLD' && (
+                            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                                {[...Array(20)].map((_, i) => (
+                                    <motion.div
+                                        key={i}
+                                        initial={{
+                                            top: "50%",
+                                            left: "50%",
+                                            opacity: 1,
+                                            scale: 0
+                                        }}
+                                        animate={{
+                                            top: `${Math.random() * 100}%`,
+                                            left: `${Math.random() * 100}%`,
+                                            opacity: 0,
+                                            scale: Math.random() * 2
+                                        }}
+                                        transition={{
+                                            duration: 2 + Math.random() * 2,
+                                            repeat: Infinity,
+                                            delay: Math.random() * 2
+                                        }}
+                                        className="absolute w-2 h-2 bg-accent rounded-full"
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </main>
     );
 }

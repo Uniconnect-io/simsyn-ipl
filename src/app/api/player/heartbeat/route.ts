@@ -189,7 +189,13 @@ export async function GET(request: Request) {
             hasSubmitted
         });
 
-    } catch (error) {
+    } catch (error: any) {
+        // Handle invalid UUID syntax (likely stale session with legacy ID)
+        if (error.code === '22P02') {
+            console.warn('Detected invalid UUID in session (likely legacy cookie), forcing logout.');
+            return NextResponse.json({ error: 'Invalid session format' }, { status: 401 });
+        }
+
         console.error('Player Heartbeat error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }

@@ -4,7 +4,7 @@ import db from '@/lib/db';
 export async function GET() {
     try {
         const rs = await db.execute(`
-            SELECT p.*, t.name as teamName 
+            SELECT p.*, t.name as "teamName" 
             FROM players p
             LEFT JOIN teams t ON p.team_id = t.id
             WHERE p.role = 'PLAYER'

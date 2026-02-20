@@ -22,10 +22,10 @@ export async function GET(request: Request) {
             args: [battleId]
         });
 
-        // Parse options JSON
+        // Return questions - options are automatically parsed by pg driver
         const questions = rs.rows.map((row: any) => ({
             ...row,
-            options: JSON.parse(row.options)
+            options: typeof row.options === 'string' ? JSON.parse(row.options) : row.options
         }));
 
         return NextResponse.json(questions);
