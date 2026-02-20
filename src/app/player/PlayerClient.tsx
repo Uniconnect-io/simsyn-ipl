@@ -233,6 +233,10 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                         setBattleStep('result');
                     }
                 }, 2000);
+            } else if (res.status === 403) {
+                // Battle ended by admin
+                console.warn("Battle ended by admin");
+                setBattleStep('result');
             }
         } catch (e) {
             console.error("Failed to submit answer", e);

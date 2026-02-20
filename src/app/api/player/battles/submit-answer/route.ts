@@ -13,6 +13,16 @@ export async function POST(request: Request) {
 
         const { battleId, questionId, selectedOption, answer, startTime, endTime } = await request.json();
 
+        // Check if battle is still active
+        const battleRs = await db.execute({
+            sql: 'SELECT status FROM matches WHERE id = ?',
+            args: [battleId]
+        });
+
+        if (battleRs.rows.length === 0 || (battleRs.rows[0] as any).status !== 'ACTIVE') {
+            return NextResponse.json({ error: 'Battle is no longer active' }, { status: 403 });
+        }
+
         // 0. Check if already answered (Idempotency)
         const existingRs = await db.execute({
             sql: 'SELECT id FROM individual_battle_answers WHERE battle_id = ? AND question_id = ? AND player_id = ?',
