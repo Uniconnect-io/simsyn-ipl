@@ -13,6 +13,15 @@ jobs:
     steps:
       - name: Get Code
         uses: actions/checkout@v4
+      - name: Create .env file
+        run: |
+          touch .env
+          echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> .env
+          echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> .env
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> .env
+          echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+          echo "SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" >> .env
       - name: Clear target directory
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -20,7 +29,7 @@ jobs:
           username: ${{ secrets.UCENTERPRISE_SERVER_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY_DEPLOYER_UCENTERPRISE }}
           script: |
-            sudo chown -R adin:admin /opt/ipl.simsyn.com
+            sudo chown -R admin:admin /opt/ipl.simsyn.com
             sudo rm -rf /opt/ipl.simsyn.com/* 
                 
       - name: Deploy to the Server
