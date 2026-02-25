@@ -21,6 +21,8 @@ interface OwnerClientProps {
 export default function OwnerClient({ user }: OwnerClientProps) {
     const [assignedTeam, setAssignedTeam] = useState<{ id: string, name: string } | null>(null);
     const [isDrawing, setIsDrawing] = useState(false);
+    const [allTeams, setAllTeams] = useState<any[]>([]);
+    const [currentShuffleIndex, setCurrentShuffleIndex] = useState(0);
     const [loggedInOwner, setLoggedInOwner] = useState<Owner>(user);
     const [teamBalance, setTeamBalance] = useState<number | null>(null);
     const [showResetModal, setShowResetModal] = useState(false);
@@ -50,6 +52,11 @@ export default function OwnerClient({ user }: OwnerClientProps) {
         fetchStatus();
         if (user.team_id) {
             fetchTeamData(user.team_id);
+        } else {
+            // Fetch all teams for the drawing animation
+            fetch('/api/teams').then(res => res.json()).then(data => {
+                if (Array.isArray(data)) setAllTeams(data);
+            });
         }
         if (user.password_reset_required) {
             setShowResetModal(true);
@@ -121,11 +128,14 @@ export default function OwnerClient({ user }: OwnerClientProps) {
 
     const handleDrawTeam = async () => {
         const target = loggedInOwner;
-        if (!target) return;
+        if (!target || allTeams.length === 0) return;
 
         setIsDrawing(true);
-        // Simulate animation delay
-        await new Promise(r => setTimeout(r, 2000));
+
+        // Start shuffle animation
+        const interval = setInterval(() => {
+            setCurrentShuffleIndex(prev => (prev + 1) % allTeams.length);
+        }, 150);
 
         try {
             const res = await fetch('/api/owners/assign-team', {
@@ -134,18 +144,33 @@ export default function OwnerClient({ user }: OwnerClientProps) {
                 body: JSON.stringify({ ownerId: target.id }),
             });
             const data = await res.json();
-            setIsDrawing(false);
 
             if (data.success) {
+                // Find index of the assigned team for the final frame
+                const teamIndex = allTeams.findIndex(t => t.id === data.team.id);
+                if (teamIndex !== -1) {
+                    setCurrentShuffleIndex(teamIndex);
+                }
+
+                // Clear shuffle interval immediately so it stops on the winner
+                clearInterval(interval);
+
+                // Keep the winning logo visible for 1.5s
+                await new Promise(r => setTimeout(r, 1500));
+                setIsDrawing(false);
+
                 const updatedOwner: Owner = { ...target, team_id: data.team.id };
                 localStorage.setItem('sipl_owner', JSON.stringify(updatedOwner));
                 setLoggedInOwner(updatedOwner);
                 fetchTeamData(data.team.id);
             } else {
+                clearInterval(interval);
+                setIsDrawing(false);
                 alert(data.error);
             }
         } catch (error) {
             console.error("Failed to draw team:", error);
+            clearInterval(interval);
             setIsDrawing(false);
         }
     };
@@ -320,10 +345,44 @@ export default function OwnerClient({ user }: OwnerClientProps) {
                                 </div>
                                 <button onClick={handleLogout} className="text-gray-500 hover:text-white transition-colors">Logout</button>
                             </div>
-                            <Trophy className="w-16 h-16 text-accent mx-auto mb-6 opacity-20" />
-                            <h3 className="text-3xl font-black mb-4 uppercase tracking-tighter">Enter the Destiny Draw</h3>
+                            <AnimatePresence mode="wait">
+                                {isDrawing ? (
+                                    <motion.div
+                                        key="shuffling"
+                                        initial={{ opacity: 0, scale: 0.8 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        exit={{ opacity: 0, scale: 1.2 }}
+                                        className="w-32 h-32 mx-auto mb-6 relative"
+                                    >
+                                        <div className="absolute inset-0 bg-accent/20 rounded-full blur-2xl animate-pulse" />
+                                        <motion.div
+                                            key={currentShuffleIndex}
+                                            initial={{ y: 20, opacity: 0 }}
+                                            animate={{ y: 0, opacity: 1 }}
+                                            className="relative w-full h-full bg-black/40 rounded-2xl border border-accent/30 p-4 flex items-center justify-center backdrop-blur-sm"
+                                        >
+                                            <img
+                                                src={`/assets/teamlogos/${allTeams[currentShuffleIndex]?.name?.toLowerCase().replace(' ', '_')}.png`}
+                                                alt="shuffling"
+                                                className="w-full h-full object-contain"
+                                            />
+                                        </motion.div>
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        key="static"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 0.2 }}
+                                    >
+                                        <Trophy className="w-16 h-16 text-accent mx-auto mb-6" />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            <h3 className="text-3xl font-black mb-4 uppercase tracking-tighter">
+                                {isDrawing ? 'Consulting the Fates...' : 'Enter the Destiny Draw'}
+                            </h3>
                             <p className="text-gray-400 mb-8 max-w-md mx-auto">
-                                You have not been assigned a team for SIPL 2026. Draw your team now to access the HQ modules.
+                                {isDrawing ? 'The algorithms are determining your path for SIPL 2026. Stand by for team assignment.' : 'You have not been assigned a team for SIPL 2026. Draw your team now to access the HQ modules.'}
                             </p>
                             <button
                                 onClick={handleDrawTeam}

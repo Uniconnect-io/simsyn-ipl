@@ -10,19 +10,29 @@ export async function GET() {
             db.execute(`
                 SELECT 
                     team_id, 
-                    SUM(points) as total_points, 
-                    SUM(nrr_contribution) as total_nrr_bonus
-                FROM scores
+                    SUM(match_points) as total_points, 
+                    SUM(combined_nrr) as total_nrr_bonus
+                FROM (
+                    SELECT team_id, points as match_points, nrr_contribution as combined_nrr FROM scores
+                    UNION ALL
+                    SELECT p.team_id, 0 as match_points, (CASE WHEN hi.admin_score > 0 THEN hi.admin_score ELSE COALESCE(hi.initial_score, 0) END) / 100.0 as combined_nrr
+                    FROM hub_ideas hi
+                    JOIN players p ON hi.player_id = p.id
+                    WHERE p.team_id IS NOT NULL
+                ) combined
                 GROUP BY team_id
             `),
             db.execute(`
                 SELECT 
                     p.name,
                     p.team_id,
-                    SUM(s.score) as total_points
-                FROM scores s
-                JOIN players p ON s.player_id = p.id
-                WHERE s.player_id IS NOT NULL
+                    SUM(combined.points) as total_points
+                FROM (
+                    SELECT s.player_id, s.score as points FROM scores s WHERE s.player_id IS NOT NULL
+                    UNION ALL
+                    SELECT hi.player_id, CASE WHEN hi.admin_score > 0 THEN hi.admin_score ELSE COALESCE(hi.initial_score, 0) END as points FROM hub_ideas hi
+                ) combined
+                JOIN players p ON combined.player_id = p.id
                 GROUP BY p.id, p.name, p.team_id
                 ORDER BY total_points DESC
                 LIMIT 50

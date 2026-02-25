@@ -21,7 +21,7 @@ export async function proxy(request: NextRequest) {
                 if (isOwnerPath && user.role !== 'OWNER') {
                     return NextResponse.redirect(new URL('/', request.url));
                 }
-                if (isPlayerPath && user.role !== 'PLAYER') {
+                if (isPlayerPath && user.role !== 'PLAYER' && user.role !== 'OWNER') {
                     return NextResponse.redirect(new URL('/', request.url));
                 }
             } catch (e) {
@@ -60,7 +60,7 @@ export async function proxy(request: NextRequest) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 
-            if (request.nextUrl.pathname.startsWith('/api/player') && user.role !== 'PLAYER') {
+            if (request.nextUrl.pathname.startsWith('/api/player') && user.role !== 'PLAYER' && user.role !== 'OWNER') {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 

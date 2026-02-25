@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Star, Shield, LogOut, Zap, BarChart3, Clock, User, Home } from 'lucide-react';
+import { Trophy, Star, Shield, LogOut, Zap, BarChart3, Clock, User, Home, Lightbulb, Send, CheckCircle2, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -30,6 +30,74 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
     const [battleHistory, setBattleHistory] = useState<any[]>([]);
     const [questionStartTime, setQuestionStartTime] = useState<number>(0);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+    // --- INNOVATION HUB STATE ---
+    const [myIdeas, setMyIdeas] = useState<any[]>([]);
+    const [ideaTitle, setIdeaTitle] = useState('');
+    const [ideaContent, setIdeaContent] = useState('');
+    const [editingIdeaId, setEditingIdeaId] = useState<string | null>(null);
+    const [isIdeaSubmitting, setIsIdeaSubmitting] = useState(false);
+    const [ideaMessage, setIdeaMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    const fetchMyIdeas = async () => {
+        try {
+            const res = await fetch('/api/ideas/my');
+            if (res.ok) {
+                const data = await res.json();
+                setMyIdeas(data);
+            }
+        } catch (e) {
+            console.error("Failed to fetch ideas", e);
+        }
+    };
+
+    const handleIdeaSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!ideaTitle || !ideaContent) return;
+
+        setIsIdeaSubmitting(true);
+        setIdeaMessage(null);
+
+        try {
+            const res = await fetch('/api/ideas/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: editingIdeaId, title: ideaTitle, content: ideaContent })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                setIdeaMessage({ type: 'success', text: editingIdeaId ? `Idea updated and re-evaluated! New Score: ${data.score}/6. ${data.feedback}` : `Submission Received! Initial Score: ${data.score}/6. ${data.feedback}` });
+                setIdeaTitle('');
+                setIdeaContent('');
+                setEditingIdeaId(null);
+                fetchMyIdeas();
+            } else {
+                setIdeaMessage({ type: 'error', text: data.error || 'Failed to submit idea' });
+            }
+        } catch (e) {
+            setIdeaMessage({ type: 'error', text: 'Something went wrong during submission' });
+        } finally {
+            setIsIdeaSubmitting(false);
+        }
+    };
+
+    const handleEditIdea = (idea: any) => {
+        setEditingIdeaId(idea.id);
+        setIdeaTitle(idea.title);
+        setIdeaContent(idea.content);
+        setIdeaMessage(null);
+        // Scroll to form
+        const element = document.getElementById('innovation-hub');
+        if (element) element.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const cancelEdit = () => {
+        setEditingIdeaId(null);
+        setIdeaTitle('');
+        setIdeaContent('');
+        setIdeaMessage(null);
+    };
 
     const shuffleArray = <T,>(array: T[]): T[] => {
         const shuffled = [...array];
@@ -162,6 +230,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
     useEffect(() => {
         // Initial fetch (Full)
         fetchHeartbeat(false);
+        fetchMyIdeas();
 
         const channel = supabase
             .channel('player_realtime')
@@ -337,21 +406,25 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                         <Trophy className="text-accent w-5 h-5" /> Professional Profile
                     </h3>
                     <div className="space-y-6 relative z-10">
-                        <div className="flex justify-between items-end border-b border-white/5 pb-4">
-                            <div>
-                                <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Base Rating</p>
-                                <div className="flex gap-1 mt-1">
-                                    {[...Array(5)].map((_, i) => (
-                                        <Star key={i} className={`w-4 h-4 ${i < (user?.rating || 0) ? 'text-accent fill-accent' : 'text-white/10'}`} />
-                                    ))}
+                        {user.role !== 'OWNER' && (
+                            <>
+                                <div className="flex justify-between items-end border-b border-white/5 pb-4">
+                                    <div>
+                                        <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Base Rating</p>
+                                        <div className="flex gap-1 mt-1">
+                                            {[...Array(5)].map((_, i) => (
+                                                <Star key={i} className={`w-4 h-4 ${i < (user?.rating || 0) ? 'text-accent fill-accent' : 'text-white/10'}`} />
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <span className="text-2xl font-black text-white">{user?.rating || 0}.0</span>
                                 </div>
-                            </div>
-                            <span className="text-2xl font-black text-white">{user?.rating || 0}.0</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-white/5 pb-4">
-                            <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Auction Pool</p>
-                            <span className="text-xl font-bold text-accent italic">Pool {user?.pool || '?'}</span>
-                        </div>
+                                <div className="flex justify-between items-center border-b border-white/5 pb-4">
+                                    <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Auction Pool</p>
+                                    <span className="text-xl font-bold text-accent italic">Pool {user?.pool || '?'}</span>
+                                </div>
+                            </>
+                        )}
                         <div className="flex justify-between items-center border-b border-white/5 pb-4">
                             <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Total Earned Points</p>
                             <span className="text-xl font-bold text-green-500">{stats?.totalPoints?.toLocaleString() || '0'}</span>
@@ -360,10 +433,12 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                             <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Global Rank</p>
                             <span className="text-xl font-bold text-white">#{stats?.rank || '?'} <span className="text-[10px] text-gray-500 font-normal">/ {stats?.totalPlayers}</span></span>
                         </div>
-                        <div className="flex justify-between items-center">
-                            <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Signed Price</p>
-                            <span className="text-xl font-bold text-white">{user?.sold_price?.toLocaleString() || 'N/A'}</span>
-                        </div>
+                        {user.role !== 'OWNER' && (
+                            <div className="flex justify-between items-center">
+                                <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest">Signed Price</p>
+                                <span className="text-xl font-bold text-white">{user?.sold_price?.toLocaleString() || 'N/A'}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
@@ -423,7 +498,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     <div className="space-y-6 relative z-10 min-h-[250px] flex flex-col justify-between">
                         {activeBattle ? (
                             hasSubmitted || battleStep === 'result' ? (
-                                <div className="text-center space-y-4">
+                                <div className="text-center space-y-4 flex-1 flex flex-col justify-center">
                                     <Clock className="w-12 h-12 text-gray-500 mx-auto" />
                                     <h4 className="text-xl font-bold uppercase italic">Response Recorded</h4>
                                     <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">Awaiting final results from Admin</p>
@@ -543,7 +618,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                                 </div>
                             )
                         ) : (
-                            <div className="text-center space-y-4 opacity-40">
+                            <div className="text-center space-y-4 opacity-40 flex-1 flex flex-col justify-center">
                                 <Clock className="w-12 h-12 text-gray-600 mx-auto animate-spin-slow" />
                                 <h4 className="text-xl font-bold uppercase italic text-gray-500">No Active Battle</h4>
                                 <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">Stay tuned for the next call</p>
@@ -552,6 +627,140 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     </div>
                 </div>
             </div>
+
+            {/* Innovation Hub Section */}
+            <section id="innovation-hub" className="max-w-7xl mx-auto mt-12 mb-20 px-4 md:px-0">
+                <div className="flex items-center justify-between mb-8">
+                    <div>
+                        <h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter italic">Innovation Hub</h3>
+                        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Submit your ideas for UniConnect Roadmap</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Submission Form */}
+                    <div className="glass-card p-6 md:p-8 border-accent/10">
+                        <h4 className="text-lg font-bold mb-6 flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-2">
+                                <Lightbulb className="text-accent w-5 h-5" /> {editingIdeaId ? 'Update Your Idea' : 'Pitch New Idea'}
+                            </span>
+                            {editingIdeaId && (
+                                <button
+                                    onClick={cancelEdit}
+                                    className="text-[10px] font-black text-gray-400 hover:text-white transition-colors uppercase tracking-[0.1em]"
+                                >
+                                    Cancel
+                                </button>
+                            )}
+                        </h4>
+                        <form onSubmit={handleIdeaSubmit} className="space-y-4">
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Idea Title</label>
+                                <input
+                                    type="text"
+                                    value={ideaTitle}
+                                    onChange={(e) => setIdeaTitle(e.target.value)}
+                                    placeholder="e.g. AI-driven sentiment analysis for call transcripts"
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-accent outline-none transition-colors"
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2 block">Detailed Description</label>
+                                <textarea
+                                    value={ideaContent}
+                                    onChange={(e) => setIdeaContent(e.target.value)}
+                                    placeholder="Describe your idea, its impact on customer engagement, and how it aligns with UniConnect..."
+                                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-accent outline-none transition-colors min-h-[150px] resize-none"
+                                    required
+                                />
+                            </div>
+
+                            {ideaMessage && (
+                                <div className={`p-4 rounded-xl text-xs font-bold flex items-start gap-2 ${ideaMessage.type === 'success' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                                    {ideaMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <Zap className="w-4 h-4 shrink-0" />}
+                                    {ideaMessage.text}
+                                </div>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={isIdeaSubmitting}
+                                className="w-full btn-primary py-4 text-xs font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2"
+                            >
+                                {isIdeaSubmitting ? 'Evaluating...' : (
+                                    <>
+                                        {editingIdeaId ? 'Update & Re-evaluate' : 'Submit Idea'} <Send className="w-4 h-4" />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+                    </div>
+
+                    {/* My Ideas List */}
+                    <div className="glass-card p-6 md:p-8 border-white/5">
+                        <h4 className="text-lg font-bold mb-6 flex items-center gap-2">
+                            <Clock className="text-gray-400 w-5 h-5" /> My Submissions
+                        </h4>
+                        <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                            {myIdeas.length > 0 ? (
+                                myIdeas.map((idea, idx) => (
+                                    <div key={idx} className={`bg-white/5 border rounded-xl p-4 transition-colors ${editingIdeaId === idea.id ? 'border-accent shadow-[0_0_15px_rgba(249,115,22,0.1)]' : 'border-white/5 hover:border-white/10'}`}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex flex-col">
+                                                <h5 className="font-bold text-sm text-accent">{idea.title}</h5>
+                                                {idea.status && idea.status !== 'PENDING' && (
+                                                    <span className={`text-[8px] font-black uppercase tracking-widest mt-0.5 
+                                                        ${idea.status === 'APPROVED' ? 'text-green-500' :
+                                                            idea.status === 'NEEDS_IMPROVEMENT' ? 'text-yellow-500' : 'text-red-500'}
+                                                    `}>
+                                                        {idea.status.replace('_', ' ')}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] font-black bg-white/10 px-2 py-0.5 rounded text-gray-400 uppercase shrink-0">
+                                                {idea.admin_score > 0 ? `Final: ${idea.admin_score}` : `Initial: ${idea.initial_score}`}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-400 line-clamp-2 mb-3">{idea.content}</p>
+                                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
+                                            <span className="text-[9px] text-gray-500 font-bold uppercase">{new Date(idea.created_at).toLocaleDateString()}</span>
+                                            <div className="flex items-center gap-3">
+                                                {idea.is_featured === 1 && (
+                                                    <span className="text-[9px] text-yellow-500 font-black uppercase flex items-center gap-1">
+                                                        <Star className="w-2.5 h-2.5 fill-yellow-500" /> Featured
+                                                    </span>
+                                                )}
+                                                {(!(idea.status === 'APPROVED' || idea.status === 'REJECTED' || (idea.admin_score && idea.admin_score > 0))) && (
+                                                    <button
+                                                        onClick={() => handleEditIdea(idea)}
+                                                        className="text-[9px] font-black text-accent hover:underline uppercase tracking-widest"
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {idea.feedback && (
+                                            <div className="mt-3 p-2 bg-accent/5 rounded-lg border border-accent/10">
+                                                <p className="text-[10px] text-gray-400 italic font-medium leading-relaxed">
+                                                    "{idea.feedback}"
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-center py-12 opacity-30">
+                                    <Lightbulb className="w-12 h-12 mb-4" />
+                                    <p className="text-xs font-bold uppercase tracking-widest">No ideas yet</p>
+                                    <p className="text-[10px] mt-1">Start pitching to earn points!</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </section>
 
             {/* Recent Performance Section */}
             <section className="max-w-7xl mx-auto mt-12 mb-20">
@@ -574,10 +783,12 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                                 className="glass-card p-6 border-white/5 relative overflow-hidden group"
                             >
                                 <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                                    <Trophy className="w-12 h-12" />
+                                    {h.type === 'HUB' ? <Lightbulb className="w-12 h-12" /> : <Trophy className="w-12 h-12" />}
                                 </div>
                                 <div className="flex justify-between items-start mb-4">
-                                    <span className="text-[10px] font-black bg-accent/20 text-accent px-2 py-0.5 rounded uppercase tracking-widest italic">{h.type || 'BATTLE'}</span>
+                                    <span className={`text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest italic ${h.type === 'HUB' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-accent/20 text-accent'}`}>
+                                        {h.type === 'HUB' ? 'Innovation' : (h.type || 'BATTLE')}
+                                    </span>
                                     <span className="text-[10px] font-bold text-gray-500">{new Date(h.created_at).toLocaleDateString()}</span>
                                 </div>
                                 <h4 className="text-lg font-bold mb-4 line-clamp-1">{h.title}</h4>
@@ -604,7 +815,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                         </div>
                     )}
                 </div>
-            </section >
+            </section>
         </main >
     );
 }

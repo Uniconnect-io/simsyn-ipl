@@ -77,22 +77,33 @@ export async function GET(request: Request) {
                 args: []
             }),
             db.execute(`
-                SELECT player_id, SUM(score) as total 
-                FROM scores 
-                WHERE player_id IS NOT NULL 
+                SELECT player_id, SUM(points) as total 
+                FROM (
+                    SELECT player_id, score as points FROM scores WHERE player_id IS NOT NULL
+                    UNION ALL
+                    SELECT player_id, CASE WHEN admin_score > 0 THEN admin_score ELSE COALESCE(initial_score, 0) END as points FROM hub_ideas
+                ) combined
                 GROUP BY player_id 
                 ORDER BY total DESC
             `),
             db.execute({
                 sql: `
-                    SELECT m.title, s.score, s.points, m.type, m.created_at
-                    FROM scores s
-                    JOIN matches m ON s.match_id = m.id
-                    WHERE s.player_id = ? AND m.type != 'LEAGUE'
-                    ORDER BY m.created_at DESC
+                    SELECT * FROM (
+                        SELECT m.title, s.score, s.points, m.type, m.created_at
+                        FROM scores s
+                        JOIN matches m ON s.match_id = m.id
+                        WHERE s.player_id = ? AND m.type != 'LEAGUE'
+                        
+                        UNION ALL
+                        
+                        SELECT hi.title, (CASE WHEN hi.admin_score > 0 THEN hi.admin_score ELSE COALESCE(hi.initial_score, 0) END) as score, 0 as points, 'HUB' as type, hi.created_at
+                        FROM hub_ideas hi
+                        WHERE hi.player_id = ?
+                    ) history
+                    ORDER BY created_at DESC
                     LIMIT 5
                 `,
-                args: [session.user.id]
+                args: [playerId, playerId]
             })
         ]);
 
@@ -141,8 +152,18 @@ export async function GET(request: Request) {
                 db.execute('SELECT id, name FROM teams'),
                 db.execute("SELECT * FROM matches WHERE is_published = 1"),
                 db.execute(`
-                    SELECT team_id, SUM(points) as total_points, SUM(nrr_contribution) as total_nrr_bonus
-                    FROM scores
+                    SELECT 
+                        team_id, 
+                        SUM(match_points) as total_points, 
+                        SUM(combined_nrr) as total_nrr_bonus
+                    FROM (
+                        SELECT team_id, points as match_points, nrr_contribution as combined_nrr FROM scores
+                        UNION ALL
+                        SELECT p.team_id, 0 as match_points, (CASE WHEN hi.admin_score > 0 THEN hi.admin_score ELSE COALESCE(hi.initial_score, 0) END) / 100.0 as combined_nrr
+                        FROM hub_ideas hi
+                        JOIN players p ON hi.player_id = p.id
+                        WHERE p.team_id IS NOT NULL
+                    ) combined
                     GROUP BY team_id
                 `)
             ]);

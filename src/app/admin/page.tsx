@@ -31,7 +31,9 @@ import {
     Check,
     Upload,
     Edit3,
-    Edit
+    Edit,
+    Lightbulb,
+    Star
 } from 'lucide-react';
 import Link from 'next/link';
 import BattleHistoryTable from '@/components/BattleHistoryTable';
@@ -110,6 +112,21 @@ interface BattleIdea {
     captain_name: string;
 }
 
+interface HubIdea {
+    id: string;
+    player_id: string;
+    player_name: string;
+    title: string;
+    content: string;
+    initial_score: number;
+    admin_score: number;
+    feedback: string;
+    is_shortlisted: number;
+    is_featured: number;
+    status: string;
+    created_at: string;
+}
+
 export default function AdminPage() {
     const [players, setPlayers] = useState<Player[]>([]);
     const [owners, setOwners] = useState<Owner[]>([]);
@@ -125,8 +142,10 @@ export default function AdminPage() {
     const [newMinBid, setNewMinBid] = useState<number>(0);
     const [timeLeft, setTimeLeft] = useState<number | null>(null);
     const [auctionStatus, setAuctionStatus] = useState<any>(null);
-    const [activeTab, setActiveTab] = useState<'auction' | 'owners' | 'battles' | 'cases' | 'insights' | 'maintenance'>('auction');
+    const [activeTab, setActiveTab] = useState<'auction' | 'owners' | 'battles' | 'cases' | 'insights' | 'ideas' | 'maintenance'>('auction');
     const [startingAuctionId, setStartingAuctionId] = useState<string | null>(null);
+
+    const [hubIdeas, setHubIdeas] = useState<HubIdea[]>([]);
 
     // Battle Wizard State
     const [isCreatingBattle, setIsCreatingBattle] = useState(false);
@@ -302,6 +321,8 @@ export default function AdminPage() {
     useEffect(() => {
         if (activeTab === 'insights') {
             fetchBattleIdeas();
+        } else if (activeTab === 'ideas') {
+            fetchHubIdeas();
         }
     }, [activeTab]);
 
@@ -312,6 +333,33 @@ export default function AdminPage() {
             setBattleIdeas(data.ideas || []);
         } catch (error) {
             console.error('Error fetching battle ideas:', error);
+        }
+    };
+
+    const fetchHubIdeas = async () => {
+        try {
+            const res = await fetch('/api/admin/ideas');
+            if (res.ok) {
+                const data = await res.json();
+                setHubIdeas(data);
+            }
+        } catch (error) {
+            console.error('Error fetching hub ideas:', error);
+        }
+    };
+
+    const handleUpdateHubIdea = async (id: string, updates: any) => {
+        try {
+            const res = await fetch('/api/admin/ideas', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, ...updates }),
+            });
+            if (res.ok) {
+                fetchHubIdeas();
+            }
+        } catch (error) {
+            console.error('Error updating hub idea:', error);
         }
     };
     const resetUserPassword = async (userId: string) => {
@@ -816,7 +864,7 @@ export default function AdminPage() {
                 </button>
 
 
-                <button
+                {/* <button
                     onClick={() => setActiveTab('cases')}
                     className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'cases' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
@@ -827,6 +875,12 @@ export default function AdminPage() {
                     className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'insights' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
                 >
                     <BarChart className="inline-block w-4 h-4 mr-2" /> Insights
+                </button> */}
+                <button
+                    onClick={() => setActiveTab('ideas')}
+                    className={`px-6 py-2 rounded-lg font-bold transition-all whitespace-nowrap ${activeTab === 'ideas' ? 'bg-accent text-white' : 'text-gray-400 hover:text-white hover:bg-white/5'}`}
+                >
+                    <Lightbulb className="inline-block w-4 h-4 mr-2" /> Idea Hub
                 </button>
                 <button
                     onClick={() => setActiveTab('maintenance')}
@@ -1004,6 +1058,116 @@ export default function AdminPage() {
                     </section>
                 )
             }
+
+            {activeTab === 'ideas' && (
+                <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="flex justify-between items-end mb-8">
+                        <div>
+                            <h2 className="text-2xl font-black flex items-center gap-3">
+                                <Lightbulb className="text-accent" /> HUB IDEAS MANAGEMENT
+                            </h2>
+                            <p className="text-gray-400 mt-1">Review, rate, and feature player-submitted ideas.</p>
+                        </div>
+                    </div>
+
+                    <div className="glass-card overflow-hidden border-white/5">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-white/5 text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5">
+                                    <th className="px-6 py-4">Player</th>
+                                    <th className="px-6 py-4">Idea Title</th>
+                                    <th className="px-6 py-4 text-center">AI Score</th>
+                                    <th className="px-6 py-4 text-center">Admin Score</th>
+                                    <th className="px-6 py-4 text-center">Status</th>
+                                    <th className="px-6 py-4 text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {hubIdeas.map((idea) => (
+                                    <tr key={idea.id} className="hover:bg-white/[0.02] transition-colors group">
+                                        <td className="px-6 py-4">
+                                            <div className="font-bold text-sm text-white">{idea.player_name}</div>
+                                            <div className="text-[10px] text-gray-500">{new Date(idea.created_at).toLocaleDateString()}</div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <div className="font-bold text-sm text-accent mb-1">{idea.title}</div>
+                                            <div className="text-xs text-gray-400 line-clamp-1 group-hover:line-clamp-none transition-all duration-300 max-w-md">
+                                                {idea.content}
+                                            </div>
+                                            {idea.feedback && (
+                                                <div className="mt-2 text-[10px] text-gray-500 italic">
+                                                    AI: "{idea.feedback}"
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <span className="text-lg font-black text-white">{idea.initial_score}</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <div className="flex flex-col gap-1 items-center">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    {[25, 50, 100].map((score) => (
+                                                        <button
+                                                            key={score}
+                                                            onClick={() => handleUpdateHubIdea(idea.id, { admin_score: score, status: 'APPROVED' })}
+                                                            className={`px-2 py-1 rounded text-[10px] font-black transition-all ${idea.admin_score === score ? 'bg-accent text-white' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                                                        >
+                                                            {score}
+                                                        </button>
+                                                    ))}
+                                                    {idea.admin_score > 0 && (
+                                                        <button
+                                                            onClick={() => handleUpdateHubIdea(idea.id, { admin_score: 0, status: 'PENDING' })}
+                                                            className="px-2 py-1 rounded text-[10px] font-black bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                                                            title="Clear Score"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {idea.admin_score > 0 && <span className="text-[8px] text-green-500 font-bold uppercase tracking-widest">Final Scored</span>}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 text-center">
+                                            <select
+                                                value={idea.status || 'PENDING'}
+                                                onChange={(e) => handleUpdateHubIdea(idea.id, { status: e.target.value })}
+                                                className={`bg-black/50 border border-white/10 rounded px-2 py-1 text-[9px] font-black uppercase outline-none cursor-pointer transition-all
+                                                    ${idea.status === 'APPROVED' ? 'text-green-500 border-green-500/30' :
+                                                        idea.status === 'NEEDS_IMPROVEMENT' ? 'text-yellow-500 border-yellow-500/30' :
+                                                            idea.status === 'REJECTED' ? 'text-red-500 border-red-500/30' : 'text-gray-400'}
+                                                `}
+                                            >
+                                                <option value="PENDING">PENDING</option>
+                                                <option value="APPROVED">APPROVED</option>
+                                                <option value="NEEDS_IMPROVEMENT">NEEDS IMPROVEMENT</option>
+                                                <option value="REJECTED">REJECTED</option>
+                                            </select>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <button
+                                                onClick={() => handleUpdateHubIdea(idea.id, { is_featured: idea.is_featured ? 0 : 1 })}
+                                                className={`flex items-center gap-2 ml-auto px-4 py-2 rounded-lg font-black text-[10px] uppercase transition-all ${idea.is_featured ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20' : 'bg-white/5 text-gray-500 hover:text-white'}`}
+                                            >
+                                                <Star className={`w-3 h-3 ${idea.is_featured ? 'fill-black' : ''}`} />
+                                                {idea.is_featured ? 'FEATURED' : 'FEATURE'}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {hubIdeas.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className="px-6 py-20 text-center opacity-40">
+                                            <Lightbulb className="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                                            <p className="font-bold uppercase tracking-widest text-xs">No ideas submitted yet</p>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            )}
 
 
 

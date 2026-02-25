@@ -2,22 +2,24 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Gavel, BarChart2, Shield, Calendar, Star, Activity, Play, Zap, LayoutDashboard, ArrowRight } from 'lucide-react';
+import { Trophy, Gavel, BarChart2, Shield, Calendar, Star, Activity, Play, Zap, LayoutDashboard, ArrowRight, Lightbulb } from 'lucide-react';
 import Link from 'next/link';
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [activeBattles, setActiveBattles] = useState<{ groupMatches: any[], individualBattles: any[] }>({ groupMatches: [], individualBattles: [] });
   const [auctionStatus, setAuctionStatus] = useState<any>(null);
+  const [featuredIdeas, setFeaturedIdeas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [meRes, battlesRes, auctionRes] = await Promise.all([
+        const [meRes, battlesRes, auctionRes, featuredRes] = await Promise.all([
           fetch('/api/auth/me?_=' + Date.now(), { cache: 'no-store' }),
           fetch('/api/active-battles?_=' + Date.now(), { cache: 'no-store' }),
-          fetch('/api/auction/status?_=' + Date.now(), { cache: 'no-store' })
+          fetch('/api/auction/status?_=' + Date.now(), { cache: 'no-store' }),
+          fetch('/api/ideas/featured?_=' + Date.now(), { cache: 'no-store' })
         ]);
 
         const meData = await meRes.json();
@@ -28,6 +30,9 @@ export default function Home() {
 
         const auctionData = await auctionRes.json();
         setAuctionStatus(auctionData);
+
+        const featuredData = await featuredRes.json();
+        setFeaturedIdeas(featuredData);
 
         setLoading(false);
       } catch (error) {
@@ -73,6 +78,16 @@ export default function Home() {
   const isAuctionActive = auctionStatus?.status === 'ACTIVE';
 
   const cards = [
+    {
+      title: 'Innovation Hub',
+      desc: 'Pitch your ideas for the 2026 roadmap and earn massive points.',
+      icon: Lightbulb,
+      href: '/player',
+      color: 'bg-accent',
+      tag: 'NEW FEATURE',
+      hide: false,
+      highlight: true
+    },
     {
       title: 'Active Battle',
       desc: 'Battles are LIVE! Enter the War Zone and fight for your team.',
@@ -171,7 +186,9 @@ export default function Home() {
               transition={{ delay: idx * 0.1 }}
             >
               <Link href={card.href} className="flex h-full">
-                <div className={`bg-black/40 hover:bg-black/60 border border-white/10 hover:border-accent/50 p-8 rounded-3xl backdrop-blur-sm transition-all group w-full flex flex-col justify-between relative overflow-hidden ${card.tag === 'LIVE NOW' ? 'border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : ''}`}>
+                <div className={`bg-black/40 hover:bg-black/60 border transition-all group w-full flex flex-col justify-between relative overflow-hidden backdrop-blur-sm rounded-3xl p-8 
+                  ${(card as any).highlight ? 'border-accent shadow-[0_0_30px_rgba(249,115,22,0.15)] ring-1 ring-accent/20' : 'border-white/10 hover:border-accent/50'} 
+                  ${card.tag === 'LIVE NOW' ? 'border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)]' : ''}`}>
                   <div className={`absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity ${card.color.replace('bg-', 'text-')}`}>
                     <card.icon className="w-32 h-32 transform rotate-12 translate-x-8 -translate-y-8" />
                   </div>
@@ -196,6 +213,51 @@ export default function Home() {
             </motion.div>
           ))}
         </div>
+
+        {/* Featured Ideas Section */}
+        {featuredIdeas.length > 0 && (
+          <section className="mt-24 mb-12 relative z-10 w-full">
+            <div className="flex flex-col items-center mb-10">
+              <span className="text-accent font-black uppercase tracking-[0.3em] text-[10px] mb-3">Community Hub</span>
+              <h2 className="text-3xl md:text-5xl font-black italic tracking-tighter uppercase text-white">Featured Ideas</h2>
+              <div className="h-1 w-20 bg-accent/30 mt-4 rounded-full" />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {featuredIdeas.map((idea, idx) => (
+                <motion.div
+                  key={idea.id}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2 + (idx * 0.1) }}
+                  className="glass-card p-6 border-white/5 bg-white/5 hover:bg-white/[0.08] transition-all group cursor-default"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="bg-yellow-500/10 p-2 rounded-lg">
+                      <Star className="w-5 h-5 text-yellow-500 fill-yellow-500/20" />
+                    </div>
+                    {user && (
+                      <span className="text-[9px] font-black bg-white/10 px-2 py-1 rounded text-gray-400 uppercase tracking-widest leading-none">
+                        By {idea.player_name || 'Anonymous'}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-bold text-white group-hover:text-accent transition-colors mb-2">{idea.title}</h3>
+                  <p className="text-xs text-gray-400 leading-relaxed line-clamp-3 italic">
+                    "{idea.content}"
+                  </p>
+                  <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase">{new Date(idea.created_at).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-1">
+                      <Zap className="w-3 h-3 text-accent" />
+                      <span className="text-[10px] font-black text-white">{(idea.admin_score > 0 ? idea.admin_score : idea.initial_score)} Pts</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       {/* Background Ambience */}
