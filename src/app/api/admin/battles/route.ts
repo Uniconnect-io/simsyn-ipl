@@ -7,8 +7,8 @@ export async function GET() {
         await initDb();
         // Return all matches, potentially filtered by non-LEAGUE if requested by UI, 
         // but for now, let's keep it consistent with previous logic and return events that replaced individual_battles.
-        const rs = await db.execute("SELECT * FROM matches WHERE type != 'LEAGUE' ORDER BY created_at DESC");
-        return NextResponse.json(rs.rows);
+        const res = await db.execute("SELECT * FROM matches WHERE type != 'LEAGUE' ORDER BY created_at DESC");
+        return NextResponse.json(res.rows);
     } catch (error) {
         console.error('Failed to fetch individual battles:', error);
         return NextResponse.json({ error: 'Failed to fetch battles' }, { status: 500 });
@@ -22,19 +22,20 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { title, description, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, points_config } = await request.json();
-        const id = crypto.randomUUID();
+        const { title, description, mode, battle_type, team1_id, team2_id, start_time, question_timer, conductor_id, points_config, is_test } = await request.json();
 
+        const id = crypto.randomUUID();
         await db.execute({
-            sql: `INSERT INTO matches (
-                id, title, description, question_timer, mode, team1_id, team2_id, 
-                type, start_time, conductor_id, status, points_config
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)`,
+            sql: `INSERT INTO matches 
+                  (id, title, description, mode, type, team1_id, team2_id, status, start_time, question_timer, conductor_id, points_config, is_test) 
+                  VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)`,
             args: [
-                id, title, description, question_timer || 10, mode || 'TEAM',
-                team1_id || null, team2_id || null, battle_type || 'KAHOOT',
-                start_time || null, conductor_id || null,
-                points_config ? JSON.stringify(points_config) : JSON.stringify([5, 3, 1])
+                id, title, description, mode, battle_type,
+                team1_id || null, team2_id || null,
+                start_time || null, question_timer || 10,
+                conductor_id || null,
+                JSON.stringify(points_config || [5, 3, 1]),
+                is_test !== undefined ? is_test : true
             ]
         });
 
@@ -52,16 +53,26 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id, status, title, description, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, points_config } = await request.json();
+        const { id, status, title, description, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, points_config, is_test } = await request.json();
 
         if (status) {
             // If marking as COMPLETED, calculate team stats
             if (status === 'COMPLETED') {
                 const battleRs = await db.execute({
-                    sql: 'SELECT type, conductor_id, points_config FROM matches WHERE id = ?',
+                    sql: 'SELECT type, is_test, conductor_id, points_config FROM matches WHERE id = ?',
                     args: [id]
                 });
                 const battle = battleRs.rows[0] as any;
+
+                // Skip score updates for TEST sessions
+                if (battle?.is_test) {
+                    await db.execute({
+                        sql: 'UPDATE matches SET status = ? WHERE id = ?',
+                        args: [status, id]
+                    });
+                    return NextResponse.json({ success: true, message: 'Test session completed (no scores affected)' });
+                }
+
                 const pointsConfig = battle?.points_config ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config) : battle.points_config) : [5, 3, 1];
 
                 if (battle && battle.type === 'TECH_TALK' && battle.conductor_id) {
@@ -206,13 +217,15 @@ export async function PATCH(request: Request) {
             await db.execute({
                 sql: `UPDATE matches 
                       SET title = ?, description = ?, question_timer = ?, mode = ?, 
-                          team1_id = ?, team2_id = ?, type = ?, start_time = ?, conductor_id = ?, points_config = ?
+                          team1_id = ?, team2_id = ?, type = ?, start_time = ?, conductor_id = ?, points_config = ?, is_test = ?
                       WHERE id = ?`,
                 args: [
                     title, description, question_timer, mode,
                     team1_id || null, team2_id || null, battle_type,
                     start_time || null, conductor_id || null,
-                    points_config ? JSON.stringify(points_config) : null, id
+                    points_config ? JSON.stringify(points_config) : null,
+                    is_test !== undefined ? is_test : true,
+                    id
                 ]
             });
         }

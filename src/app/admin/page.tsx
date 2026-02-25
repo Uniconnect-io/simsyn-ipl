@@ -134,6 +134,7 @@ export default function AdminPage() {
     const [matches, setMatches] = useState<Match[]>([]);
     const [loading, setLoading] = useState(true);
     const [loggedInAdmin, setLoggedInAdmin] = useState<any>(null);
+    const [isCheckingSession, setIsCheckingSession] = useState(true);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
@@ -162,7 +163,8 @@ export default function AdminPage() {
         date: '',
         time: '',
         conductor_id: '',
-        points_config: '5, 3, 1'
+        points_config: '5, 3, 1',
+        is_test: true
     });
 
     const [conductorSearch, setConductorSearch] = useState('');
@@ -248,18 +250,25 @@ export default function AdminPage() {
 
     useEffect(() => {
         const checkSession = async () => {
-            const res = await fetch('/api/auth/me');
-            if (res.ok) {
-                const data = await res.json();
-                if (data.user.role === 'ADMIN') {
-                    setLoggedInAdmin(data.user);
-                    localStorage.setItem('sipl_admin', JSON.stringify(data.user));
-                    return;
+            try {
+                const res = await fetch('/api/auth/me');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.user.role === 'ADMIN') {
+                        setLoggedInAdmin(data.user);
+                        localStorage.setItem('sipl_admin', JSON.stringify(data.user));
+                        return;
+                    }
                 }
+                localStorage.removeItem('sipl_admin');
+                setLoggedInAdmin(null);
+                setLoading(false);
+            } catch (e) {
+                console.error("Session check failed", e);
+                setLoading(false);
+            } finally {
+                setIsCheckingSession(false);
             }
-            // If session is invalid or wrong role
-            localStorage.removeItem('sipl_admin');
-            setLoggedInAdmin(null);
         };
         checkSession();
     }, []);
@@ -268,8 +277,6 @@ export default function AdminPage() {
         if (loggedInAdmin) {
             fetchHeartbeat();
             fetchSchemes();
-        } else {
-            setLoading(false);
         }
     }, [loggedInAdmin]);
 
@@ -677,7 +684,8 @@ export default function AdminPage() {
                 date: '',
                 time: '',
                 conductor_id: '',
-                points_config: '5, 3, 1'
+                points_config: '5, 3, 1',
+                is_test: true
             });
             setBattleMode('INDIVIDUAL');
             setBattleType('KAHOOT');
@@ -764,7 +772,12 @@ export default function AdminPage() {
     };
 
 
-    if (loading) return <div className="p-8">Loading...</div>;
+    if (isCheckingSession || loading) return (
+        <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white">
+            <Shield className="w-12 h-12 text-red-500 animate-pulse mb-4" />
+            <p className="text-xs font-bold uppercase tracking-[0.3em] animate-pulse">Initializing SIPL Console...</p>
+        </div>
+    );
 
     if (!loggedInAdmin) {
         return (
@@ -1192,7 +1205,8 @@ export default function AdminPage() {
                                     date: '',
                                     time: '',
                                     conductor_id: '',
-                                    points_config: '5, 3, 1'
+                                    points_config: '5, 3, 1',
+                                    is_test: true
                                 });
                                 setBattleMode('INDIVIDUAL');
                                 setBattleType('KAHOOT');
@@ -1268,7 +1282,10 @@ export default function AdminPage() {
                                 <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
                                         <span className="text-[10px] font-black bg-purple-500/20 text-purple-500 px-2 rounded uppercase">INDIVIDUAL</span>
-                                        <span className="text-[10px] font-black bg-blue-500/20 text-blue-500 px-2 rounded uppercase">{battle.battle_type?.replace('_', ' ') || 'KAHOOT'}</span>
+                                        <span className="text-[10px] font-black bg-blue-500/20 text-blue-500 px-2 rounded uppercase">{battle.type?.replace('_', ' ') || 'KAHOOT'}</span>
+                                        {battle.is_test && (
+                                            <span className="text-[10px] font-black bg-red-500/20 text-red-500 px-2 rounded uppercase border border-red-500/30">TEST MODE</span>
+                                        )}
                                         <span className={`text-[10px] font-black px-2 rounded uppercase ${battle.status === 'ACTIVE' ? 'bg-green-500/20 text-green-500' : 'bg-gray-700/50 text-gray-500'}`}>
                                             {battle.status}
                                         </span>
@@ -1344,7 +1361,8 @@ export default function AdminPage() {
                                                 date: battle.start_time ? battle.start_time.split('T')[0] : '',
                                                 time: battle.start_time ? battle.start_time.split('T')[1]?.substring(0, 5) : '',
                                                 conductor_id: battle.conductor_id || '',
-                                                points_config: battle.points_config ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config).join(', ') : battle.points_config.join(', ')) : '5, 3, 1'
+                                                points_config: battle.points_config ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config).join(', ') : battle.points_config.join(', ')) : '5, 3, 1',
+                                                is_test: !!battle.is_test
                                             });
                                             setBattleMode(battle.mode);
                                             setBattleType(battle.type);
@@ -1998,118 +2016,134 @@ export default function AdminPage() {
                                                     </select>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    {battleType !== 'TECH_TALK' && (
-                                                        <div className="space-y-1">
-                                                            <label className="text-xs text-gray-400 font-bold uppercase">Question Timer (sec)</label>
-                                                            <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
-                                                                <Timer className="w-4 h-4 text-gray-500 mr-3" />
-                                                                <input
-                                                                    type="number"
-                                                                    value={wizardConfig.question_timer}
-                                                                    onChange={(e) => setWizardConfig({ ...wizardConfig, question_timer: parseInt(e.target.value) })}
-                                                                    className="bg-transparent border-none outline-none text-white w-full font-mono"
-                                                                    placeholder="10"
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {battleType !== 'TECH_TALK' && (
-                                                <div className="space-y-2 p-4 bg-white/5 border border-white/5 rounded-2xl w-full">
-                                                    <div className="flex justify-between items-center">
-                                                        <label className="text-xs text-gray-400 font-bold uppercase flex items-center gap-2">
-                                                            <Award className="w-4 h-4 text-accent" /> Team Points Ladder
-                                                        </label>
-                                                        <span className="text-[10px] text-gray-500 font-mono bg-black/40 px-2 py-0.5 rounded">[1st, 2nd, 3rd, ...]</span>
+                                                    <label className="text-xs text-gray-400 font-bold uppercase">Session Mode</label>
+                                                    <div className="flex items-center gap-4 mt-1">
+                                                        <button
+                                                            onClick={() => setWizardConfig({ ...wizardConfig, is_test: true })}
+                                                            className={`flex-1 py-3 px-4 rounded-xl border font-bold text-xs transition-all ${wizardConfig.is_test ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-black/40 border-white/10 text-gray-500'}`}
+                                                        >
+                                                            TESTING (Draft)
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setWizardConfig({ ...wizardConfig, is_test: false })}
+                                                            className={`flex-1 py-3 px-4 rounded-xl border font-bold text-xs transition-all ${!wizardConfig.is_test ? 'bg-green-500/20 border-green-500 text-green-500 font-black' : 'bg-black/40 border-white/10 text-gray-500'}`}
+                                                        >
+                                                            LIVE (Production)
+                                                        </button>
                                                     </div>
-                                                    <input
-                                                        type="text"
-                                                        value={wizardConfig.points_config}
-                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, points_config: e.target.value })}
-                                                        className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent font-mono text-sm tracking-wider"
-                                                        placeholder="5, 3, 1"
-                                                    />
-                                                    <p className="text-[10px] text-gray-500 italic">Enter points separated by commas. First value is for 1st place, second for 2nd, and so on.</p>
                                                 </div>
-                                            )}
-
-                                            <div className="space-y-2">
-                                                <label className="text-xs text-gray-400 font-bold uppercase">Title</label>
-                                                <input
-                                                    type="text"
-                                                    value={wizardConfig.title}
-                                                    onChange={(e) => setWizardConfig({ ...wizardConfig, title: e.target.value })}
-                                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
-                                                    placeholder={battleType === 'TECH_TALK' ? "Topic Name..." : "Battle Title..."}
-                                                />
-                                            </div>
-
-                                            <div className="space-y-2">
-                                                <label className="text-xs text-gray-400 font-bold uppercase">Description</label>
-                                                <textarea
-                                                    value={wizardConfig.description}
-                                                    onChange={(e) => setWizardConfig({ ...wizardConfig, description: e.target.value })}
-                                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent h-24 resize-none"
-                                                    placeholder="Description or instructions..."
-                                                />
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="space-y-2">
-                                                    <label className="text-xs text-gray-400 font-bold uppercase">Date</label>
-                                                    <input
-                                                        type="date"
-                                                        value={wizardConfig.date}
-                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, date: e.target.value })}
-                                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-xs text-gray-400 font-bold uppercase">Time</label>
-                                                    <input
-                                                        type="time"
-                                                        value={wizardConfig.time}
-                                                        onChange={(e) => setWizardConfig({ ...wizardConfig, time: e.target.value })}
-                                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {battleType === 'TECH_TALK' && (
-                                                <div className="space-y-2">
-                                                    <label className="text-xs text-gray-400 font-bold uppercase">Conductor (Player)</label>
-                                                    <div className="bg-black/40 border border-white/10 rounded-xl p-2">
-                                                        <div className="flex items-center px-2 mb-2">
-                                                            <Search className="w-4 h-4 text-gray-500 mr-2" />
+                                                {battleType !== 'TECH_TALK' && (
+                                                    <div className="space-y-1">
+                                                        <label className="text-xs text-gray-400 font-bold uppercase">Question Timer (sec)</label>
+                                                        <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
+                                                            <Timer className="w-4 h-4 text-gray-500 mr-3" />
                                                             <input
-                                                                type="text"
-                                                                placeholder="Search player..."
-                                                                value={conductorSearch}
-                                                                onChange={(e) => setConductorSearch(e.target.value)}
-                                                                className="bg-transparent border-none outline-none text-white text-sm w-full"
+                                                                type="number"
+                                                                value={wizardConfig.question_timer}
+                                                                onChange={(e) => setWizardConfig({ ...wizardConfig, question_timer: parseInt(e.target.value) })}
+                                                                className="bg-transparent border-none outline-none text-white w-full font-mono"
+                                                                placeholder="10"
                                                             />
                                                         </div>
-                                                        <div className="max-h-32 overflow-y-auto custom-scrollbar">
-                                                            {filteredConductors.map(p => (
-                                                                <div
-                                                                    key={p.id}
-                                                                    onClick={() => setWizardConfig({ ...wizardConfig, conductor_id: p.id })}
-                                                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer ${wizardConfig.conductor_id === p.id ? 'bg-accent text-white' : 'hover:bg-white/5 text-gray-400'}`}
-                                                                >
-                                                                    <div className="w-6 h-6 rounded-full bg-white/10 overflow-hidden">
-                                                                        <img src={`/assets/employee/thumb/${p.name.toLowerCase()}.png`} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + p.name)} />
-                                                                    </div>
-                                                                    <span className="text-xs font-bold">{p.name}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {battleType !== 'TECH_TALK' && (
+                                            <div className="space-y-2 p-4 bg-white/5 border border-white/5 rounded-2xl w-full">
+                                                <div className="flex justify-between items-center">
+                                                    <label className="text-xs text-gray-400 font-bold uppercase flex items-center gap-2">
+                                                        <Award className="w-4 h-4 text-accent" /> Team Points Ladder
+                                                    </label>
+                                                    <span className="text-[10px] text-gray-500 font-mono bg-black/40 px-2 py-0.5 rounded">[1st, 2nd, 3rd, ...]</span>
+                                                </div>
+                                                <input
+                                                    type="text"
+                                                    value={wizardConfig.points_config}
+                                                    onChange={(e) => setWizardConfig({ ...wizardConfig, points_config: e.target.value })}
+                                                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent font-mono text-sm tracking-wider"
+                                                    placeholder="5, 3, 1"
+                                                />
+                                                <p className="text-[10px] text-gray-500 italic">Enter points separated by commas. First value is for 1st place, second for 2nd, and so on.</p>
+                                            </div>
+                                        )}
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-gray-400 font-bold uppercase">Title</label>
+                                            <input
+                                                type="text"
+                                                value={wizardConfig.title}
+                                                onChange={(e) => setWizardConfig({ ...wizardConfig, title: e.target.value })}
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                                placeholder={battleType === 'TECH_TALK' ? "Topic Name..." : "Battle Title..."}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-gray-400 font-bold uppercase">Description</label>
+                                            <textarea
+                                                value={wizardConfig.description}
+                                                onChange={(e) => setWizardConfig({ ...wizardConfig, description: e.target.value })}
+                                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent h-24 resize-none"
+                                                placeholder="Description or instructions..."
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-2">
+                                                <label className="text-xs text-gray-400 font-bold uppercase">Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={wizardConfig.date}
+                                                    onChange={(e) => setWizardConfig({ ...wizardConfig, date: e.target.value })}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="text-xs text-gray-400 font-bold uppercase">Time</label>
+                                                <input
+                                                    type="time"
+                                                    value={wizardConfig.time}
+                                                    onChange={(e) => setWizardConfig({ ...wizardConfig, time: e.target.value })}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {battleType === 'TECH_TALK' && (
+                                            <div className="space-y-2">
+                                                <label className="text-xs text-gray-400 font-bold uppercase">Conductor (Player)</label>
+                                                <div className="bg-black/40 border border-white/10 rounded-xl p-2">
+                                                    <div className="flex items-center px-2 mb-2">
+                                                        <Search className="w-4 h-4 text-gray-500 mr-2" />
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Search player..."
+                                                            value={conductorSearch}
+                                                            onChange={(e) => setConductorSearch(e.target.value)}
+                                                            className="bg-transparent border-none outline-none text-white text-sm w-full"
+                                                        />
+                                                    </div>
+                                                    <div className="max-h-32 overflow-y-auto custom-scrollbar">
+                                                        {filteredConductors.map(p => (
+                                                            <div
+                                                                key={p.id}
+                                                                onClick={() => setWizardConfig({ ...wizardConfig, conductor_id: p.id })}
+                                                                className={`flex items-center gap-2 p-2 rounded cursor-pointer ${wizardConfig.conductor_id === p.id ? 'bg-accent text-white' : 'hover:bg-white/5 text-gray-400'}`}
+                                                            >
+                                                                <div className="w-6 h-6 rounded-full bg-white/10 overflow-hidden">
+                                                                    <img src={`/assets/employee/thumb/${p.name.toLowerCase()}.png`} className="w-full h-full object-cover" onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + p.name)} />
                                                                 </div>
-                                                            ))}
-                                                        </div>
+                                                                <span className="text-xs font-bold">{p.name}</span>
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
-                                            )}
+                                            </div>
+                                        )}
 
-                                        </div>      {battleMode === 'TEAM_VS_TEAM' && (
+                                        {battleMode === 'TEAM_VS_TEAM' && (
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-2">
                                                     <label className="text-xs font-bold uppercase text-gray-500 tracking-widest">Team 1</label>
@@ -2139,9 +2173,6 @@ export default function AdminPage() {
                                                 </div>
                                             </div>
                                         )}
-
-                                        <div className="space-y-2">
-                                        </div>
                                     </div>
                                 )}
 
@@ -2156,6 +2187,10 @@ export default function AdminPage() {
                                             <div className="flex justify-between">
                                                 <span className="text-gray-500">Type</span>
                                                 <span className="font-bold text-white">{battleType}</span>
+                                            </div>
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-500">Status</span>
+                                                <span className={`font-bold ${wizardConfig.is_test ? 'text-red-500' : 'text-green-500'}`}>{wizardConfig.is_test ? 'TEST MODE' : 'LIVE'}</span>
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-gray-500">Title</span>
@@ -2174,31 +2209,31 @@ export default function AdminPage() {
                                         </div>
                                     </div>
                                 )}
+                            </div>
 
-                                <div className="p-8 border-t border-white/5 flex justify-between bg-white/5">
+                            <div className="p-8 border-t border-white/5 flex justify-between bg-white/5">
+                                <button
+                                    onClick={() => setWizardStep(Math.max(1, wizardStep - 1))}
+                                    className={`px-6 py-3 font-bold text-gray-500 hover:text-white transition-all ${wizardStep === 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                                >
+                                    Back
+                                </button>
+                                {wizardStep < 3 ? (
                                     <button
-                                        onClick={() => setWizardStep(Math.max(1, wizardStep - 1))}
-                                        className={`px-6 py-3 font-bold text-gray-500 hover:text-white transition-all ${wizardStep === 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+                                        onClick={() => setWizardStep(wizardStep + 1)}
+                                        className="bg-white text-black font-black px-8 py-3 rounded-xl hover:scale-105 transition-all"
+                                        disabled={wizardStep === 2 && !wizardConfig.title}
                                     >
-                                        Back
+                                        Next
                                     </button>
-                                    {wizardStep < 3 ? (
-                                        <button
-                                            onClick={() => setWizardStep(wizardStep + 1)}
-                                            className="bg-white text-black font-black px-8 py-3 rounded-xl hover:scale-105 transition-all"
-                                            disabled={wizardStep === 2 && !wizardConfig.title}
-                                        >
-                                            Next
-                                        </button>
-                                    ) : (
-                                        <button
-                                            onClick={handleCreateBattle}
-                                            className="bg-accent text-white font-black px-8 py-3 rounded-xl hover:scale-105 transition-all shadow-lg shadow-accent/20"
-                                        >
-                                            {editingBattleId ? 'Update Battle' : 'Create Battle'}
-                                        </button>
-                                    )}
-                                </div>
+                                ) : (
+                                    <button
+                                        onClick={handleCreateBattle}
+                                        className="bg-accent text-white font-black px-8 py-3 rounded-xl hover:scale-105 transition-all shadow-lg shadow-accent/20"
+                                    >
+                                        {editingBattleId ? 'Update Battle' : 'Create Battle'}
+                                    </button>
+                                )}
                             </div>
                         </motion.div>
                     </motion.div>

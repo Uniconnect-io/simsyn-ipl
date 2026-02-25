@@ -6,7 +6,7 @@ export async function GET() {
         await initDb();
         const [teamsRs, matchesRs, teamScoresRs, playerRankingsRs] = await Promise.all([
             db.execute('SELECT id, name FROM teams'),
-            db.execute("SELECT * FROM matches WHERE is_published = 1"),
+            db.execute("SELECT * FROM matches WHERE is_published = 1 AND (is_test = false OR is_test IS NULL)"),
             db.execute(`
                 SELECT 
                     team_id, 

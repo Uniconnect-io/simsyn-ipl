@@ -16,7 +16,7 @@ export async function POST(request: Request) {
         // Check if battle is still active and within time window
         const [battleRs, questionsRs] = await Promise.all([
             db.execute({
-                sql: 'SELECT status, start_time, question_timer FROM matches WHERE id = ?',
+                sql: 'SELECT status, type, is_test, start_time, question_timer FROM matches WHERE id = ?',
                 args: [battleId]
             }),
             db.execute({
@@ -88,7 +88,19 @@ export async function POST(request: Request) {
             args: [id, battleId, questionId, session.user.id, isCorrect ? 1 : 0, runsAwarded, safeAnswer, safeResponseTime]
         });
 
-        // 4. Update cumulative score in scores table
+        // 4. Update cumulative score in scores table (SKIP for TEST battles)
+        if (battle.is_test) {
+            return NextResponse.json({
+                success: true,
+                isCorrect,
+                runsAwarded,
+                rank: isCorrect ? (runsAwarded === 6 ? 1 : runsAwarded === 4 ? 2 : runsAwarded === 3 ? 3 : runsAwarded === 2 ? 4 : '5+') : null,
+                correctOption: (qRs.rows[0] as any).correct_option,
+                isTest: true
+            });
+        }
+
+        // Update cumulative score in scores table
         // Get team_id for the player
         const playerRs = await db.execute({
             sql: 'SELECT team_id FROM players WHERE id = ?',

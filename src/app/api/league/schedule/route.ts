@@ -15,6 +15,7 @@ export async function GET() {
       LEFT JOIN teams t2 ON m.team2_id = t2.id
       LEFT JOIN teams w ON m.winner_id = w.id
       LEFT JOIN players p ON m.conductor_id = p.id
+      WHERE m.is_test = false OR m.is_test IS NULL
       ORDER BY m.start_time ASC, m.id ASC
     `);
 

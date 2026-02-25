@@ -19,7 +19,7 @@ export async function GET(request: Request) {
         if (action === 'status_check') {
             const [battleRs, playerBasicRs] = await Promise.all([
                 db.execute({
-                    sql: "SELECT * FROM matches WHERE status = 'ACTIVE' AND type != 'LEAGUE' LIMIT 1",
+                    sql: "SELECT *, is_test FROM matches WHERE status = 'ACTIVE' AND type != 'LEAGUE' ORDER BY created_at DESC LIMIT 1",
                     args: []
                 }),
                 db.execute({
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
                 args: [playerId]
             }),
             db.execute({
-                sql: "SELECT * FROM matches WHERE status = 'ACTIVE' AND type != 'LEAGUE' LIMIT 1",
+                sql: "SELECT *, is_test FROM matches WHERE status = 'ACTIVE' AND type != 'LEAGUE' ORDER BY created_at DESC LIMIT 1",
                 args: []
             }),
             db.execute(`

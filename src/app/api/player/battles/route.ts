@@ -54,6 +54,16 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Already submitted' }, { status: 400 });
         }
 
+        const battleRs = await db.execute({
+            sql: 'SELECT is_test FROM matches WHERE id = ?',
+            args: [battleId]
+        });
+        const isTest = (battleRs.rows[0] as any)?.is_test;
+
+        if (isTest) {
+            return NextResponse.json({ success: true, message: 'Test score received but not recorded' });
+        }
+
         const playerRs = await db.execute({
             sql: 'SELECT team_id FROM players WHERE id = ?',
             args: [session.user.id]

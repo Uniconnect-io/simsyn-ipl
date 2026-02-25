@@ -22,7 +22,7 @@ export async function GET() {
 
         // Fetch active Individual Battles (All other types)
         const individualBattles = await db.execute(`
-            SELECT id, title, description, status, type
+            SELECT id, title, description, status, type, is_test
             FROM matches
             WHERE status = 'ACTIVE' AND type != 'LEAGUE'
             ORDER BY created_at DESC

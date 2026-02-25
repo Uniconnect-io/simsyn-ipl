@@ -113,7 +113,8 @@ export default function Home() {
       href: '/owner',
       color: 'bg-blue-500',
       tag: 'Step 1',
-      hide: user?.role === 'ADMIN' || user?.role === 'PLAYER'
+      // Hide ONLY if we are sure the user is an ADMIN or a regular PLAYER
+      hide: !!user && (user.role === 'ADMIN' || user.role === 'PLAYER')
     },
     {
       title: 'Player Hub',
@@ -122,7 +123,8 @@ export default function Home() {
       href: '/player',
       color: 'bg-green-500',
       tag: 'Player',
-      hide: user && user.role !== 'PLAYER' && user.role !== 'OWNER'
+      // Hidden for Admins, visible for everyone else (including guests to log in)
+      hide: !!user && user.role === 'ADMIN'
     },
     {
       title: 'Schedule',
@@ -149,7 +151,8 @@ export default function Home() {
       href: '/admin',
       color: 'bg-red-500',
       tag: 'Global',
-      hide: user && user.role !== 'ADMIN'
+      // HIDDEN by default, only shown if confirmed ADMIN
+      hide: !user || user.role !== 'ADMIN'
     }
   ].filter(card => !card.hide);
 

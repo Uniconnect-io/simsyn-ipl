@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Star, Shield, LogOut, Zap, BarChart3, Clock, User, Home, Lightbulb, Send, CheckCircle2, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -18,9 +18,18 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
     const [loading, setLoading] = useState(true); // Still loading stats/battle
 
     const [activeBattle, setActiveBattle] = useState<any>(null);
+    const loadedBattleIdRef = useRef<string | null>(null);
+    const isFetchingQuestionsRef = useRef(false);
+
     const [hasSubmitted, setHasSubmitted] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [battleStep, setBattleStep] = useState<'lobby' | 'question' | 'result'>('lobby');
+    const battleStepRef = useRef<'lobby' | 'question' | 'result'>('lobby');
+
+    useEffect(() => {
+        battleStepRef.current = battleStep;
+    }, [battleStep]);
+
     const [battleQuestions, setBattleQuestions] = useState<any[]>([]);
     const [currentQuestion, setCurrentQuestion] = useState(0);
     const [battleScore, setBattleScore] = useState(0);
@@ -110,9 +119,36 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
         return shuffled;
     };
 
+    // --- PERSISTENT TIMER LOGIC ---
+    const getStoredStartTime = (battleId: string, questionId: string) => {
+        if (typeof window === 'undefined' || !battleId || !questionId) return null;
+        const key = `sipl_qstart_${battleId}_${questionId}`;
+        const stored = sessionStorage.getItem(key);
+        return stored ? parseInt(stored) : null;
+    };
+
+    const setStoredStartTime = (battleId: string, questionId: string, time: number) => {
+        if (typeof window === 'undefined' || !battleId || !questionId) return;
+        const key = `sipl_qstart_${battleId}_${questionId}`;
+        sessionStorage.setItem(key, time.toString());
+    };
+
+    const clearStoredStartTime = (battleId: string, questionId: string) => {
+        if (typeof window === 'undefined' || !battleId || !questionId) return;
+        const key = `sipl_qstart_${battleId}_${questionId}`;
+        sessionStorage.removeItem(key);
+    };
+
     // --- REAL-TIME DATA SYNC ---
-    const fetchHeartbeat = async (isPartialUpdate = false) => {
+    async function fetchHeartbeat(isPartialUpdate = false) {
         if (typeof document !== 'undefined' && document.hidden) return;
+
+        // CRITICAL: If the user is actively in a question session, we FREEZE heartbeats.
+        // This prevents 'individual_battle_answers' updates (from other players) 
+        // from triggering layout shifts or question jumps for this user.
+        if (battleStepRef.current === 'question') {
+            return;
+        }
 
         try {
             const url = isPartialUpdate ? '/api/player/heartbeat?action=status_check' : '/api/player/heartbeat';
@@ -136,19 +172,19 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
 
                 if (data.battle) {
                     const currentBattleId = data.battle.id;
-                    const prevBattleId = activeBattle?.id;
 
-                    // Only update if changed to avoid unnecessary re-renders
-                    if (JSON.stringify(activeBattle) !== JSON.stringify(data.battle)) {
+                    // 1. Only update battle object if ID or Status changed
+                    // This prevents 'activeBattle' from changing on every heartbeat just because of new object refs
+                    if (!activeBattle || activeBattle.id !== data.battle.id || activeBattle.status !== data.battle.status) {
                         setActiveBattle(data.battle);
                     }
 
                     // --- EXPIRY CHECK ---
                     const now = Date.now();
                     const startTime = new Date(data.battle.start_time).getTime();
-                    const totalQuestions = data.battle.total_questions || 10;
+                    const totalQuestionsCount = data.battle.total_questions || 10;
                     const perQuestionTime = data.battle.question_timer || 10;
-                    const totalDurationMs = totalQuestions * (perQuestionTime + 2) * 1000; // +2s for transitions
+                    const totalDurationMs = totalQuestionsCount * (perQuestionTime + 2) * 1000; // +2s for transitions
                     const buffer = 20000; // 20s grace period
 
                     if (data.battle.start_time && now > (startTime + totalDurationMs + buffer)) {
@@ -159,51 +195,116 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     }
                     // --------------------
 
-                    let questions = battleQuestions;
                     const answeredIds = data.answeredQuestionIds || [];
 
-                    // Fetch questions if new battle ID or empty
-                    if (prevBattleId !== currentBattleId || battleQuestions.length === 0) {
-                        const qRes = await fetch(`/api/player/battles/questions?battleId=${currentBattleId}`);
-                        const rawQuestions = await qRes.json();
+                    // 1. Fetch questions if new battle ID or empty
+                    if (currentBattleId !== loadedBattleIdRef.current || battleQuestions.length === 0) {
+                        if (isFetchingQuestionsRef.current) return;
+                        isFetchingQuestionsRef.current = true;
 
-                        // Transform & Shuffle
-                        const transformed = rawQuestions.map((q: any) => ({
-                            ...q,
-                            shuffledOptions: shuffleArray(q.options.map((opt: string, idx: number) => ({
-                                text: opt,
-                                originalIndex: idx
-                            })))
-                        }));
+                        try {
+                            const qRes = await fetch(`/api/player/battles/questions?battleId=${currentBattleId}`);
+                            if (!qRes.ok) throw new Error("Failed to fetch questions");
+                            const rawQuestions = await qRes.json();
 
-                        // Filter out already answered
-                        const remaining = transformed.filter((q: any) => !answeredIds.includes(q.id));
-                        questions = shuffleArray(remaining);
+                            // Transform & Shuffle
+                            const transformed = rawQuestions.map((q: any) => ({
+                                ...q,
+                                shuffledOptions: shuffleArray(q.options.map((opt: string, idx: number) => ({
+                                    text: opt,
+                                    originalIndex: idx
+                                })))
+                            }));
 
-                        // Critical: Only update if we actually got questions or battle changed
-                        if (questions.length > 0 || prevBattleId !== currentBattleId) {
-                            setBattleQuestions(questions);
-                            setCurrentQuestion(0);
-                            // Only reset timer if we are truly starting a new battle
-                            if (prevBattleId !== currentBattleId) {
-                                setTimeLeft(data.battle.question_timer || 10);
-                                setQuestionStartTime(Date.now());
+                            const isNewBattle = currentBattleId !== loadedBattleIdRef.current;
+
+                            // Set all questions (don't filter, to keep total count stable)
+                            setBattleQuestions(transformed);
+                            loadedBattleIdRef.current = currentBattleId;
+
+                            // On initial load of a battle, find where to start
+                            const nextUnansweredIndex = transformed.findIndex((q: any) => !answeredIds.includes(q.id));
+                            if (nextUnansweredIndex !== -1) {
+                                const qId = transformed[nextUnansweredIndex].id;
+                                const storedStart = getStoredStartTime(currentBattleId, qId);
+                                const now = Date.now();
+                                const perQTime = (data.battle.question_timer || 10);
+
+                                if (storedStart) {
+                                    const elapsed = (now - storedStart) / 1000;
+                                    if (elapsed >= perQTime) {
+                                        // It timed out while they were offline/refreshing
+                                        setCurrentQuestion(nextUnansweredIndex);
+                                        setQuestionStartTime(storedStart);
+                                        setTimeLeft(0);
+                                        handleAnswer(-1); // Trigger the submission
+                                    } else {
+                                        // Resume with remaining time
+                                        setCurrentQuestion(nextUnansweredIndex);
+                                        setQuestionStartTime(storedStart);
+                                        setTimeLeft(Math.max(1, Math.floor(perQTime - elapsed)));
+                                    }
+                                } else {
+                                    setCurrentQuestion(nextUnansweredIndex);
+                                }
+                            } else if (transformed.length > 0) {
+                                // All answered? 
+                                setHasSubmitted(true);
+                                setBattleStep('result');
                             }
+
+                            // Only reset timer if we are truly starting a new battle
+                            if (isNewBattle) {
+                                setTimeLeft(data.battle.question_timer || 10);
+                                const qId = transformed[nextUnansweredIndex]?.id;
+                                const now = Date.now();
+                                setQuestionStartTime(now);
+                                if (qId) setStoredStartTime(currentBattleId, qId, now);
+                                setAnswerFeedback(null);
+                                setBattleScore(0); // Reset session score for new battle
+                            }
+                        } catch (err) {
+                            console.error("Error loading questions:", err);
+                        } finally {
+                            isFetchingQuestionsRef.current = false;
+                        }
+                    } else if (battleStep !== 'question' || (!answerFeedback && !isSubmitting)) {
+                        // CRITICAL: If we are ALREADY in 'question' mode, we DON'T want the heartbeat
+                        // to touch our state unless we are idle. This prevents the "refresh" jitter.
+                        // Only sync the index if the user is in lobby or just finished a question.
+                        const nextUnansweredIndex = battleQuestions.findIndex((q: any) => !answeredIds.includes(q.id));
+                        if (nextUnansweredIndex !== -1 && nextUnansweredIndex > currentQuestion) {
+                            // Only jump FORWARD via heartbeat, never backward while playing
+                            setCurrentQuestion(nextUnansweredIndex);
                         }
                     }
 
-                    // Step Transition Logic
-                    if (questions.length > 0) {
-                        if (battleStep === 'lobby') {
+                    // 2. Step Transition Logic (Only move to 'question' if in 'lobby')
+                    if (battleQuestions.length > 0 || currentBattleId !== loadedBattleIdRef.current) {
+                        if (battleStep === 'lobby' && !data.hasSubmitted) {
                             setBattleStep('question');
-                            setTimeLeft(data.battle.question_timer || 10);
-                            setQuestionStartTime(Date.now());
-                            setHasSubmitted(false);
+                            const qId = battleQuestions[currentQuestion]?.id;
+                            const now = Date.now();
+                            const perQTime = (activeBattle?.question_timer || 10);
+
+                            const storedStart = getStoredStartTime(currentBattleId, qId);
+                            if (storedStart) {
+                                const elapsed = (now - storedStart) / 1000;
+                                if (elapsed >= perQTime) {
+                                    setTimeLeft(0);
+                                    handleAnswer(-1);
+                                } else {
+                                    setTimeLeft(Math.floor(perQTime - elapsed));
+                                    setQuestionStartTime(storedStart);
+                                }
+                            } else {
+                                setTimeLeft(perQTime);
+                                setQuestionStartTime(now);
+                                if (currentBattleId && qId) setStoredStartTime(currentBattleId, qId, now);
+                            }
                             setAnswerFeedback(null);
                         }
-                    } else if (activeBattle && !hasSubmitted) {
-                        // All questions answered
-                        setHasSubmitted(true);
+                    } else if (activeBattle && data.hasSubmitted && !answerFeedback) {
                         setBattleStep('result');
                     }
 
@@ -277,24 +378,32 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
     const [timeLeft, setTimeLeft] = useState(10);
     const [answerFeedback, setAnswerFeedback] = useState<any>(null);
 
+    // Use a ref for handleAnswer to avoid stale closure issues in setInterval
+    const handleAnswerRef = useRef(handleAnswer);
+    useEffect(() => {
+        handleAnswerRef.current = handleAnswer;
+    }, [handleAnswer]);
+
     useEffect(() => {
         let timer: NodeJS.Timeout;
+
+        // Timer only runs if we are in 'question' step, the clock is ticking, and no result is being shown
         if (battleStep === 'question' && timeLeft > 0 && !answerFeedback && !isSubmitting) {
             timer = setInterval(() => {
                 setTimeLeft(prev => {
-                    const newVal = prev - 1;
-                    if (newVal <= 0) {
+                    if (prev <= 1) {
                         clearInterval(timer);
+                        // Trigger timeout answer
+                        handleAnswerRef.current(-1);
                         return 0;
                     }
-                    return newVal;
+                    return prev - 1;
                 });
             }, 1000);
-        } else if (timeLeft === 0 && battleStep === 'question' && !answerFeedback && !isSubmitting) {
-            handleAnswer(-1); // Auto-fail if time runs out
         }
+
         return () => clearInterval(timer);
-    }, [battleStep, timeLeft === 0, !!answerFeedback, isSubmitting]);
+    }, [battleStep, !!answerFeedback, isSubmitting]); // Removed timeLeft dependency to prevent refresh jitter
 
     // Session Expiry Tracker (Precise)
     useEffect(() => {
@@ -317,7 +426,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
         return () => clearInterval(timer);
     }, [activeBattle, battleStep]);
 
-    const handleAnswer = async (index: number) => {
+    async function handleAnswer(index: number) {
         if (answerFeedback || isSubmitting) return;
 
         setSelectedIndex(index);
@@ -352,9 +461,14 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     setAnswerFeedback(null);
                     setSelectedIndex(null);
                     if (currentQuestion < battleQuestions.length - 1) {
-                        setCurrentQuestion(prev => prev + 1);
+                        const nextIndex = currentQuestion + 1;
+                        const nextQId = battleQuestions[nextIndex].id;
+                        const now = Date.now();
+
+                        setCurrentQuestion(nextIndex);
                         setTimeLeft(activeBattle.question_timer || 10);
-                        setQuestionStartTime(Date.now());
+                        setQuestionStartTime(now);
+                        if (activeBattle.id && nextQId) setStoredStartTime(activeBattle.id, nextQId, now);
                     } else {
                         setBattleStep('result');
                     }
@@ -534,7 +648,12 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                                                 </span>
                                             )}
                                         </div>
-                                        <h4 className="text-lg font-black uppercase text-green-500">{activeBattle.title}</h4>
+                                        <div className="flex items-center gap-2">
+                                            <h4 className="text-lg font-black uppercase text-green-500">{activeBattle.title}</h4>
+                                            {activeBattle.is_test && (
+                                                <span className="text-[10px] font-black bg-red-500/20 text-red-500 px-2 py-0.5 rounded border border-red-500/20 animate-pulse">MOCK</span>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-gray-400 mt-2">{activeBattle.description}</p>
                                     </div>
                                     <button
@@ -561,7 +680,12 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                                     </div>
 
                                     <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Question {currentQuestion + 1} / {battleQuestions.length}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Question {currentQuestion + 1} / {battleQuestions.length}</span>
+                                            {activeBattle.is_test && (
+                                                <span className="text-[8px] font-black bg-red-500/20 text-red-500 px-1.5 py-0.5 rounded border border-red-500/20">MOCK</span>
+                                            )}
+                                        </div>
                                         <div className="flex items-center gap-2">
                                             <Clock className={`w-3 h-3 ${timeLeft <= 3 ? 'text-red-500 animate-pulse' : 'text-gray-500'}`} />
                                             <span className={`text-xs font-black ${timeLeft <= 3 ? 'text-red-500' : 'text-accent'}`}>{timeLeft}s</span>
