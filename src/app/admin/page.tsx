@@ -1951,14 +1951,14 @@ export default function AdminPage() {
                         <motion.div
                             initial={{ scale: 0.9, y: 20 }}
                             animate={{ scale: 1, y: 0 }}
-                            className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl"
+                            className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
                         >
                             <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
                                 <h2 className="text-2xl font-black uppercase italic tracking-tighter">{editingBattleId ? 'Edit Battle' : 'Create New Battle'}</h2>
                                 <button onClick={() => { setIsCreatingBattle(false); setEditingBattleId(null); setWizardStep(1); }}><X className="w-5 h-5" /></button>
                             </div>
 
-                            <div className="p-8">
+                            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                                 {/* Step Indicator */}
                                 <div className="flex items-center gap-4 mb-8">
                                     {[1, 2, 3].map(step => (
