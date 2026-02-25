@@ -134,11 +134,11 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     setUser((prev: any) => ({ ...prev, ...data.player }));
                 }
 
-                // 3. Battle Logic
                 if (data.battle) {
+                    const currentBattleId = data.battle.id;
                     const prevBattleId = activeBattle?.id;
 
-                    // Only update if changed to avoid loop
+                    // Only update if changed to avoid unnecessary re-renders
                     if (JSON.stringify(activeBattle) !== JSON.stringify(data.battle)) {
                         setActiveBattle(data.battle);
                     }
@@ -162,9 +162,9 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     let questions = battleQuestions;
                     const answeredIds = data.answeredQuestionIds || [];
 
-                    // Fetch questions if new battle or empty
-                    if (prevBattleId !== data.battle.id || battleQuestions.length === 0) {
-                        const qRes = await fetch(`/api/player/battles/questions?battleId=${data.battle.id}`);
+                    // Fetch questions if new battle ID or empty
+                    if (prevBattleId !== currentBattleId || battleQuestions.length === 0) {
+                        const qRes = await fetch(`/api/player/battles/questions?battleId=${currentBattleId}`);
                         const rawQuestions = await qRes.json();
 
                         // Transform & Shuffle
@@ -179,13 +179,22 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                         // Filter out already answered
                         const remaining = transformed.filter((q: any) => !answeredIds.includes(q.id));
                         questions = shuffleArray(remaining);
-                        setBattleQuestions(questions);
-                        setCurrentQuestion(0);
+
+                        // Critical: Only update if we actually got questions or battle changed
+                        if (questions.length > 0 || prevBattleId !== currentBattleId) {
+                            setBattleQuestions(questions);
+                            setCurrentQuestion(0);
+                            // Only reset timer if we are truly starting a new battle
+                            if (prevBattleId !== currentBattleId) {
+                                setTimeLeft(data.battle.question_timer || 10);
+                                setQuestionStartTime(Date.now());
+                            }
+                        }
                     }
 
                     // Step Transition Logic
                     if (questions.length > 0) {
-                        if (battleStep === 'lobby' || (!activeBattle)) {
+                        if (battleStep === 'lobby') {
                             setBattleStep('question');
                             setTimeLeft(data.battle.question_timer || 10);
                             setQuestionStartTime(Date.now());
@@ -199,10 +208,12 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     }
 
                 } else {
-                    // No active battle
+                    // No active battle - use a small delay or check to avoid flickering
+                    // Only clear if we've officially ended
                     if (activeBattle) {
                         setActiveBattle(null);
-                        setBattleQuestions([]);
+                        // Don't immediately clear questions to avoid UI jump if heartbeat flickers
+                        // setBattleQuestions([]);
                         setBattleStep('lobby');
                     }
                 }
@@ -270,13 +281,20 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
         let timer: NodeJS.Timeout;
         if (battleStep === 'question' && timeLeft > 0 && !answerFeedback && !isSubmitting) {
             timer = setInterval(() => {
-                setTimeLeft(prev => prev - 1);
+                setTimeLeft(prev => {
+                    const newVal = prev - 1;
+                    if (newVal <= 0) {
+                        clearInterval(timer);
+                        return 0;
+                    }
+                    return newVal;
+                });
             }, 1000);
         } else if (timeLeft === 0 && battleStep === 'question' && !answerFeedback && !isSubmitting) {
             handleAnswer(-1); // Auto-fail if time runs out
         }
         return () => clearInterval(timer);
-    }, [battleStep, timeLeft, answerFeedback, isSubmitting]);
+    }, [battleStep, timeLeft === 0, !!answerFeedback, isSubmitting]);
 
     // Session Expiry Tracker (Precise)
     useEffect(() => {

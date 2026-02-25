@@ -127,52 +127,53 @@ export default function StandingsPage() {
                 </section>
 
                 {/* Player Standings */}
-                <section className="glass-card overflow-hidden">
-                    <div className="p-6 border-b border-white/5 bg-accent/5 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Award className="text-accent" />
-                            <h2 className="text-xl font-bold uppercase tracking-wider">Player Standings</h2>
+                <section className="space-y-6">
+                    <div className="flex items-center gap-2 p-2">
+                        <Award className="text-accent" />
+                        <h2 className="text-xl font-bold uppercase tracking-wider">Player Standings</h2>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {standings.players.map((player, idx) => (
+                            <div
+                                key={idx}
+                                className="glass-card p-4 flex items-center justify-between hover:bg-white/[0.05] transition-all group relative overflow-hidden"
+                            >
+                                <div className="absolute top-0 left-0 w-1 h-full bg-accent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                                <div className="flex items-center gap-4">
+                                    <div className="text-2xl font-black text-white/20 w-8">
+                                        {idx + 1}
+                                    </div>
+                                    <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 overflow-hidden shrink-0 shadow-lg">
+                                        <img
+                                            src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
+                                            alt={player.name}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
+                                        />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="font-bold text-white truncate group-hover:text-accent transition-colors">{player.name}</div>
+                                        <div className="text-[10px] text-gray-500 uppercase tracking-widest font-medium">Rank #{idx + 1}</div>
+                                    </div>
+                                </div>
+
+                                <div className="text-right">
+                                    <div className="text-accent font-black text-2xl tracking-tighter tabular-nums">
+                                        {player.total_points}
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 uppercase font-bold">Points</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {standings.players.length === 0 && (
+                        <div className="glass-card p-12 text-center text-gray-500 italic">
+                            No player standings available yet.
                         </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left">
-                            <thead>
-                                <tr className="border-b border-white/5 text-gray-400 text-xs uppercase tracking-widest">
-                                    <th className="p-6">Rank</th>
-                                    <th className="p-6">Player</th>
-                                    <th className="p-6 text-accent">Points</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {standings.players.map((player, idx) => (
-                                    <tr key={idx} className="border-b border-white/5 hover:bg-white/[0.02] transition-all">
-                                        <td className="p-6 font-black text-white/30">#{idx + 1}</td>
-                                        <td className="p-6 font-bold flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 overflow-hidden">
-                                                <img
-                                                    src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
-                                                    alt={player.name}
-                                                    className="w-full h-full object-cover"
-                                                    onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
-                                                />
-                                            </div>
-                                            <div>
-                                                <div className="text-white">{player.name}</div>
-                                            </div>
-                                        </td>
-                                        <td className="p-6 text-accent font-black text-xl">{player.total_points}</td>
-                                    </tr>
-                                ))}
-                                {standings.players.length === 0 && (
-                                    <tr>
-                                        <td colSpan={3} className="p-8 text-center text-gray-500 italic">
-                                            No player standings available yet.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                    )}
                 </section>
             </div>
         </main>

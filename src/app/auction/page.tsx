@@ -438,7 +438,7 @@ export default function AuctionPage() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 pb-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 gap-3 pb-2">
                             {displayTeams.map((team) => {
                                 const rank = sortedTeams.findIndex(t => t.id === team.id) + 1;
                                 return (
@@ -447,8 +447,8 @@ export default function AuctionPage() {
                                         layout
                                         className={`bg-white/5 p-3 rounded-xl border ${myTeamId && myTeamId === team.id ? 'border-accent bg-accent/5' : 'border-white/5'} flex flex-col gap-3 group hover:bg-white/10 transition-colors`}
                                     >
-                                        <div className="flex justify-between items-center mb-2">
-                                            <div className="flex items-center gap-3">
+                                        <div className="flex justify-between items-center gap-4 mb-2">
+                                            <div className="flex items-center gap-3 min-w-0">
                                                 <div className="w-14 h-14 rounded bg-white/5 border border-white/10 shrink-0 overflow-hidden">
                                                     <img
                                                         src={`/assets/teamlogos/${team.name.toLowerCase().replace(' ', '_')}.png`}
@@ -468,7 +468,7 @@ export default function AuctionPage() {
                                                 </div>
                                             </div>
                                             <div className="text-right shrink-0">
-                                                <p className="text-accent font-black text-2xl">{team.balance.toLocaleString()}</p>
+                                                <p className="text-accent font-black text-xl">{team.balance.toLocaleString()}</p>
                                                 <p className="text-[10px] uppercase text-gray-500 font-bold">Tokens</p>
                                             </div>
                                         </div>
