@@ -19,6 +19,8 @@ interface AuctionStatus {
     currentBidderName?: string;
     timerEnd?: string;
     tags?: string;
+    points?: number;
+    rank?: number | string;
     nextPlayer?: { name: string, pool: string, min_bid: number, tags?: string };
     nextPlayers?: { name: string, pool: string, min_bid: number, tags?: string }[];
 }
@@ -303,6 +305,20 @@ export default function AuctionPage() {
                                         </div>
                                     )}
                                     <p className="text-gray-400">Base Price: <span className="text-white font-bold">{auction.basePrice?.toLocaleString()}</span></p>
+                                    {auction.points !== undefined && (
+                                        <div className="flex justify-center gap-4 mt-2">
+                                            <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-lg border border-white/10">
+                                                <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Points</span>
+                                                <span className="text-white font-bold">{auction.points}</span>
+                                            </div>
+                                            {auction.rank && (
+                                                <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-lg border border-white/10">
+                                                    <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Rank</span>
+                                                    <span className="text-yellow-500 font-black">#{auction.rank}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="bg-black/40 p-6 rounded-2xl border border-white/5 space-y-6">

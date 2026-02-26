@@ -1,0 +1,248 @@
+"Automatically Generate Disposition Script based on the IVR Menu Selections of the Customer","In the current Uniconnect System, The Inbound disposition Script is based on a Persistent configuration. The new idea suggests to make it dynamic based on the IVR option selections of the caller(Customer).","simsyn","1","0"
+"Invite Other Systems Like 3CX","Enable plugins for other systems like 3CX to connect with Uniconnect. The customer should be able to connect with uniconnect without any dipendancies.","Chamilka","3","2"
+"Visually call categorisation","Incoming call groups or individuals are presented with different colors in order to identify them separately for the agent.","Pramuditha","1","0"
+"Based on status of campaign, automatically trigger sms, IVR and emails","As an example, when running a campaign, if the customer doesn't answer the call, it triggers an sms, IVR, or email.","Pramuditha","1","2"
+"Transcript or voice recording of a call shared with the customer end as a proof","Since calls don't have proof like emails, transcripts, and voice recordings of a call are taken as proof.","Pramuditha","1","2"
+"Checking the stability of connection","Results can be shown in real-time. Then an agent or supervisor can get appropriate actions","Pramuditha","1","2"
+"Automating Campaign Management","1.Scheduled Campaigns: Implement functionality to automatically start and stop campaigns at specific times.\
+\
+2.Reschedule Campaigns: Automatically reschedule unreachable or unanswered numbers from completed campaigns.\
+\
+3.Campaign Prioritization: When a campaign is marked as high priority, stop other campaigns assigned to the same agent or queue and prioritize the high-priority campaign. Resume the stopped campaigns once the high-priority campaign is finished.\
+\
+4.Extend Campaign Time: Add conditions to extend campaign duration if there are still numbers left to dial when the campaign is about to end.\
+\
+5.Calendar-Based Campaigns: Admin can set events in the calendar, which automatically triggers the start and stop of campaigns at specified times.\
+\
+6.Rules and Triggers: Automatically start or stop campaigns based on agent or queue availability.\
+\
+7.Alerts: Send notifications to agents when a campaign starts or is about to stop.","Asik","1","2"
+"Add a calendar to uniconnect","* User can find out all the schedule campaign start date and time and end date and time in the calamity \
+* follow ups need to added in calendar\
+* calendar need to be maintain based on users and also based on organization \
+* and also need to get the SLA time for the tickets in calendar as a deadline of each ticket \
+*","Nimnadi","1","2"
+"Maintain day off ( leave ) and half day leave in system and a report for that","* users can request a leave or half day in the system from the responsible users \
+* need to maintain a separate status or current in the system they can customize own status so they can do it by their own \
+* and system need to get a report for attendance cuz if it is a large company it getting easy end of the month if they can generate a attendance report fro finance and check the user availability \
+* because we getting a report need to decide to get this attendance status going to be maintains as a  mandatory as a available status or going to capture this as a separate status \
+\
+*","Nimnadi","1","2"
+"Identifying the SIP response codes","If we can add \"SIP response codes\" based reports (especially to Dialers)  it will help to have more visibility and the nature of calls deeply (inbound and outbound).","Kalana","1","2"
+"Assist other Agents Remotly (Like Screen share)","If someone can assist another person remotly without installing any application, That helps them resolve the following\
+1. Resolving day today's runtime issues\
+2. Trainings \
+\
+ETC","Kalana","1","2"
+"Mobile Number analysis","feature to give agents about the mobile number.\
+\
+01) usually call answer time\
+02) Customer Behavior\
+03) what are the interests\
+04) what are the companies dealing with customer","Chamilka","1","0"
+"Super Administrator Account","This should be system's default user account with all the access. and others should unable to change or delete this account. system critical feature access should be available only for this user.\
+\
+like\
+\
+system permissions.\
+feature management.","Chamilka","1","2"
+"Transparency","should be a way to find who did this and what is the user do in the system.","Chamilka","1","2"
+"Test Idea decline","Test Idea decline","Manoj","1","2"
+"Need to show whether uniconnect or 3CX chnaged the status","When checking the activity report, the user cannot identify the status changed method/option whether using the uniconnect or 3cx","Shyamodani","1","2"
+"Enhancement of UniConnect Edge Docking Mode for Flexible Screen Positioning","Is it possible to enhance the UniConnect Edge Docking Mode so that agents can dock the interface not only at the top of the screen but also on the left and right sides, based on their preference? This enhancement would provide agents with greater flexibility in organizing their workspace and could potentially improve their workflow efficiency.","Deshan","1","0"
+"Speaker Verification System Integrated","To enhance security and efficiency in call centers, especially in the banking sector, I propose a speaker verification system integrated with visual indicators to assist agents in verifying caller identity. Upon receiving a call, the system uses advanced voice recognition technology to analyze the caller's voice. During the initial verification process, a green indicator blinks, signaling the system's active identification process. If the caller is successfully verified, the indicator turns solid green, allowing the call to proceed. If the system detects a potential mismatch or if someone else answers the call accidentally, a yellow indicator blinks, prompting the agent to reverify the caller's identity through additional security questions. In cases where reverification shows a significant deviation from the stored voiceprint, a red indicator blinks, alerting the agent to a high risk of fraud or unauthorized access, and enabling them to decline the call. This system enhances security by reducing fraud risk, improves efficiency by streamlining the verification process, and provides real-time alerts to aid in quick decision-making, thereby ensuring a smoother and more secure customer experience.","Deshan","1","0"
+"Efficiency Recommendation Widget for Managers","Uniconnect handles queue management and agent allocation based on predefined rules on 3cx. However, it lacks the capability to provide predictive insights and recommendations to managers. As a result, inefficiencies such as high dropped call rates, overstaffed or understaffed queues, and suboptimal agent utilization may go unnoticed until they significantly impact performance.\
+\
+To addressing above, can integrate recommendation engine to uniconnect, that continuously analyzes call center data and provides actionable insights to improve efficiency. This will allow us to significantly highlight and differentiate Uniconnect in the market driving greater visibility and demand.\
+Key functionalities:\
+1.	Dropped Call Analysis: Monitors dropped calls and identifies patterns that may indicate issues with specific agents or queues. Based on this data, it recommends adjustments such as reassigning agents or altering call routing strategies.\
+2.	Dynamic Staffing Recommendations: By analyzing real time queue data, predict when additional agents are needed to manage incoming call volumes effectively. Conversely, if a queue is consistently overstaffed, can suggest reallocating agents to other queues.\
+3.	Idle Time Optimization: Tracks agent idle times and suggests reallocating agents from underutilized queues to busier ones, ensuring that all resources are used efficiently.\
+4.	Predictive Queue Management: Predicts peak call times and recommends staffing adjustments in advance, reducing wait times and improving customer satisfaction.","Ashan","1","1"
+"Without using the VTGCRM it better to get the ticket flow history in to uniconnect ticketing module","Starting from the \"Create Ticket\" stage, it would be better to show the entire flow of the ticket, including the dates and times of all actions. This should include all comments, field changes, and updates, each displayed with the associated username, date, and time. Additionally, it would be beneficial if we could generate a report of this information as a ticket log.","Nimnadi","1","0"
+"follow-up pop-up notfication","Currently, in the system, all follow-up notifications are received under the notification option. However, the follow-up list only appears when the user clicks on the notification icon. If users have scheduled manual follow-up calls, it would be better to have a popup notification appear in the bottom right corner at the exact date and time of the follow-up.\
+\
+If the user is not logged in at the scheduled time for the follow-up call, the notification can be marked as a reminder. Once the user logs in, they will see the notification count on the notification icon. When they click on it, the reminder for the follow-up call will be displayed.","Nimnadi","1","0"
+"it better to remove available status only for the CRM using customers","Currently, we provide all customers with the Uniconnect available status. However, if a customer is only focusing on the CRM module, we can simplify their experience by offering only the 3CX available status and removing the Uniconnect availability status. For reports and dashboards, we can continue using the 3CX available status to avoid confusion caused by changing availability statuses.\
+\
+Additionally, it would be better to gather requirements from the project management side. If the customer uses features like break approval or special customizations tied to the available status, we can provide the Uniconnect available status option. Otherwise, it is preferable to hide it.","Nimnadi","1","0"
+"Voice or Text translation Real Time","If the Agent has the option to translate the conversation (Voice or Text) to the customer's preferred language. I hope the agent can engage more with the customer and resolve their problems efficiently.","Kalana","1","2"
+"Embedding smart collaboration tools into the Uniconnect Edge softphone","Embedding smart collaboration tools into the softphone, such as file sharing, screen sharing, and collaborative note-taking during calls. While on a call, users can seamlessly share files from cloud storage or take notes in a collaborative document, which is auto-saved and attached to the call log or CRM for future reference.\
+Include seamless integration with popular collaboration platform e.g. Trello for easy sharing of files and update during calls","Reshmi","1","2"
+"Enhanced Tactile Alerts for calls in UniConnect Edge","Use haptic feedback (Enhanced Tactile Alerts ) on mobile devices to create subtle vibrations during key moments of the call (e.g., when someone is about to speak, or during moments of silence) to enhance communication flow.","Reshmi","1","0"
+"DID and DOD number search","I would like to propose an enhancement to the 3CX or Uniconnect platform regarding the SIP tab functionality. Currently, there is no search option available to quickly locate DID numbers. For setups involving a large number of DIDs, it becomes challenging to manually go through all entries.\
+\
+Adding a search feature in the SIP tab for DIDs would significantly improve the efficiency of both the support and TechOps teams by streamlining their workflow and reducing time spent on this task.\
+\
+Please consider this suggestion for future updates, as it would greatly benefit operational efficiency.","Chanuka","1","0"
+"Uniconnect whatsapp send reply","As part of our efforts to improve Uniconnect, we would like to propose the addition of a reply function directly within the Uniconnect interface. This feature will enable users to respond to messages without having to switch between platforms, streamlining communication workflows.\
+\
+Furthermore, we recommend that all 3CX-integrated Meta accounts should be able to send replies directly from Uniconnect, removing the need to rely on 3CX for message replies. This integration enhancement will significantly improve user experience and reduce response time.","Chanuka","1","0"
+"Predicting the time the campaign ends","Predicting the time the campaign ends","Pramuditha","1","1"
+"Test Idea Submission","Test Idea Submission","Manoj","1","2"
+"Create Chat app in uniconnect","Add a default sharing page(for sharing the users) and a chat box to chat with agents. or create a chat box as a web extension to add to the company's official websites.\
+and it connect to uniconnect tab.","Achila","1","0"
+"Real-Time Queue Logout Notifications for Managers in Uniconnect","Objective:\
+To provide real-time notifications to managers when agents log out of a queue during working hours while still showing an \"available\" status. These alerts will improve queue management and operational efficiency by enabling prompt action to maintain seamless call handling.\
+\
+Problem:\
+In the 3CX system, agents can log out of a queue while keeping their overall status set to \"Available.\" This can disrupt the call flow and reduce customer service efficiency during working hours. Managers need timely information to take corrective action when agents exit queues but remain in an \"available\" state.\
+\
+Proposed Solution:\
+Using a Call Control API, a custom notification system will be developed to monitor agent login/logout activity in queues while also tracking their availability status. By integrating this functionality with Uniconnect, managers will receive real-time alerts when agents log out of a queue but stay marked as \"available.\" This will help managers respond quickly to potential staffing gaps and ensure continuous coverage in the queue.\
+\
+Uniconnect’s notification system will send managers detailed alerts, including:\
+Agent name\
+Time of logout\
+Queue from which the agent logged out\
+The agent's current \"available\" status\
+\
+Benefits:\
+1. Improved Queue Management\
+2. Increased Accountability\
+3. Enhanced Operational Efficiency\
+\
+Future Expansion:\
+This solution can be extended to include additional queue monitoring capabilities, such as tracking agent inactivity or setting thresholds for availability, further improving overall queue management.","Sanduni","1","0"
+"Enhanced Reporting Module for CRM Statistics","Reporting module for CRM statistics to capture and display detailed CRM statistics, including the status of contacts, tickets, and leads, directly through the Uniconnect. This will eliminate the need for scheduled reports through vTiger, allowing users to view real-time CRM data, generate detailed reports. \
+\
+Features:\
+\
+1. Real time data capturing: Display real-time statistics on how many tickets are open, how many are resolved, how many leads are pending, and how many have been successfully converted or lost\
+\
+2. Customized Filtering Options: Filters can be applied through easy-to-use configuration settings within Uniconnect, enabling users to view only the data that’s most relevant to their operations","Sanduni","1","0"
+"Virtual Assistance for easy tutorial","Although the Project Manager provides thorough knowledge transfer (KT) to users, some still experience real-time questions or uncertainties while using the system. These questions might be due to momentary forgetfulness or unclear steps for certain features. In such cases, they may reach out to the support hotline or seek help from their supervisor or senior user—even if they’re already on a call with a customer.\
+\
+To address this, we could implement a virtual assistant, which I’d like to call 'Helper Kitty.' Helper Kitty could be represented by a small, animated 'cat' icon (reflecting the simplicity and calmness of a sleeping cat) in the corner of our Uniconnect product interface. When clicked, it would greet the user with a message like, 'Hi! What can I help you with?' along with a search dialog box.\
+\
+In this dialog, users could type their questions, such as 'How to find Abended queue call details' or 'How to search for a customer by phone number.'\
+\
+The system would then respond with the correct steps to help the user access the requested feature.\
+\
+This feature may seem small, but it would offer significant support and convenience for users.","Steevan","1","0"
+"Virtual Assistance to guide the user for system features","Although the Project Manager provides thorough knowledge transfer (KT) to users, some still experience real-time questions or uncertainties while using the system. These questions might be due to momentary forgetfulness or unclear steps for certain features. In such cases, they may reach out to the support hotline or seek help from their supervisor or senior user—even if they’re already on a call with a customer.\
+\
+To address this, we could implement a virtual assistant, which I’d like to call 'Helper Kitty.' Helper Kitty could be represented by a small, animated 'cat' icon (reflecting the simplicity and calmness of a sleeping cat) in the corner of our Uniconnect product interface. When clicked, it would greet the user with a message like, 'Hi! What can I help you with?' along with a search dialog box.\
+\
+In this dialog, users could type their questions, such as 'How to find Abended queue call details' or 'How to search for a customer by phone number.'\
+\
+The system would then respond with the correct steps to help the user access the requested feature.\
+\
+This feature may seem small, but it would offer significant support and convenience for users.","Steevan","1","0"
+"Recommend transcription summerizations of previous calls","since 3cx has a transcription feature, by enabling that we can do some summarization using prebuild models / LLMs or using custom NLP models. when agents get a call or call to the customer, if we display the summary of the previous call that might help agents reduce the time and resolve the customer's queries easily.","Vithursan","1","0"
+"Notify missed call and call history on Edge","notify if the agent got any missed calls and also when we add call history much easier for agent.","Vithursan","1","0"
+"Direct In-App Refund","When I'm in Uber technology, there is an option to initiate a Refund to related complaints which is getting from Uber Eats & Uber Rides.\
+\
+The flow is,\
+1. Cx raise a complaint through mail/call to the call center.\
+2. If it is an complaint to be initiate a refund (ex: Food stale/Food missing or Any rides complaints as overcharged/charged without using the app), the agent checking the criteria and customer account eligibility as per the organization refund policy and then initiating the refund from the CRM.\
+3.The refund request will get assigned to a supervisor and if all verifications are met, supervisor will accept the refund and it'll go to the customer's Application as 'Points'. So customer can use the points when ordering food or rides.\
+\
+I need to explain this in detailed to the management if this is a reasonable update to our CRM system.\
+\
+I'll be 10000% confident as this feature will definitely attract the organizations which is based on Transport company/Food delivery companies like Pickme etc.","Steevan","1","0"
+"Pluggable Multichannel Chatbot with Intelligent Query Resolution","pluggable chatbot that can be integrated into multiple platforms like the web, WhatsApp, and mobile SDK, where customers can ask questions. can have an intelligent bot based on a pre-trained service provider's data. if the bot can't resolve the queries can be assigned to the agent. Since we having uniconnect edge we can handle the agent dashboards from there.","Vithursan","1","0"
+"Call Log view option for Departments wise","Need to call log view option for Departments wise - 3VC 20 call log & recording , report permission granted to Departments wise","Lasitha","1","0"
+"Audit Log","Added to Audit Log ( Edit , change , deleted & etc )","Lasitha","1","0"
+"Activity Summary score option","Activity Summary score option - added to Agents & need to review agent list","Lasitha","1","0"
+"Text to Voice for IVR Campaign","Text to Voice for IVR Campaign / Create a replica based on input voice.","Pramuditha","1","0"
+"Sentiment Analysis On Voice Data - Edge","After the call, a report shows an emotional timeline, helping users understand how the mood evolved during the conversation.\
+Example: 70% calm, 20% frustrated, 10% happy.","Asik","1","0"
+"Real time voice subtitles - Edge","Translates spoken words into subtitles or text in real time.","Asik","1","0"
+"One-Tap Actions for Frequent Tasks - Edge","Shortcuts for common actions like transferring calls, muting, or adding notes.","Asik","1","0"
+"UX for Multitasking - Edge","Integrates with split-screen workflows for maximum productivity.","Asik","1","0"
+"Customizable Stress-Level Indicator for Agents","1. Visual indicator to encourage agents to take breaks.\
+\
+2. Suggests relaxing animations or breathing exercises during downtime.","Asik","1","0"
+"CRM Ticketing Feature - Enterprise","Joined ticket Functionality -\
+\
+When two tickets of the same type, addressing the same requirement, are assigned to the same user, they can be merged into a single \"joined ticket.\" Closing the joined ticket will automatically close the original two tickets.\
+\
+Sub-Ticket Functionality -\
+\
+When a ticket requires additional actions or dependencies to be addressed before it can be closed, instead of creating a separate new ticket, a \"sub-ticket\" can be created. This sub-ticket remains linked to the original ticket.","Asik","1","0"
+"Voice to Text","keep old recordings as texts. this will allow us to keep more details in less HDD space.\
+we can give this as special feature","Chamilka","1","0"
+"Predictive Call Routing","AI to route calls to the most suitable agent based on customer history, issue type, and agent expertise.","Asik","1","0"
+"Channel Switching","Allow customers to switch between channels (e.g., chat to call) without repeating information.","Asik","1","0"
+"Interactive Voice Response (IVR) with AI","Allow customers to resolve common issues via AI-powered IVR without agent intervention.","Asik","1","0"
+"Automated Follow-Ups","Send automated post-call surveys, thank-you emails, or follow-up reminders","Asik","1","0"
+"Multichannel Support with a Unified Dashboard","A unified dashboard streamlines customer inquiries from multiple channels (phone, email, live chat, social media) into a single platform. This eliminates the need for agents to switch between platforms, reducing response time, minimizing mistakes, and improving customer experience. Agents can access real-time messages, customer history, and previous interactions, enabling personalized and efficient service.","Sasitha","1","0"
+"Customizable Reports for Customers","1. Multiple Templates: Allow customers to create and save multiple report templates based on their specific needs.\
+\
+2. Default Template: Let customers set a default template that automatically loads when they view reports.\
+\
+3. Pre-Built Templates: Provide a library of pre-built templates for common use cases (e.g., daily call summary, agent performance)\
+\
+4. Drag-and-Drop Builder: Enable customers to design reports using a drag-and-drop interface for easy customization.\
+\
+5. User-Specific Reports: Each user can have their own set of customizable reports based on their role (e.g., agent, supervisor, manager).","Asik","1","0"
+"Campaign Duplication","This feature allows users to duplicate an existing campaign based on specific outcomes, such as call status: rejected, didn’t answer, or failed. Campaigns can be duplicated manually or set to duplicate automatically when creating a new campaign.","Asik","1","0"
+"CRM Ticket-Based Campaign","This feature assigns tickets to relevant CRM agents based on ticket priority. Once an agent resolves a ticket, the next ticket from the campaign is automatically assigned, ensuring continuous workflow and efficient ticket management.","Asik","1","0"
+"Rollback Mechanism: Preventing Downtime in Call Centers","If a new software update (Version B) causes issues like call drops or crashes, the system automatically switches back to the previous stable version (Version A) to ensure smooth operations. The update is first tested by a small group of agents, and if problems arise, the rollback mechanism quickly restores the stable version, preventing downtime and ensuring a seamless experience for customers and agents.","Sasitha","1","0"
+"Escalation Tickets Campaigns","Automatically escalate unresolved tickets to higher-level agents or supervisors after a specific time frame or based on customer dissatisfaction ratings.","Asik","1","0"
+"Automated CRM Health Check & Issue Detection","Develop a self-monitoring system that regularly checks for system errors, API failures, and performance bottlenecks in Uniconnect Enterprise CRM. It can alert admins and suggest fixes.\
+It will be \
+     Reduces downtime and improves system reliability.\
+     Automatically detects failed integrations or broken workflows.\
+     Prevents major issues before they impact users.","Reshmi","1","0"
+"KPI-Based Performance Dashboard for Agents","Integrate a real-time KPI dashboard inside the CRM that tracks agent performance based on key metrics like call handling time, resolution rate, customer satisfaction, etc.\
+ It will be\
+     Provides real-time feedback to agents and managers.\
+     Encourages productivity and accountability.\
+     Helps optimize training and process improvements.","Reshmi","1","0"
+"Implement AI-Powered Test Case Generation","Implement AI-based test case generation tools that analyze past test results and suggest new test cases.\
+It will be\
+Reduces manual effort, \
+improves test coverage, and identifies edge cases.\
+The goal of this system is to use AI to analyze past test results, detect patterns, and suggest new test cases to improve test coverage.","Reshmi","1","0"
+"Voice Agent Bot","The Uniconnect lacks the presence of a voice agent bot. This bot agent answers incoming calls when all human agents are busy. This detects the customer's requirement/issue, provides feedback if possible, and generate the ticket in real time with all auto filled information that were extracted during the conversation. This voice agent bot can also be used as the first point of contact for the customer to resolve simple issues rather than forwarding the call to a human agent.","Shyamodani","1","0"
+"AI Call Assistant","We can introduce an AI call assistant that listens to the live calls and provide real time suggestions to agents via a chat panel/ a second audio channel. These suggested responses can help the agent with difficult situations handling the customers. For an example empathy tips/ even auto fill the ticket info based on what it hears.","Shyamodani","1","0"
+"A dashboard to monitor the health of the server in the user interface","Being able to monitor if the server is showing any unusual activity and if there is an error in the internet connection within that customer network.","Dinuka","1","0"
+"Automated support agent to resolve customer-based issues","Deploying a bot agent within the customer's account, thereby assisting users in resolving common issues independently, reducing the need to contact the support team.","Dinuka","1","0"
+"New Uniconnect","In 3CX, we are currently unable to reduce the callback count for agents who returned calls to abandoned calls. It would be a valuable improvement to include this functionality in a future update.","Chanuka","1","0"
+"Raise hand option","If an agent needs immediate attention, they can use this option instead of chatting or calling the supervisor, especially when handling a critical customer inquiry.","Kalana","1","1"
+"Sentiment analysis for Agents","A dashboard designed to analyze agent sentiment by leveraging AI to listen to call recordings. This system can also be trained to intelligently distribute incoming calls based on the agent’s sentiment levels.","Kalana","1","0"
+"Dynamic Campaign Tuner","A module that auto-adjusts dialing strategy or message tone based on real-time engagement (e.g., pause low-performing campaigns, re-prioritize top leads).","Asik","1","0"
+"Gamified Agent Leaderboard with Performance KPIs","Drive productivity with leaderboards, badges, and rewards based on quality scores, connects, conversions, and talk time.","Asik","1","0"
+"Multi-Dimensional Call Analysis Heatmap","Visual map showing best time to call, regions with highest success, agent effectiveness over dayparts, etc.","Asik","1","0"
+"Auto-Enrich CRM Data","Pull additional data from LinkedIn, Facebook, or public APIs to enrich customer/company profiles automatically.","Asik","1","0"
+"Relationship Map View - CRM","Visual org chart with linked tickets, agents, and call history to map relationships and interactions within the organization.","Asik","1","0"
+"Disposition Trend Analyzer","- Visualize which dispositions are trending per campaign and per agent.\
+- Spot underperforming campaigns (e.g., lots of “Not Answer” Dispositions).","Asik","1","0"
+"Make a Uniconnect Dashboard Widget to Display the Call Back Numbers for Abandoned Calls","Currently there is not any option to identify the agent call back numbers for abandoned calls. Hence users can't get the idea about which numbers should be call back and may lead to multiple call backs for the same numbers. Hence suggest a widget to display the call back numbers and filtering option.","Dinidu","1","0"
+"Call Parking Audible Reminder","Park a call and get a periodic audible reminder if it's not picked up by agent. if agent forgot they can remainder.","Chanuka","1","0"
+"Set A PIN for Outgoing Call","Some customers need to restrict the outgoing call randomly logging agents. when supervisor has a PIN after adding that PIN agent can get outgoing calls. via supervisor can generate or change the PIN when they want.","Chanuka","1","0"
+"Enable Public Access Form Submission for CRM Module","Currently, data entry into the CRM module requires a user login. However, we need to implement a new feature that allows third-party users to submit data to a specific module without logging in, via a publicly shareable form link, similar to Google Forms.","Pramuditha","1","0"
+"Calendar Based Dialing Priority Scheduler in Campaigns","Currently, to manage different daily dialing priorities, supervisors split one main campaign into multiple small sub-campaigns (e.g., Colombo customers, high due amounts). Each sub campaign is manually runs on different days to match priority needs.\
+\
+Problems With This Approach\
+\
+# Too Many Campaigns\
+ - One monthly campaign becomes multiple sub-campaigns\
+ - Hard to identify which campaign should run today or next\
+\
+# High Supervisor Effort\
+ - Supervisors must create, schedule, and switch between multiple campaigns\
+ - Daily operations become confusing and time-consuming\
+\
+# Poor Priority Visibility\
+ - No clear view of today’s priority vs upcoming priorities\
+\
+Proposed Feature Solves This\
+\
+*** Unified Campaign with CalendarvBased Priorities\
+\
+ - Single Campaign Only\
+ - Load the full month’s lead list once\
+ - No need to create or manage multiple campaigns\
+\
+* Clear Daily Priority View\
+* Calendar clearly shows:\
+ - Today’s dialing priority\
+ - Upcoming day priorities\
+ - Supervisors can instantly understand what runs when\
+\
+*  Automatic Daily Execution\
+ - On campaign start/resume, leads are queued based on that day’s priority\
+ - No manual switching or campaign juggling","Ashan","1","0"

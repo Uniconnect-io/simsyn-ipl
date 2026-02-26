@@ -58,7 +58,7 @@ export async function POST(request: Request) {
               auction_status = 'ACTIVE', 
               auction_current_bid = ?, 
               auction_current_bidder_id = NULL,
-              auction_timer_end = NOW() + INTERVAL '30 seconds',
+              auction_timer_end = NOW() + INTERVAL '35 seconds',
               is_auctioned = 1
             WHERE id = ?`,
       args: [player.min_bid, playerId]

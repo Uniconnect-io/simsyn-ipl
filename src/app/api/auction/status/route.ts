@@ -31,6 +31,24 @@ export async function GET() {
       return NextResponse.json({ status: 'IDLE', nextPlayers });
     }
 
+    // Fetch player points and rank
+    const pRankingsRs = await db.execute(`
+        SELECT p.id, SUM(combined.points) as total_points
+        FROM (
+            SELECT s.player_id, s.score as points FROM scores s WHERE s.player_id IS NOT NULL
+            UNION ALL
+            SELECT hi.player_id, CASE WHEN hi.admin_score > 0 THEN hi.admin_score ELSE COALESCE(hi.initial_score, 0) END as points FROM hub_ideas hi
+        ) combined
+        JOIN players p ON combined.player_id = p.id
+        GROUP BY p.id
+        ORDER BY total_points DESC
+    `);
+
+    const rankings = pRankingsRs.rows as any[];
+    const pIndex = rankings.findIndex((r: any) => r.id === auction.playerId);
+    auction.points = pIndex !== -1 ? rankings[pIndex].total_points : 0;
+    auction.rank = pIndex !== -1 ? pIndex + 1 : '-';
+
     return NextResponse.json(auction);
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch auction status' }, { status: 500 });

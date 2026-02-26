@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Star, Shield, LogOut, Zap, BarChart3, Clock, User, Home, Lightbulb, Send, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Trophy, Star, Shield, LogOut, Zap, BarChart3, Clock, User, Home, Lightbulb, Send, CheckCircle2, ChevronRight, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -106,6 +106,25 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
         setIdeaTitle('');
         setIdeaContent('');
         setIdeaMessage(null);
+    };
+
+    const handleDeleteIdea = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this idea?')) return;
+
+        try {
+            const res = await fetch(`/api/ideas/my?id=${id}`, {
+                method: 'DELETE',
+            });
+            if (res.ok) {
+                fetchMyIdeas();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Failed to delete idea');
+            }
+        } catch (e) {
+            console.error("Error deleting idea:", e);
+            alert('Error deleting idea');
+        }
     };
 
     const shuffleArray = <T,>(array: T[]): T[] => {
@@ -873,14 +892,24 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                                                         <Star className="w-2.5 h-2.5 fill-yellow-500" /> Featured
                                                     </span>
                                                 )}
-                                                {(!(idea.status === 'APPROVED' || idea.status === 'REJECTED' || (idea.admin_score && idea.admin_score > 0))) && (
-                                                    <button
-                                                        onClick={() => handleEditIdea(idea)}
-                                                        className="text-[9px] font-black text-accent hover:underline uppercase tracking-widest"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                )}
+                                                <div className="flex gap-2">
+                                                    {(idea.status === 'PENDING' || idea.status === 'NEEDS_IMPROVEMENT') && (
+                                                        <button
+                                                            onClick={() => handleEditIdea(idea)}
+                                                            className="text-[9px] font-black text-accent hover:underline uppercase tracking-widest"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                    )}
+                                                    {idea.status === 'PENDING' && (
+                                                        <button
+                                                            onClick={() => handleDeleteIdea(idea.id)}
+                                                            className="text-[9px] font-black text-red-500 hover:underline uppercase tracking-widest"
+                                                        >
+                                                            Delete
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         {idea.feedback && (

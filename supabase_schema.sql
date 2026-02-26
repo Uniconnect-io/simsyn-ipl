@@ -165,6 +165,21 @@ CREATE TABLE IF NOT EXISTS admins (
   role TEXT DEFAULT 'admin'
 );
 
+-- Hub Ideas Table
+CREATE TABLE IF NOT EXISTS hub_ideas (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  player_id UUID REFERENCES players(id),
+  title TEXT,
+  content TEXT,
+  initial_score INTEGER DEFAULT 0,
+  admin_score INTEGER DEFAULT 0,
+  feedback TEXT,
+  is_shortlisted INTEGER DEFAULT 0,
+  is_featured INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  status TEXT DEFAULT 'PENDING'
+);
+
 -- Enable Realtime
 alter publication supabase_realtime add table players;
 alter publication supabase_realtime add table bids;
@@ -173,3 +188,11 @@ alter publication supabase_realtime add table matches;
 alter publication supabase_realtime add table individual_battle_answers;
 alter publication supabase_realtime add table scores;
 alter publication supabase_realtime add table case_studies;
+alter publication supabase_realtime add table hub_ideas;
+
+-- RLS Policies for Admin Access (Safety first: Disable RLS for admins table if it's strictly internal/server-side managed)
+-- ALTER TABLE admins DISABLE ROW LEVEL SECURITY;
+
+-- OR explicitly allow all reads if you want RLS enabled but functional:
+ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all reads for admins" ON admins FOR SELECT USING (true);

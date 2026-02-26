@@ -86,7 +86,7 @@ export async function POST(request: Request) {
         sql: `UPDATE players SET 
                 auction_current_bid = ?, 
                 auction_current_bidder_id = ?, 
-                auction_timer_end = NOW() + INTERVAL '30 seconds' 
+                auction_timer_end = NOW() + INTERVAL '35 seconds' 
               WHERE id = ?`,
         args: [amount, teamId, playerId]
       },

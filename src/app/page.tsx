@@ -151,8 +151,8 @@ export default function Home() {
       href: '/admin',
       color: 'bg-red-500',
       tag: 'Global',
-      // HIDDEN by default, only shown if confirmed ADMIN
-      hide: !user || user.role !== 'ADMIN'
+      // Show for Guests (to login) or Admins, hide for others (Players/Owners)
+      hide: !!user && user.role !== 'ADMIN'
     }
   ].filter(card => !card.hide);
 
@@ -239,11 +239,19 @@ export default function Home() {
                     <div className="bg-yellow-500/10 p-2 rounded-lg">
                       <Star className="w-5 h-5 text-yellow-500 fill-yellow-500/20" />
                     </div>
-                    {user && (
-                      <span className="text-[9px] font-black bg-white/10 px-2 py-1 rounded text-gray-400 uppercase tracking-widest leading-none">
+                    <div className="flex items-center gap-2 bg-white/10 pr-3 pl-1 py-1 rounded-full">
+                      <div className="w-5 h-5 rounded-full overflow-hidden border border-white/20">
+                        <img
+                          src={`/assets/employee/thumb/${(idea.player_name || 'Anonymous').toLowerCase()}.png`}
+                          alt={idea.player_name || 'Anonymous'}
+                          className="w-full h-full object-cover"
+                          onError={(e) => (e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${idea.player_name || 'Anonymous'}`)}
+                        />
+                      </div>
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none">
                         By {idea.player_name || 'Anonymous'}
                       </span>
-                    )}
+                    </div>
                   </div>
                   <h3 className="font-bold text-white group-hover:text-accent transition-colors mb-2">{idea.title}</h3>
                   <p className="text-xs text-gray-400 leading-relaxed line-clamp-3 italic">

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { sendTeamsNotification, createBattleCompletedCard } from '@/lib/teams';
 
 export async function POST(request: Request) {
     try {
@@ -103,6 +104,28 @@ export async function POST(request: Request) {
                     args: [crypto.randomUUID(), matchId, match.team2_id, score2, points2]
                 }
             ], 'write');
+
+            // Send Teams Notification
+            const finalMatchRs = await db.execute({
+                sql: `SELECT m.title, m.score1, m.score2, t1.name as team1, t2.name as team2, w.name as winner
+                      FROM matches m
+                      LEFT JOIN teams t1 ON m.team1_id = t1.id
+                      LEFT JOIN teams t2 ON m.team2_id = t2.id
+                      LEFT JOIN teams w ON m.winner_id = w.id
+                      WHERE m.id = ?`,
+                args: [matchId]
+            });
+            const finalMatch = finalMatchRs.rows[0] as any;
+            if (finalMatch) {
+                await sendTeamsNotification(createBattleCompletedCard({
+                    title: finalMatch.title || 'League Match Results',
+                    team1: finalMatch.team1,
+                    team2: finalMatch.team2,
+                    score1: finalMatch.score1,
+                    score2: finalMatch.score2,
+                    winner: finalMatch.winner
+                }));
+            }
 
         } else {
             // Unpublish
