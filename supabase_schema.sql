@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS teams (
 CREATE TABLE IF NOT EXISTS players (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT,
-  password TEXT DEFAULT 'player2026',
+  password TEXT DEFAULT '$2b$10$N8QC78eJLXYahmP6f9CtXOQQyf3.8ez/Zsr0glRMwp1AZivBkWWx2',
   role TEXT DEFAULT 'PLAYER',
   password_reset_required INTEGER DEFAULT 0,
   rating INTEGER,

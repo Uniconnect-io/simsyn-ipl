@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { hashPassword } from '@/lib/password';
 
 export async function POST(request: Request) {
     try {
         const { ownerId, resetAllPlayers } = await request.json();
+        const defaultHashedPassword = await hashPassword('sipl2026');
 
         if (resetAllPlayers) {
             // Bulk reset for all PLAYERS
             await db.execute({
                 sql: `
                     UPDATE players 
-                    SET password = 'sipl2026', password_reset_required = 1 
+                    SET password = ?, password_reset_required = 1 
                     WHERE role = 'PLAYER'
                 `,
-                args: []
+                args: [defaultHashedPassword]
             });
             return NextResponse.json({ success: true, message: 'All player passwords reset' });
         }
@@ -26,10 +28,10 @@ export async function POST(request: Request) {
         const result = await db.execute({
             sql: `
             UPDATE players 
-            SET password = 'sipl2026', password_reset_required = 1 
+            SET password = ?, password_reset_required = 1 
             WHERE id = ?
         `,
-            args: [ownerId]
+            args: [defaultHashedPassword, ownerId]
         });
 
         if (result.rowsAffected === 0) {

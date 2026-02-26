@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getSession, login } from '@/lib/auth';
+import { hashPassword } from '@/lib/password';
 
 export async function POST(request: Request) {
     try {
@@ -22,13 +23,15 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
+        const hashedPassword = await hashPassword(newPassword);
+
         const result = await db.execute({
             sql: `
             UPDATE ${table} 
             SET password = ?, password_reset_required = 0 
             WHERE id = ?
         `,
-            args: [newPassword, id]
+            args: [hashedPassword, id]
         });
 
         if (result.rowsAffected === 0) {
