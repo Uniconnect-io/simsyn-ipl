@@ -116,15 +116,15 @@ export async function POST(request: Request) {
 
         if (scoreRs.rows.length === 0) {
             await db.execute({
-                sql: 'INSERT INTO scores (id, match_id, player_id, team_id, score, nrr_contribution) VALUES (?, ?, ?, ?, ?, ?)',
-                args: [crypto.randomUUID(), battleId, session.user.id, teamId, runsAwarded, runsAwarded / 1000]
+                sql: 'INSERT INTO scores (id, match_id, player_id, team_id, score) VALUES (?, ?, ?, ?, ?)',
+                args: [crypto.randomUUID(), battleId, session.user.id, teamId, runsAwarded]
             });
         } else {
             const currentScore = (scoreRs.rows[0] as any).score;
             const newScore = currentScore + runsAwarded;
             await db.execute({
-                sql: 'UPDATE scores SET score = ?, nrr_contribution = ?, team_id = ? WHERE match_id = ? AND player_id = ?',
-                args: [newScore, newScore / 1000, teamId, battleId, session.user.id]
+                sql: 'UPDATE scores SET score = ?, team_id = ? WHERE match_id = ? AND player_id = ?',
+                args: [newScore, teamId, battleId, session.user.id]
             });
         }
 

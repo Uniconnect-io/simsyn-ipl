@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Zap, Plus, List, FileText, X, Edit2 } from 'lucide-react';
+import { Zap, Plus, List, FileText, X, Edit2, Globe, EyeOff, RotateCcw, Trash2 } from 'lucide-react';
 
 interface Match {
     id: string;
@@ -11,6 +11,7 @@ interface Match {
     team2Name?: string;
     date: string;
     status: string;
+    is_published?: number;
 }
 
 interface CaseStudy {
@@ -31,6 +32,8 @@ interface BattlesTabProps {
     onEndIndividualBattle: (battleId: string) => void;
     onEditBattle: (battle: any) => void;
     onDeleteMatch: (id: string) => void;
+    onPublishMatch: (id: string, published: boolean) => void;
+    onResetMatch: (id: string) => void;
 }
 
 export default function BattlesTab({
@@ -44,8 +47,14 @@ export default function BattlesTab({
     onStartIndividualBattle,
     onEndIndividualBattle,
     onEditBattle,
-    onDeleteMatch
+    onDeleteMatch,
+    onPublishMatch,
+    onResetMatch
 }: BattlesTabProps) {
+    // Filter strictly for LEAGUE matches or standard legacy matches
+    // since individualBattles already contains non-LEAGUE battle types
+    const filteredMatches = matches.filter(m => (m as any).battle_type === 'LEAGUE' || !(m as any).battle_type);
+
     return (
         <section className="mb-16 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="flex justify-between items-end mb-8">
@@ -65,8 +74,8 @@ export default function BattlesTab({
 
             <div className="space-y-4">
                 {/* 1. Live/Active Matches */}
-                {matches.filter(m => m.status === 'IN_PROGRESS' || m.status === 'SCHEDULED').map(match => (
-                    <div key={match.id} className="glass-card p-6 flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 border-l-blue-500 relative group">
+                {filteredMatches.map(match => (
+                    <div key={match.id} className={`glass-card p-6 flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 ${match.status === 'IN_PROGRESS' ? 'border-l-blue-500' : match.status === 'COMPLETED' ? 'border-l-gray-500' : 'border-l-yellow-500'} relative group`}>
                         <div>
                             <div className="flex items-center gap-2 mb-1">
                                 <span className="text-[10px] font-black bg-blue-500/20 text-blue-500 px-2 rounded uppercase">MATCH BATTLE</span>
@@ -107,6 +116,31 @@ export default function BattlesTab({
                             {match.status === 'IN_PROGRESS' && (
                                 <span className="text-red-500 font-bold animate-pulse text-xs">LIVE NOW</span>
                             )}
+                            {match.status === 'COMPLETED' && (
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => onPublishMatch(match.id, match.is_published === 0 || !match.is_published)}
+                                        className={`p-2 rounded-lg transition-all border border-white/5 ${match.is_published ? 'bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600 hover:text-white' : 'bg-green-600/20 text-green-500 hover:bg-green-600 hover:text-white'}`}
+                                        title={match.is_published ? 'Unpublish Results' : 'Publish Results'}
+                                    >
+                                        {match.is_published ? <EyeOff className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                                    </button>
+                                    <button
+                                        onClick={() => onResetMatch(match.id)}
+                                        className="p-2 rounded-lg bg-red-600/20 text-red-500 border border-white/5 hover:bg-red-600 hover:text-white transition-all"
+                                        title="Reset Match"
+                                    >
+                                        <RotateCcw className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                        onClick={() => onDeleteMatch(match.id)}
+                                        className="p-2 text-gray-500 hover:text-red-500 transition-all border border-white/5 rounded-lg ml-2"
+                                        title="Delete Match"
+                                    >
+                                        <Trash2 className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -129,25 +163,38 @@ export default function BattlesTab({
                             <p className="text-sm text-gray-500 line-clamp-1">{battle.description}</p>
                         </div>
                         <div className="flex gap-2">
-                            <button
-                                onClick={() => onManageQuestions(battle.id)}
-                                className="bg-white/5 text-gray-400 border border-white/10 px-3 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-white/10 hover:text-white transition-all flex items-center gap-2"
-                            >
-                                <List className="w-3 h-3" /> Questions
-                            </button>
-                            <button
-                                onClick={() => onViewReport(battle.id)}
-                                className="bg-blue-600/20 text-blue-500 border border-blue-500/20 px-3 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"
-                            >
-                                <FileText className="w-3 h-3" /> Report
-                            </button>
+                            {(battle.type === 'KAHOOT' || !battle.type) && (
+                                <>
+                                    <button
+                                        onClick={() => onManageQuestions(battle.id)}
+                                        className="bg-white/5 text-gray-400 border border-white/10 px-3 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-white/10 hover:text-white transition-all flex items-center gap-2"
+                                    >
+                                        <List className="w-3 h-3" /> Questions
+                                    </button>
+                                    <button
+                                        onClick={() => onViewReport(battle.id)}
+                                        className="bg-blue-600/20 text-blue-500 border border-blue-500/20 px-3 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2"
+                                    >
+                                        <FileText className="w-3 h-3" /> Report
+                                    </button>
+                                </>
+                            )}
                             {battle.status === 'PENDING' && (
-                                <button
-                                    onClick={() => onStartIndividualBattle(battle.id)}
-                                    className="bg-green-600/20 text-green-500 border border-green-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-green-600 hover:text-white transition-all"
-                                >
-                                    START
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => onStartIndividualBattle(battle.id)}
+                                        className="bg-green-600/20 text-green-500 border border-green-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-green-600 hover:text-white transition-all"
+                                    >
+                                        START
+                                    </button>
+                                    <button
+                                        onClick={() => onDeleteMatch(battle.id)}
+                                        className="p-2 text-gray-500 hover:text-red-500 transition-all border border-white/5 rounded-lg"
+                                        title="Delete Battle"
+                                    >
+                                        <Trash2 className="w-3 h-3" />
+                                    </button>
+                                </div>
                             )}
                             {battle.status === 'ACTIVE' && (
                                 <button
@@ -156,6 +203,24 @@ export default function BattlesTab({
                                 >
                                     END
                                 </button>
+                            )}
+                            {battle.status === 'COMPLETED' && (
+                                <>
+                                    <button
+                                        onClick={() => onPublishMatch(battle.id, battle.is_published === 0 || !battle.is_published)}
+                                        className={`p-2 rounded-lg transition-all border border-white/5 ${battle.is_published ? 'bg-yellow-600/20 text-yellow-500 hover:bg-yellow-600 hover:text-white' : 'bg-green-600/20 text-green-500 hover:bg-green-600 hover:text-white'}`}
+                                        title={battle.is_published ? 'Unpublish Results' : 'Publish Results'}
+                                    >
+                                        {battle.is_published ? <EyeOff className="w-3 h-3" /> : <Globe className="w-3 h-3" />}
+                                    </button>
+                                    <button
+                                        onClick={() => onResetMatch(battle.id)}
+                                        className="p-2 rounded-lg bg-red-600/20 text-red-500 border border-white/5 hover:bg-red-600 hover:text-white transition-all"
+                                        title="Reset Battle"
+                                    >
+                                        <RotateCcw className="w-3 h-3" />
+                                    </button>
+                                </>
                             )}
                             <button
                                 onClick={() => onEditBattle(battle)}

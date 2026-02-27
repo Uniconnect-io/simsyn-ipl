@@ -152,13 +152,9 @@ export async function PATCH(request: Request) {
                     // Sort by score DESC
                     teamList.sort((a, b) => b.totalScore - a.totalScore);
 
-                    // Calculate Average Team Score for NRR
-                    const totalAllScores = teamList.reduce((sum, t) => sum + t.totalScore, 0);
-                    const averageTeamScore = numberOfTeams > 0 ? totalAllScores / numberOfTeams : 0;
-
-                    const finalStats = teamList.map((team, index) => {
+                    const finalStats = teamList.map((team) => {
                         if (team.totalScore === 0) {
-                            return { team_id: team.id, total_score: 0, points: 0, nrr: -averageTeamScore / totalQuestions, targetScoreId: null };
+                            return { team_id: team.id, total_score: 0, points: 0, targetScoreId: null };
                         }
 
                         // Get points from config based on rank
@@ -166,14 +162,10 @@ export async function PATCH(request: Request) {
                         const firstEqualScoreIndex = teamList.findIndex(t => t.totalScore === team.totalScore);
                         const points = pointsConfig[firstEqualScoreIndex] || 0;
 
-                        // NRR calculations - (My team score - Average Team Score)/number of questions
-                        const nrr = (team.totalScore - averageTeamScore) / totalQuestions;
-
                         return {
                             team_id: team.id,
                             total_score: team.totalScore,
                             points,
-                            nrr,
                             targetScoreId: team.topPlayerScoreId
                         };
                     });
@@ -192,15 +184,8 @@ export async function PATCH(request: Request) {
                         if (stat.targetScoreId) {
                             // Merge team points into the top player's record
                             await db.execute({
-                                sql: 'UPDATE scores SET points = ?, nrr_contribution = ? WHERE id = ?',
-                                args: [stat.points, stat.nrr, stat.targetScoreId]
-                            });
-                        } else {
-                            // Team had no active players this battle, but they still get NRR hit/boost
-                            await db.execute({
-                                sql: `INSERT INTO scores (id, match_id, player_id, team_id, score, points, nrr_contribution)
-                                       VALUES (?, ?, NULL, ?, 0, ?, ?)`,
-                                args: [crypto.randomUUID(), id, stat.team_id, stat.points, stat.nrr]
+                                sql: 'UPDATE scores SET points = ? WHERE id = ?',
+                                args: [stat.points, stat.targetScoreId]
                             });
                         }
                     }

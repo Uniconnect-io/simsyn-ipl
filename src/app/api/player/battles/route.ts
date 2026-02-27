@@ -41,7 +41,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { battleId, score, nrrContribution } = await request.json();
+        const { battleId, score } = await request.json();
         const id = crypto.randomUUID();
 
         // Check if already submitted
@@ -71,8 +71,8 @@ export async function POST(request: Request) {
         const teamId = (playerRs.rows[0] as any)?.team_id || null;
 
         await db.execute({
-            sql: 'INSERT INTO scores (id, match_id, player_id, team_id, score, nrr_contribution) VALUES (?, ?, ?, ?, ?, ?)',
-            args: [id, battleId, session.user.id, teamId, score, nrrContribution || (score / 100)]
+            sql: 'INSERT INTO scores (id, match_id, player_id, team_id, score) VALUES (?, ?, ?, ?, ?)',
+            args: [id, battleId, session.user.id, teamId, score]
         });
 
         return NextResponse.json({ success: true });

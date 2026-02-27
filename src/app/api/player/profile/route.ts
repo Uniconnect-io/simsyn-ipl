@@ -44,9 +44,59 @@ export async function GET() {
                 db.execute('SELECT id, name FROM teams'),
                 db.execute("SELECT * FROM matches WHERE is_published = 1"),
                 db.execute(`
-                    SELECT team_id, SUM(points) as total_points, SUM(nrr_contribution) as total_nrr_bonus
-                    FROM scores
-                    GROUP BY team_id
+                    WITH LeagueAvg AS (
+                        SELECT COALESCE(SUM(score) * 1.0 / NULLIF((SELECT COUNT(*) FROM players WHERE team_id IS NOT NULL), 0), 0) as avg_score
+                        FROM scores
+                        WHERE team_id IS NOT NULL
+                    ),
+                    TotalEvents AS (
+                        SELECT COUNT(id) as total_events
+                        FROM matches
+                        WHERE is_published = 1 AND (is_test = false OR is_test IS NULL) AND status = 'COMPLETED'
+                    ),
+                    RosterMetrics AS (
+                         SELECT 
+                            COUNT(*)::float as total_players,
+                            COUNT(DISTINCT team_id)::float as total_teams
+                         FROM players 
+                         WHERE team_id IS NOT NULL
+                    ),
+                    PlayerStats AS (
+                        SELECT 
+                            p.id as player_id,
+                            p.team_id,
+                            COALESCE(SUM(s.score), 0) as total_player_score
+                        FROM players p
+                        LEFT JOIN scores s ON p.id = s.player_id
+                        WHERE p.team_id IS NOT NULL
+                        GROUP BY p.id, p.team_id
+                    ),
+                    PlayerNRR AS (
+                        SELECT 
+                            ps.player_id,
+                            ps.team_id,
+                            COALESCE((ps.total_player_score - la.avg_score) * 1.0 / NULLIF(te.total_events, 0), 0) as dynamic_nrr
+                        FROM PlayerStats ps
+                        CROSS JOIN LeagueAvg la
+                        CROSS JOIN TotalEvents te
+                    ),
+                    TeamPoints AS (
+                        SELECT 
+                            team_id,
+                            SUM(points) as total_points
+                        FROM scores
+                        WHERE team_id IS NOT NULL
+                        GROUP BY team_id
+                    )
+                    SELECT 
+                        t.id as team_id,
+                        COALESCE(tp.total_points, 0) as total_points,
+                        COALESCE(SUM(pn.dynamic_nrr) / (NULLIF(rm.total_players / rm.total_teams, 0)), 0) as total_nrr_bonus
+                    FROM teams t
+                    CROSS JOIN RosterMetrics rm
+                    LEFT JOIN TeamPoints tp ON t.id = tp.team_id
+                    LEFT JOIN PlayerNRR pn ON t.id = pn.team_id
+                    GROUP BY t.id, tp.total_points, rm.total_players, rm.total_teams
                 `)
             ]);
 
