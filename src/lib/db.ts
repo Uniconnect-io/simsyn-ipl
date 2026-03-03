@@ -24,7 +24,7 @@ export const initDb = async () => {
   }
 };
 
-// Helper: Convert LibSQL style '?' params to Postgres '$1, $2'
+// Helper: Convert '?' params to Postgres '$1, $2' for app-wide compatibility
 const convertSql = (sql: string): string => {
   let i = 1;
   return sql.replace(/\?/g, () => `$${i++}`);

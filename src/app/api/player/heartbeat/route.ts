@@ -153,14 +153,21 @@ export async function GET(request: Request) {
                 db.execute("SELECT * FROM matches WHERE is_published = 1"),
                 db.execute(`
                     WITH LeagueAvg AS (
-                        SELECT COALESCE(SUM(score) * 1.0 / NULLIF(COUNT(DISTINCT player_id), 0), 0) as avg_score
+                        SELECT COALESCE(SUM(score) * 1.0 / NULLIF((SELECT COUNT(*) FROM players WHERE team_id IS NOT NULL), 0), 0) as avg_score
                         FROM scores
-                        WHERE score > 0 AND team_id IS NOT NULL
+                        WHERE team_id IS NOT NULL
                     ),
                     TotalEvents AS (
                         SELECT COUNT(id) as total_events
                         FROM matches
                         WHERE is_published = 1 AND (is_test = false OR is_test IS NULL) AND status = 'COMPLETED'
+                    ),
+                    RosterMetrics AS (
+                         SELECT 
+                            COUNT(*)::float as total_players,
+                            COUNT(DISTINCT team_id)::float as total_teams
+                         FROM players 
+                         WHERE team_id IS NOT NULL
                     ),
                     PlayerStats AS (
                         SELECT 
@@ -192,11 +199,12 @@ export async function GET(request: Request) {
                     SELECT 
                         t.id as team_id,
                         COALESCE(tp.total_points, 0) as total_points,
-                        COALESCE(AVG(pn.dynamic_nrr), 0) as total_nrr_bonus
+                        COALESCE(SUM(pn.dynamic_nrr) / (NULLIF(rm.total_players / rm.total_teams, 0)), 0) as total_nrr_bonus
                     FROM teams t
+                    CROSS JOIN RosterMetrics rm
                     LEFT JOIN TeamPoints tp ON t.id = tp.team_id
                     LEFT JOIN PlayerNRR pn ON t.id = pn.team_id
-                    GROUP BY t.id, tp.total_points
+                    GROUP BY t.id, tp.total_points, rm.total_players, rm.total_teams
                 `)
             ]);
 

@@ -188,7 +188,7 @@ export default function IdeasTab() {
                             <tr className="bg-white/5 text-[10px] font-black uppercase tracking-widest text-gray-500 border-b border-white/5">
                                 <th className="px-6 py-4">Player</th>
                                 <th className="px-6 py-4">Idea Title</th>
-                                <th className="px-6 py-4 text-center">AI Score</th>
+                                <th className="px-6 py-4 text-center">Score</th>
                                 <th className="px-6 py-4 text-center">Status</th>
                                 <th className="px-6 py-4 text-right">Actions</th>
                             </tr>
@@ -207,7 +207,12 @@ export default function IdeasTab() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        <span className="text-lg font-black text-white">{idea.initial_score}</span>
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-lg font-black text-white">{Math.max(idea.initial_score || 0, idea.admin_score || 0)}</span>
+                                            {idea.admin_score > 0 && idea.admin_score > (idea.initial_score || 0) && (
+                                                <span className="text-[8px] text-accent font-bold uppercase tracking-tighter">(Admin override)</span>
+                                            )}
+                                        </div>
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <span className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest border ${idea.status === 'APPROVED' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
@@ -341,13 +346,22 @@ export default function IdeasTab() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-4">
                                     <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block">AI Evaluation</label>
-                                    <div className="bg-accent/5 border border-accent/10 rounded-xl p-4 h-full">
-                                        <div className="flex justify-between items-center mb-3">
+                                    <div className="bg-accent/5 border border-accent/10 rounded-xl p-4">
+                                        <div className="flex justify-between items-center mb-2">
                                             <span className="text-xs font-bold text-accent uppercase tracking-widest">AI Score</span>
-                                            <span className="text-2xl font-black text-white">{selectedIdeaForModal.initial_score}</span>
+                                            <span className="text-xl font-black text-white/60">{selectedIdeaForModal.initial_score}</span>
                                         </div>
-                                        <div className="text-[11px] text-gray-400 italic leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5">
+                                        <div className="text-[11px] text-gray-400 italic leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5 mb-3">
                                             "{selectedIdeaForModal.feedback || 'No AI feedback available.'}"
+                                        </div>
+                                        <div className="pt-3 border-t border-white/5 flex justify-between items-center">
+                                            <span className="text-xs font-black text-white uppercase tracking-widest">Final Score</span>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-2xl font-black text-accent">{Math.max(selectedIdeaForModal.initial_score || 0, selectedIdeaForModal.admin_score || 0)}</span>
+                                                {selectedIdeaForModal.admin_score > 0 && selectedIdeaForModal.admin_score > (selectedIdeaForModal.initial_score || 0) && (
+                                                    <span className="text-[8px] text-accent font-bold uppercase">Admin Override</span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
