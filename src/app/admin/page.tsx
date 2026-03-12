@@ -41,6 +41,7 @@ import CasesTab from '@/components/admin/CasesTab';
 import AuctionTab from '@/components/admin/AuctionTab';
 import BattlesTab from '@/components/admin/BattlesTab';
 import MaintenanceTab from '@/components/admin/MaintenanceTab';
+import PlayerModal from '@/components/admin/PlayerModal';
 
 interface Player {
     id: string;
@@ -116,6 +117,10 @@ export default function AdminPage() {
     const [auctionStatus, setAuctionStatus] = useState<any>(null);
     const [timeLeft, setLeftTime] = useState<number | null>(null);
     const [startingAuctionId, setStartingAuctionId] = useState<string | null>(null);
+
+    // Player Modal states
+    const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
+    const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
 
     // Battle Modal states
     const [isCreatingBattle, setIsCreatingBattle] = useState(false);
@@ -301,22 +306,37 @@ export default function AdminPage() {
         }
     };
 
-    const handleEditPlayer = async (player: Player) => {
-        const newBidStr = prompt(`Enter new Base Price for ${player.name} (Current: ${player.min_bid}):`, player.min_bid.toString());
-        if (newBidStr === null) return;
-        const newBid = parseInt(newBidStr);
-        if (isNaN(newBid) || newBid < 0) return alert('Invalid base price');
+    const handleEditPlayer = (player: Player) => {
+        setEditingPlayer(player);
+        setIsPlayerModalOpen(true);
+    };
 
+    const handleSavePlayer = async (formData: any) => {
         try {
-            const res = await fetch('/api/admin/update-player', {
-                method: 'POST',
+            const isEditing = !!formData.id;
+            const endpoint = '/api/admin/players';
+            const method = isEditing ? 'PATCH' : 'POST';
+
+            const payload = isEditing
+                ? { ...formData, action: 'update_details' }
+                : formData;
+
+            const res = await fetch(endpoint, {
+                method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ playerId: player.id, minBid: newBid })
+                body: JSON.stringify(payload)
             });
-            if (res.ok) fetchHeartbeat();
-            else alert('Failed to update player base price');
+
+            if (res.ok) {
+                fetchHeartbeat();
+            } else {
+                const err = await res.json();
+                alert(`Failed to save player: ${err.error || 'Unknown error'}`);
+                throw new Error(err.error);
+            }
         } catch (error) {
-            alert('Failed to update player');
+            console.error('Save player error:', error);
+            throw error;
         }
     };
 
@@ -713,7 +733,10 @@ export default function AdminPage() {
                         startingAuctionId={startingAuctionId}
                         onStartAuction={startAuction}
                         onEditPlayer={handleEditPlayer}
-                        onAddPlayer={() => { alert('Add player functionality is pending implementation.'); }}
+                        onAddPlayer={() => {
+                            setEditingPlayer(null);
+                            setIsPlayerModalOpen(true);
+                        }}
                         onRemovePlayer={handleRemovePlayer}
                     />
                 )}
@@ -729,6 +752,13 @@ export default function AdminPage() {
                         onSyncData={fetchHeartbeat}
                     />
                 )}
+
+                <PlayerModal
+                    isOpen={isPlayerModalOpen}
+                    onClose={() => setIsPlayerModalOpen(false)}
+                    onSave={handleSavePlayer}
+                    player={editingPlayer}
+                />
             </div>
 
             {/* Create Battle Wizard */}

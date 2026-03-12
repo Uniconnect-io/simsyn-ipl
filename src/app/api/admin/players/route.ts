@@ -1,24 +1,37 @@
 import { NextResponse } from 'next/server';
 import db, { initDb } from '@/lib/db';
 import crypto from 'crypto';
+import { getSession } from '@/lib/auth';
 
 export async function POST(request: Request) {
     try {
-        await initDb();
-        const { name, rating, pool, min_bid } = await request.json();
+        const session = await getSession();
+        if (!session || session.user.role !== 'ADMIN') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
-        const id = 'p' + crypto.randomBytes(4).toString('hex');
+        await initDb();
+        const { name, rating, pool, min_bid, tags } = await request.json();
+        console.log('API: Creating player:', { name, rating, pool, min_bid, tags });
+
+        if (!name) {
+            console.error('API Error: Name is missing in POST /api/admin/players');
+            return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+        }
+
+        const id = crypto.randomUUID();
 
         await db.execute({
             sql: `
-            INSERT INTO players (id, name, rating, pool, min_bid, is_auctioned)
-            VALUES (?, ?, ?, ?, ?, 0)
+            INSERT INTO players (id, name, rating, pool, min_bid, tags, is_auctioned)
+            VALUES (?, ?, ?, ?, ?, ?, 0)
         `,
-            args: [id, name, rating, pool, min_bid]
+            args: [id, name, rating, pool, min_bid, tags || '']
         });
 
         return NextResponse.json({ success: true, id });
     } catch (error) {
+        console.error('Add player error:', error);
         return NextResponse.json({ error: 'Failed to add player' }, { status: 500 });
     }
 }
@@ -54,9 +67,16 @@ export async function DELETE(request: Request) {
 
 export async function PATCH(request: Request) {
     try {
-        const { id, team_id, action, refund } = await request.json();
+        const session = await getSession();
+        if (!session || session.user.role !== 'ADMIN') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const data = await request.json();
+        const { id, action } = data;
 
         if (action === 'release') {
+            const { refund } = data;
             const playerRs = await db.execute({
                 sql: 'SELECT team_id, sold_price FROM players WHERE id = ?',
                 args: [id]
@@ -75,6 +95,7 @@ export async function PATCH(request: Request) {
                 args: [id]
             });
         } else if (action === 'assign') {
+            const { team_id } = data;
             await db.batch([
                 {
                     sql: 'UPDATE players SET team_id = ?, is_auctioned = 1, auction_status = \'SOLD\' WHERE id = ?',
@@ -85,10 +106,24 @@ export async function PATCH(request: Request) {
                     args: [team_id, id]
                 }
             ], 'write');
+        } else if (action === 'update_details') {
+            const { name, rating, pool, min_bid, tags } = data;
+            console.log('API: Updating player details:', { id, name, rating, pool, min_bid, tags });
+
+            if (!name) {
+                console.error('API Error: Name is missing in PATCH /api/admin/players (update_details)');
+                return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+            }
+
+            await db.execute({
+                sql: 'UPDATE players SET name = ?, rating = ?, pool = ?, min_bid = ?, tags = ? WHERE id = ?',
+                args: [name, rating, pool, min_bid, tags, id]
+            });
         }
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        console.error('Update player error:', error);
         return NextResponse.json({ error: 'Failed to update player' }, { status: 500 });
     }
 }

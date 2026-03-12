@@ -147,7 +147,7 @@ export default function AuctionTab({ players, auctionStatus, timeLeft, startingA
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 font-mono text-sm text-gray-300">
-                                                {player.min_bid.toLocaleString()}
+                                                {(player.min_bid || 0).toLocaleString()}
                                             </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex items-center justify-end gap-2">
