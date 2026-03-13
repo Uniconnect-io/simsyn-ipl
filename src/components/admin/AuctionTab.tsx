@@ -107,84 +107,101 @@ export default function AuctionTab({ players, auctionStatus, timeLeft, startingA
                             </div>
                         </div>
                     )}
-                    <div className="glass-card overflow-hidden">
-                        <div className="p-4 bg-white/5 border-b border-white/5 flex justify-between items-center">
-                            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400">Unassigned Players ({unassignedPlayers.length})</h3>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                                <thead className="bg-black/20 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                    <tr>
-                                        <th className="px-6 py-4">Player</th>
-                                        <th className="px-6 py-4">Pool</th>
-                                        <th className="px-6 py-4">Base Price</th>
-                                        <th className="px-6 py-4 text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5">
-                                    {unassignedPlayers.map(player => (
-                                        <tr key={player.id} className="hover:bg-white/[0.02] transition-colors group">
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10">
-                                                        <img
-                                                            src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
-                                                            alt={player.name}
-                                                            onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
-                                                        />
-                                                    </div>
-                                                    <span className="font-bold text-sm">{player.name}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="px-2 py-1 bg-white/5 rounded text-[10px] font-black text-accent">{player.pool}</span>
-                                                    {!!player.is_auctioned ? (
-                                                        <span className="px-2 py-1 bg-red-500/20 text-red-500 rounded text-[10px] font-black uppercase tracking-widest">
-                                                            Unsold
-                                                        </span>
-                                                    ) : null}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 font-mono text-sm text-gray-300">
-                                                {(player.min_bid || 0).toLocaleString()}
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button
-                                                        onClick={() => onEditPlayer(player)}
-                                                        className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-white transition-all border border-white/5"
-                                                        title="Edit Base Price"
-                                                    >
-                                                        <Edit className="w-3 h-3" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => onRemovePlayer(player.id)}
-                                                        className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-red-500 transition-all border border-white/5"
-                                                        title="Remove Player"
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => onStartAuction(player.id)}
-                                                        disabled={auctionStatus?.status === 'ACTIVE' || startingAuctionId === player.id}
-                                                        className="px-4 py-2 rounded-lg bg-accent text-white font-black text-[10px] uppercase shadow-lg shadow-accent/20 hover:scale-105 transition-all disabled:opacity-30 disabled:hover:scale-100 flex items-center gap-2"
-                                                    >
-                                                        {startingAuctionId === player.id ? (
-                                                            <RefreshCw className="w-3 h-3 animate-spin" />
-                                                        ) : (
-                                                            <Play className="w-3 h-3" />
-                                                        )}
-                                                        Start Sale
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                    {(() => {
+                        // Group unassigned players by min_bid
+                        const groups: { [key: number]: Player[] } = {};
+                        unassignedPlayers.forEach(p => {
+                            const bid = p.min_bid || 0;
+                            if (!groups[bid]) groups[bid] = [];
+                            groups[bid].push(p);
+                        });
+
+                        // Sort tiers descending
+                        const tiers = Object.keys(groups).map(Number).sort((a, b) => b - a);
+
+                        return tiers.map(tier => (
+                            <div key={tier} className="glass-card overflow-hidden">
+                                <div className="p-4 bg-white/5 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-accent/5 to-transparent">
+                                    <h3 className="text-xs font-black uppercase tracking-widest text-accent">
+                                        Tier: {tier.toLocaleString()} Tokens ({groups[tier].length})
+                                    </h3>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-black/20 text-[10px] font-black uppercase tracking-widest text-gray-500">
+                                            <tr>
+                                                <th className="px-6 py-4">Player</th>
+                                                <th className="px-6 py-4">Pool</th>
+                                                <th className="px-6 py-4">Base Price</th>
+                                                <th className="px-6 py-4 text-right">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-white/5">
+                                            {groups[tier].map(player => (
+                                                <tr key={player.id} className="hover:bg-white/[0.02] transition-colors group">
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10">
+                                                                <img
+                                                                    src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
+                                                                    alt={player.name}
+                                                                    onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
+                                                                />
+                                                            </div>
+                                                            <span className="font-bold text-sm">{player.name}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="px-2 py-1 bg-white/5 rounded text-[10px] font-black text-accent">{player.pool}</span>
+                                                            {!!player.is_auctioned ? (
+                                                                <span className="px-2 py-1 bg-red-500/20 text-red-500 rounded text-[10px] font-black uppercase tracking-widest">
+                                                                    Unsold
+                                                                </span>
+                                                            ) : null}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 font-mono text-sm text-gray-300">
+                                                        {(player.min_bid || 0).toLocaleString()}
+                                                    </td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button
+                                                                onClick={() => onEditPlayer(player)}
+                                                                className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-white transition-all border border-white/5"
+                                                                title="Edit Base Price"
+                                                            >
+                                                                <Edit className="w-3 h-3" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => onRemovePlayer(player.id)}
+                                                                className="p-2 rounded-lg bg-white/5 text-gray-400 hover:text-red-500 transition-all border border-white/5"
+                                                                title="Remove Player"
+                                                            >
+                                                                <Trash2 className="w-3 h-3" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => onStartAuction(player.id)}
+                                                                disabled={auctionStatus?.status === 'ACTIVE' || startingAuctionId === player.id}
+                                                                className="px-4 py-2 rounded-lg bg-accent text-white font-black text-[10px] uppercase shadow-lg shadow-accent/20 hover:scale-105 transition-all disabled:opacity-30 disabled:hover:scale-100 flex items-center gap-2"
+                                                            >
+                                                                {startingAuctionId === player.id ? (
+                                                                    <RefreshCw className="w-3 h-3 animate-spin" />
+                                                                ) : (
+                                                                    <Play className="w-3 h-3" />
+                                                                )}
+                                                                Start Sale
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ));
+                    })()}
                 </div>
 
                 <div className="space-y-6">

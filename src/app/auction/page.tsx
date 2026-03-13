@@ -263,7 +263,7 @@ export default function AuctionPage() {
                     <AnimatePresence mode="wait">
                         {auction?.status === 'ACTIVE' && (timeLeft === null || timeLeft > 0) ? (
                             <motion.div
-                                key={auction.id}
+                                key={auction.playerId || 'active_auction'}
                                 initial={{ opacity: 0, scale: 0.95 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 1.05 }}
@@ -351,6 +351,8 @@ export default function AuctionPage() {
                                     {myTeamId && (
                                         <div className="grid grid-cols-3 gap-2">
                                             {(() => {
+                                                const myTeam = teams.find(t => t.id === myTeamId);
+                                                const balance = myTeam?.balance || 0;
                                                 const currentAmount = auction.currentBid || 0;
                                                 const baseAmount = auction.basePrice || 0;
 
@@ -379,17 +381,30 @@ export default function AuctionPage() {
                                                     ];
                                                 }
 
-                                                return bidOptions.map(amount => {
+                                                // Deterministic 6-button logic:
+                                                // If balance is affordable and not already represented, and we have unaffordable options,
+                                                // replace the most expensive option with the total balance.
+                                                const anyDisabledByBalance = bidOptions.some(opt => opt > balance);
+                                                const isBalanceRepresented = bidOptions.some(opt => opt === balance);
+                                                if (balance > currentAmount && anyDisabledByBalance && !isBalanceRepresented) {
+                                                    bidOptions[5] = balance;
+                                                }
+
+                                                // Final filter: Unique values, Sorted by amount, and strictly 6 slots
+                                                const finalOptions = Array.from(new Set(bidOptions)).sort((a, b) => a - b).slice(0, 6);
+
+                                                return finalOptions.map((amount, idx) => {
                                                     const effectiveBase = auction.currentBid && auction.currentBid > 0 ? auction.currentBid : baseAmount;
                                                     const isBaseBid = amount === baseAmount && !auction.currentBidderName;
                                                     const isLeading = auction.currentBidderId === myTeamId;
+                                                    const isTooExpensive = amount > balance;
 
                                                     return (
                                                         <button
-                                                            key={amount}
+                                                            key={`${auction.playerId}-${idx}-${amount}`}
                                                             onClick={() => handleBid(amount)}
-                                                            disabled={isLeading || isBidding}
-                                                            className={`h-[56px] rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group relative ${isLeading
+                                                            disabled={isLeading || isBidding || isTooExpensive}
+                                                            className={`h-[56px] rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group relative ${isLeading || isTooExpensive
                                                                 ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
                                                                 : isBidding ? 'bg-white/5 text-gray-400 cursor-wait' : 'bg-white/10 hover:bg-accent hover:text-black'
                                                                 }`}
@@ -398,8 +413,8 @@ export default function AuctionPage() {
                                                                 <RefreshCw className="w-5 h-5 animate-spin text-accent" />
                                                             ) : (
                                                                 <>
-                                                                    <span className={`text-[10px] font-medium uppercase tracking-widest ${isLeading ? 'text-gray-700' : 'text-gray-400 group-hover:text-black/60'}`}>
-                                                                        {isBaseBid ? 'Bid Base' : `+${(amount - effectiveBase) / 1000}k`}
+                                                                    <span className={`text-[10px] font-medium uppercase tracking-widest ${isLeading || isTooExpensive ? 'text-gray-700' : 'text-gray-400 group-hover:text-black/60'}`}>
+                                                                        {amount === balance ? 'MAX TOKENS' : isBaseBid ? 'Bid Base' : `+${(amount - effectiveBase) / 1000}k`}
                                                                     </span>
                                                                     <span className="text-base">{amount.toLocaleString()}</span>
                                                                 </>
@@ -482,7 +497,7 @@ export default function AuctionPage() {
                                                     <p className="text-[10px] text-gray-400 mt-0.5 font-bold">Rank #{rank}</p>
                                                     {team.captain && (
                                                         <p className="text-[10px] text-accent mt-0.5 font-bold truncate flex items-center gap-1">
-                                                            <span className="text-gray-500">C:</span> {team.captain.name}
+                                                            <span className="text-gray-500"></span> {team.captain.name}
                                                         </p>
                                                     )}
                                                 </div>
@@ -505,7 +520,9 @@ export default function AuctionPage() {
                                                         onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + team.captain?.name)}
                                                     />
                                                 ) : <span className="text-xs flex items-center justify-center h-full">?</span>}
-                                                <div className="absolute bottom-0 inset-x-0 bg-accent text-[8px] text-black font-black text-center leading-none py-0.5">C</div>
+                                                <div className="absolute bottom-0 inset-x-0 bg-accent text-[10px] text-black font-black text-center leading-none py-1 truncate px-1" title={team.captain?.name}>
+                                                    {team.captain?.name}
+                                                </div>
                                             </div>
 
                                             {/* 2-6. Players + Placeholders */}
@@ -515,13 +532,16 @@ export default function AuctionPage() {
                                                 if (i >= 5 && player) {
                                                     // Overflow handling
                                                     return (
-                                                        <div key={player.id} className="aspect-square rounded-full bg-white/5 border border-white/10 overflow-hidden" title={player.name}>
+                                                        <div key={player.id} className="aspect-square rounded-full bg-white/5 border border-white/10 overflow-hidden relative" title={player.name}>
                                                             <img
                                                                 src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
                                                                 alt={player.name}
                                                                 className="w-full h-full object-cover object-top"
                                                                 onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
                                                             />
+                                                            <div className="absolute bottom-0 inset-x-0 bg-accent text-[10px] text-black font-black text-center leading-none py-1 truncate px-1" title={player.name}>
+                                                                {player.name}
+                                                            </div>
                                                         </div>
                                                     )
                                                 }
@@ -529,14 +549,19 @@ export default function AuctionPage() {
                                                 // First 5 players (slots 2-6)
                                                 if (i < 5) {
                                                     return (
-                                                        <div key={i} className={`aspect-square rounded-full overflow-hidden flex items-center justify-center ${player ? 'bg-white/10 border border-white/20' : 'bg-white/5 border border-white/5 border-dashed'}`} title={player?.name || 'Empty Slot'}>
+                                                        <div key={i} className={`aspect-square rounded-full overflow-hidden flex items-center justify-center relative ${player ? 'bg-white/10 border border-white/20' : 'bg-white/5 border border-white/5 border-dashed'}`} title={player?.name || 'Empty Slot'}>
                                                             {player ? (
-                                                                <img
-                                                                    src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
-                                                                    alt={player.name}
-                                                                    className="w-full h-full object-cover object-top"
-                                                                    onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
-                                                                />
+                                                                <>
+                                                                    <img
+                                                                        src={`/assets/employee/thumb/${player.name.toLowerCase()}.png`}
+                                                                        alt={player.name}
+                                                                        className="w-full h-full object-cover object-top"
+                                                                        onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
+                                                                    />
+                                                                    <div className="absolute bottom-0 inset-x-0 bg-accent text-[10px] text-black font-black text-center leading-none py-1 truncate px-1" title={player.name}>
+                                                                        {player.name}
+                                                                    </div>
+                                                                </>
                                                             ) : (
                                                                 <div className="w-1.5 h-1.5 rounded-full bg-white/10"></div>
                                                             )}
