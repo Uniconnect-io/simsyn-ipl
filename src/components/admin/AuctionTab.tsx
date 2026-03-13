@@ -11,6 +11,7 @@ interface Player {
     min_bid: number;
     is_auctioned: boolean;
     team_id: string | null;
+    sold_price?: number | null;
 }
 
 interface AuctionTabProps {
@@ -226,11 +227,15 @@ export default function AuctionTab({ players, auctionStatus, timeLeft, startingA
                                                 <div className="text-[10px] text-gray-500 uppercase font-black">{player.team_id ? 'Sold' : 'Unsold'}</div>
                                             </div>
                                         </div>
-                                        <div className="text-right flex items-center justify-end gap-2">
+                                        <div className="text-right flex flex-col items-end justify-center gap-1">
                                             <span className={`text-[10px] font-black px-2 py-1 rounded uppercase ${player.team_id ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
                                                 {player.team_id ? 'SOLD' : 'UNSOLD'}
                                             </span>
-
+                                            {player.team_id && player.sold_price && (
+                                                <div className="text-[10px] font-mono text-white font-bold">
+                                                    {player.sold_price.toLocaleString()}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 ))

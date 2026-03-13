@@ -25,12 +25,19 @@ interface AuctionStatus {
     nextPlayers?: { name: string, pool: string, min_bid: number, tags?: string }[];
 }
 
+interface Player {
+    id: string;
+    name: string;
+    rating: number; // Added rating to match existing player structure in Team
+    sold_price: number | null;
+}
+
 interface Team {
     id: string;
     name: string;
     balance: number;
-    captain?: { id: string; name: string };
-    players: { id: string; name: string; rating: number }[];
+    captain?: Player;
+    players: Player[];
 }
 
 export default function AuctionPage() {
@@ -520,8 +527,11 @@ export default function AuctionPage() {
                                                         onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + team.captain?.name)}
                                                     />
                                                 ) : <span className="text-xs flex items-center justify-center h-full">?</span>}
-                                                <div className="absolute bottom-0 inset-x-0 bg-accent text-[10px] text-black font-black text-center leading-none py-1 truncate px-1" title={team.captain?.name}>
+                                                <div className="absolute bottom-0 inset-x-0 bg-accent text-[10px] text-black font-black text-center leading-none py-1 truncate px-1 flex items-center justify-center gap-1" title={team.captain?.name}>
                                                     {team.captain?.name}
+                                                    {team.captain?.sold_price && (
+                                                        <span className="opacity-60 text-[8px]">({(team.captain.sold_price / 1000).toFixed(0)}k)</span>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -539,8 +549,11 @@ export default function AuctionPage() {
                                                                 className="w-full h-full object-cover object-top"
                                                                 onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
                                                             />
-                                                            <div className="absolute bottom-0 inset-x-0 bg-accent text-[10px] text-black font-black text-center leading-none py-1 truncate px-1" title={player.name}>
+                                                            <div className="absolute bottom-0 inset-x-0 bg-accent text-[10px] text-black font-black text-center leading-none py-1 truncate px-1 flex items-center justify-center gap-1" title={player.name}>
                                                                 {player.name}
+                                                                {player.sold_price && (
+                                                                    <span className="opacity-60 text-[8px]">({(player.sold_price / 1000).toFixed(0)}k)</span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     )
@@ -558,8 +571,11 @@ export default function AuctionPage() {
                                                                         className="w-full h-full object-cover object-top"
                                                                         onError={(e) => (e.currentTarget.src = 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + player.name)}
                                                                     />
-                                                                    <div className="absolute bottom-0 inset-x-0 bg-accent text-[10px] text-black font-black text-center leading-none py-1 truncate px-1" title={player.name}>
+                                                                    <div className="absolute bottom-0 inset-x-0 bg-accent text-[10px] text-black font-black text-center leading-none py-1 truncate px-1 flex items-center justify-center gap-1" title={player.name}>
                                                                         {player.name}
+                                                                        {player.sold_price && (
+                                                                            <span className="opacity-60 text-[8px]">({(player.sold_price / 1000).toFixed(0)}k)</span>
+                                                                        )}
                                                                     </div>
                                                                 </>
                                                             ) : (

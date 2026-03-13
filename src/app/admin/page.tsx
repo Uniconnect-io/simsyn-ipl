@@ -54,6 +54,7 @@ interface Player {
     role?: string;
     team_id: string | null;
     teamName?: string | null;
+    sold_price?: number | null;
 }
 
 interface Owner {

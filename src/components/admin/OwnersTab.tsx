@@ -18,6 +18,7 @@ interface Player {
     team_id: string | null;
     teamName?: string | null;
     role?: string;
+    sold_price?: number;
 }
 
 interface Team {
@@ -74,6 +75,16 @@ export default function OwnersTab({ owners, players, teams, onResetPassword, onT
                                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] mb-1">Wallet</p>
                                     <div className="text-xl font-black text-white">
                                         {personBalance?.toLocaleString() || 0}
+                                        <span className="text-[10px] text-accent ml-1">Tokens</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!isOwner && person.team_id && (person as any).sold_price !== undefined && (
+                                <div className="mb-4">
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-[0.2em] mb-1">Sold Price</p>
+                                    <div className="text-xl font-black text-white">
+                                        {(person as any).sold_price?.toLocaleString() || 0}
                                         <span className="text-[10px] text-accent ml-1">Tokens</span>
                                     </div>
                                 </div>
