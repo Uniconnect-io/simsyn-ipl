@@ -118,9 +118,13 @@ export default function AuctionPage() {
                 const remaining = Math.max(0, Math.floor((end - now) / 1000));
                 setTimeLeft(remaining);
 
-                if (remaining <= 0 && finalizedRef.current !== auction.id) {
-                    finalizedRef.current = auction.id || null;
-                    fetch('/api/auction/finalize', { method: 'POST' });
+                if (remaining <= 0 && finalizedRef.current !== auction.playerId) {
+                    finalizedRef.current = auction.playerId || null;
+                    fetch('/api/auction/finalize', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ playerId: auction.playerId, force: false })
+                    });
                 }
             };
 
@@ -269,7 +273,7 @@ export default function AuctionPage() {
                                 {timeLeft !== null && (
                                     <div className={`absolute top-0 left-0 px-6 py-3 rounded-br-2xl font-black tracking-widest z-10 flex items-center gap-3 border-r border-b ${timeLeft < 10 ? 'bg-red-500 text-white border-red-600 animate-pulse' : 'bg-black/60 text-accent border-accent/20'}`}>
                                         <Timer className="w-8 h-8" />
-                                        <span className="text-4xl leading-none">{timeLeft}s</span>
+                                        <span className="text-4xl leading-none">{timeLeft > 30 ? 30 : timeLeft}s</span>
                                     </div>
                                 )}
 
