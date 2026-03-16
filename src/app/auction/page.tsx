@@ -28,8 +28,9 @@ interface AuctionStatus {
 interface Player {
     id: string;
     name: string;
-    rating: number; // Added rating to match existing player structure in Team
+    rating: number;
     sold_price: number | null;
+    min_bid: number;
 }
 
 interface Team {
@@ -202,8 +203,8 @@ export default function AuctionPage() {
         if (!myTeam) return;
 
         // Check for max team size (5 players + captain = 6 total)
-        if (myTeam.players.length >= 5) {
-            alert('Your team is full! You have 5 players.');
+        if (myTeam.players.length >= 6) {
+            alert('Your team is full! You have 6 players.');
             return;
         }
 
@@ -356,80 +357,163 @@ export default function AuctionPage() {
 
                                     {/* Bidding Controls */}
                                     {myTeamId && (
-                                        <div className="grid grid-cols-3 gap-2">
+                                        <div className="space-y-4">
+                                            {/* Captain's Strategic Insight */}
                                             {(() => {
                                                 const myTeam = teams.find(t => t.id === myTeamId);
-                                                const balance = myTeam?.balance || 0;
-                                                const currentAmount = auction.currentBid || 0;
-                                                const baseAmount = auction.basePrice || 0;
+                                                if (!myTeam) return null;
 
-                                                let bidOptions: number[] = [];
+                                                const TIERS = [225000, 200000, 175000, 150000, 100000];
+                                                const currentTier = auction.basePrice || 0;
+                                                const playersNeeded = 5 - myTeam.players.length; // Need 5 players + 1 captain
 
-                                                if (!auction.currentBidderName) {
-                                                    // Base Phase: Base, +5k, +10k, +25k, +50k, +100k
-                                                    bidOptions = [
-                                                        baseAmount,
-                                                        baseAmount + 5000,
-                                                        baseAmount + 10000,
-                                                        baseAmount + 25000,
-                                                        baseAmount + 50000,
-                                                        baseAmount + 100000
-                                                    ];
-                                                } else {
-                                                    // Active Phase: +5k, +10k, +25k, +50k, +75k, +100k
-                                                    const base = currentAmount;
-                                                    bidOptions = [
-                                                        base + 5000,
-                                                        base + 10000,
-                                                        base + 25000,
-                                                        base + 50000,
-                                                        base + 75000,
-                                                        base + 100000
-                                                    ];
+                                                // Tiers already covered in roster (including captain)
+                                                const rosterTiers = [
+                                                    ...(myTeam.players?.map(p => p.min_bid) || []),
+                                                    myTeam.captain?.min_bid
+                                                ].filter(Boolean) as number[];
+
+                                                // Tiers we still need to fill (excluding the one this player would fill)
+                                                const missingTiers = TIERS.filter(t => !rosterTiers.includes(t) && t !== currentTier);
+
+                                                // How many players must we reserve money for after this one?
+                                                const slotsToFillAfterThis = Math.max(0, playersNeeded - 1);
+
+                                                // Calculate reserve: Sum of missing tiers. 
+                                                // If we need more players than missing tiers, assume 100k for extras.
+                                                let reservedTokens = 0;
+                                                const tiersToReserve = missingTiers.slice(0, slotsToFillAfterThis);
+                                                reservedTokens = tiersToReserve.reduce((sum, t) => sum + t, 0);
+
+                                                const extraSlotsNeeded = Math.max(0, slotsToFillAfterThis - tiersToReserve.length);
+                                                reservedTokens += extraSlotsNeeded * 100000;
+
+                                                // Dynamic Buffer: If team size <= 3, add 25k per remaining slot
+                                                const currentTeamSize = (myTeam.players?.length || 0) + (myTeam.captain ? 1 : 0);
+                                                if (currentTeamSize <= 3) {
+                                                    reservedTokens += (slotsToFillAfterThis * 25000);
                                                 }
 
-                                                // Deterministic 6-button logic:
-                                                // If balance is affordable and not already represented, and we have unaffordable options,
-                                                // replace the most expensive option with the total balance.
-                                                const anyDisabledByBalance = bidOptions.some(opt => opt > balance);
-                                                const isBalanceRepresented = bidOptions.some(opt => opt === balance);
-                                                if (balance > currentAmount && anyDisabledByBalance && !isBalanceRepresented) {
-                                                    bidOptions[5] = balance;
-                                                }
+                                                const safeMax = myTeam.balance - reservedTokens;
 
-                                                // Final filter: Unique values, Sorted by amount, and strictly 6 slots
-                                                const finalOptions = Array.from(new Set(bidOptions)).sort((a, b) => a - b).slice(0, 6);
+                                                const alreadyHasTier = rosterTiers.includes(currentTier);
+                                                const isMustBuy = !alreadyHasTier && !auction.currentBidderName;
+                                                const currentBid = auction.currentBid || 0;
+                                                const isExceedingSafeLimit = currentBid > safeMax;
 
-                                                return finalOptions.map((amount, idx) => {
-                                                    const effectiveBase = auction.currentBid && auction.currentBid > 0 ? auction.currentBid : baseAmount;
-                                                    const isBaseBid = amount === baseAmount && !auction.currentBidderName;
-                                                    const isLeading = auction.currentBidderId === myTeamId;
-                                                    const isTooExpensive = amount > balance;
-
-                                                    return (
-                                                        <button
-                                                            key={`${auction.playerId}-${idx}-${amount}`}
-                                                            onClick={() => handleBid(amount)}
-                                                            disabled={isLeading || isBidding || isTooExpensive}
-                                                            className={`h-[56px] rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group relative ${isLeading || isTooExpensive
-                                                                ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
-                                                                : isBidding ? 'bg-white/5 text-gray-400 cursor-wait' : 'bg-white/10 hover:bg-accent hover:text-black'
-                                                                }`}
-                                                        >
-                                                            {isBidding ? (
-                                                                <RefreshCw className="w-5 h-5 animate-spin text-accent" />
-                                                            ) : (
-                                                                <>
-                                                                    <span className={`text-[10px] font-medium uppercase tracking-widest ${isLeading || isTooExpensive ? 'text-gray-700' : 'text-gray-400 group-hover:text-black/60'}`}>
-                                                                        {amount === balance ? 'MAX TOKENS' : isBaseBid ? 'Bid Base' : `+${(amount - effectiveBase) / 1000}k`}
-                                                                    </span>
-                                                                    <span className="text-base">{amount.toLocaleString()}</span>
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    );
-                                                });
+                                                return (
+                                                    <div className={`p-4 rounded-xl border flex flex-col gap-2 ${isMustBuy ? 'bg-accent/10 border-accent/30 shadow-[0_0_20px_rgba(var(--accent-rgb),0.1)]' : 'bg-white/5 border-white/10'}`}>
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Captain's Insight</h4>
+                                                                <div className="flex items-center gap-2">
+                                                                    {isMustBuy ? (
+                                                                        <div className="flex flex-col">
+                                                                            <div className="flex items-center gap-1.5 text-accent font-black text-sm italic">
+                                                                                <TrendingUp className="w-4 h-4" /> MUST BUY!
+                                                                            </div>
+                                                                            <span className="text-[10px] font-medium text-gray-400 capitalize">Required for {currentTier.toLocaleString()} tier coverage</span>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="text-gray-400 text-sm font-bold flex flex-col">
+                                                                            <span>Strategic Observation</span>
+                                                                            {alreadyHasTier && <span className="text-[10px] font-normal text-gray-600">Tier already covered in roster</span>}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Safe Max Bid</p>
+                                                                <p className={`text-xl font-black font-mono transition-colors ${isExceedingSafeLimit ? 'text-red-500' : 'text-white'}`}>
+                                                                    {safeMax.toLocaleString()}
+                                                                </p>
+                                                                <p className="text-[8px] text-gray-600 font-bold">Reserving {reservedTokens.toLocaleString()} for {slotsToFillAfterThis} more slots</p>
+                                                            </div>
+                                                        </div>
+                                                        {isExceedingSafeLimit && (
+                                                            <div className="text-[10px] text-red-500 font-bold leading-tight bg-red-500/10 p-2 rounded-lg border border-red-500/20 mt-1 animate-pulse">
+                                                                ⚠️ BUDGET RISK: You need {playersNeeded} more players. Your remaining budget is getting tight for the mandatory tiers.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
                                             })()}
+
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {(() => {
+                                                    const myTeam = teams.find(t => t.id === myTeamId);
+                                                    const balance = myTeam?.balance || 0;
+                                                    const currentAmount = auction.currentBid || 0;
+                                                    const baseAmount = auction.basePrice || 0;
+
+                                                    let bidOptions: number[] = [];
+
+                                                    if (!auction.currentBidderName) {
+                                                        // Base Phase: Base, +5k, +10k, +25k, +50k, +100k
+                                                        bidOptions = [
+                                                            baseAmount,
+                                                            baseAmount + 5000,
+                                                            baseAmount + 10000,
+                                                            baseAmount + 25000,
+                                                            baseAmount + 50000,
+                                                            baseAmount + 100000
+                                                        ];
+                                                    } else {
+                                                        // Active Phase: +5k, +10k, +25k, +50k, +75k, +100k
+                                                        const base = currentAmount;
+                                                        bidOptions = [
+                                                            base + 5000,
+                                                            base + 10000,
+                                                            base + 25000,
+                                                            base + 50000,
+                                                            base + 75000,
+                                                            base + 100000
+                                                        ];
+                                                    }
+
+                                                    // Deterministic 6-button logic:
+                                                    // If balance is affordable and not already represented, and we have unaffordable options,
+                                                    // replace the most expensive option with the total balance.
+                                                    const anyDisabledByBalance = bidOptions.some(opt => opt > balance);
+                                                    const isBalanceRepresented = bidOptions.some(opt => opt === balance);
+                                                    if (balance > currentAmount && anyDisabledByBalance && !isBalanceRepresented) {
+                                                        bidOptions[5] = balance;
+                                                    }
+
+                                                    // Final filter: Unique values, Sorted by amount, and strictly 6 slots
+                                                    const finalOptions = Array.from(new Set(bidOptions)).sort((a, b) => a - b).slice(0, 6);
+
+                                                    return finalOptions.map((amount, idx) => {
+                                                        const effectiveBase = auction.currentBid && auction.currentBid > 0 ? auction.currentBid : baseAmount;
+                                                        const isBaseBid = amount === baseAmount && !auction.currentBidderName;
+                                                        const isLeading = auction.currentBidderId === myTeamId;
+                                                        const isTooExpensive = amount > balance;
+
+                                                        return (
+                                                            <button
+                                                                key={`${auction.playerId}-${idx}-${amount}`}
+                                                                onClick={() => handleBid(amount)}
+                                                                disabled={isLeading || isBidding || isTooExpensive}
+                                                                className={`h-[56px] rounded-xl font-black text-sm transition-all flex flex-col items-center justify-center gap-0.5 group relative ${isLeading || isTooExpensive
+                                                                    ? 'bg-gray-800/50 text-gray-600 cursor-not-allowed border border-white/5'
+                                                                    : isBidding ? 'bg-white/5 text-gray-400 cursor-wait' : 'bg-white/10 hover:bg-accent hover:text-black'
+                                                                    }`}
+                                                            >
+                                                                {isBidding ? (
+                                                                    <RefreshCw className="w-5 h-5 animate-spin text-accent" />
+                                                                ) : (
+                                                                    <>
+                                                                        <span className={`text-[10px] font-medium uppercase tracking-widest ${isLeading || isTooExpensive ? 'text-gray-700' : 'text-gray-400 group-hover:text-black/60'}`}>
+                                                                            {amount === balance ? 'MAX TOKENS' : isBaseBid ? 'Bid Base' : `+${(amount - effectiveBase) / 1000}k`}
+                                                                        </span>
+                                                                        <span className="text-base">{amount.toLocaleString()}</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        );
+                                                    });
+                                                })()}
+                                            </div>
                                         </div>
                                     )}
                                 </div>

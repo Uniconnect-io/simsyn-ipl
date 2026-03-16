@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { decrypt } from '@/lib/auth';
+import { decrypt, updateSession } from '@/lib/auth';
 
 export async function proxy(request: NextRequest) {
     const session = request.cookies.get('session')?.value;
@@ -71,6 +71,16 @@ export async function proxy(request: NextRequest) {
             }
         } catch (e) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+    }
+
+    // Attempt to refresh the session token so it doesn't expire prematurely
+    if (session) {
+        try {
+            const res = await updateSession(request);
+            if (res) return res;
+        } catch (e) {
+            // Ignore if session couldn't be updated (likely invalid/expired)
         }
     }
 

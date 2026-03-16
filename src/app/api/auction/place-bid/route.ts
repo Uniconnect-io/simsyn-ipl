@@ -76,8 +76,8 @@ export async function POST(request: Request) {
       args: [teamId]
     });
     const playerCount = (playerCountRs.rows[0] as any).count;
-    if (playerCount >= 5) {
-      return NextResponse.json({ error: 'Team is full (Max 5 players + Captain)' }, { status: 400 });
+    if (playerCount >= 6) {
+      return NextResponse.json({ error: 'Team is full (Max 6 players + Captain)' }, { status: 400 });
     }
 
     // Update player auction status and timer

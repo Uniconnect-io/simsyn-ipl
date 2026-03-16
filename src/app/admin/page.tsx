@@ -183,8 +183,22 @@ export default function AdminPage() {
     const checkSession = async () => {
         const session = localStorage.getItem('sipl_admin');
         if (session) {
-            setLoggedInAdmin(JSON.parse(session));
-            fetchHeartbeat();
+            try {
+                const res = await fetch('/api/auth/me');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.user && data.user.role === 'ADMIN') {
+                        setLoggedInAdmin(data.user);
+                        fetchHeartbeat();
+                    } else {
+                        handleLogout();
+                    }
+                } else {
+                    handleLogout();
+                }
+            } catch (error) {
+                handleLogout();
+            }
         }
         setIsCheckingSession(false);
     };
@@ -494,6 +508,12 @@ export default function AdminPage() {
                 fetch(`/api/auction/status?_=${Date.now()}`),
                 fetch(`/api/admin/battles?_=${Date.now()}`)
             ]);
+
+            const responses = [playersRes, ownersRes, teamsRes, matchesRes, casesRes, auctionRes, battlesRes];
+            if (responses.some(r => r.status === 401)) {
+                handleLogout();
+                return;
+            }
 
             if (playersRes.ok) setPlayers(await playersRes.json());
             if (ownersRes.ok) setOwners(await ownersRes.json());

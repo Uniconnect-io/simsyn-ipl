@@ -18,7 +18,7 @@ interface Player {
     team_id: string | null;
     teamName?: string | null;
     role?: string;
-    sold_price?: number;
+    sold_price?: number | null;
 }
 
 interface Team {

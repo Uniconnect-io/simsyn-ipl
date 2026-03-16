@@ -15,11 +15,11 @@ export async function GET(request: Request) {
                     args: [teamId]
                 }),
                 db.execute({
-                    sql: "SELECT id, name, team_id, rating, sold_price FROM players WHERE team_id = ? AND role = 'PLAYER'",
+                    sql: "SELECT id, name, team_id, rating, sold_price, min_bid FROM players WHERE team_id = ? AND role = 'PLAYER'",
                     args: [teamId]
                 }),
                 db.execute({
-                    sql: "SELECT id, name, team_id, sold_price FROM players WHERE team_id = ? AND role = 'OWNER'",
+                    sql: "SELECT id, name, team_id, sold_price, min_bid FROM players WHERE team_id = ? AND role = 'OWNER'",
                     args: [teamId]
                 })
             ]);
@@ -36,8 +36,8 @@ export async function GET(request: Request) {
 
         const [teamsRs, playersRs, ownersRs] = await Promise.all([
             db.execute('SELECT * FROM teams'),
-            db.execute("SELECT id, name, team_id, rating, sold_price FROM players WHERE team_id IS NOT NULL AND role = 'PLAYER'"),
-            db.execute("SELECT id, name, team_id, sold_price FROM players WHERE role = 'OWNER'")
+            db.execute("SELECT id, name, team_id, rating, sold_price, min_bid FROM players WHERE team_id IS NOT NULL AND role = 'PLAYER'"),
+            db.execute("SELECT id, name, team_id, sold_price, min_bid FROM players WHERE role = 'OWNER'")
         ]);
 
         const teams = teamsRs.rows as any[];
