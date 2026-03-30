@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getSession } from '@/lib/auth';
-
 import { getIdeaScoreAndFeedback } from '@/lib/ai';
+import { sendIdeaReviewedPlayerNotification } from '@/lib/email';
 
 export async function GET(request: Request) {
     try {
@@ -156,6 +156,34 @@ export async function PATCH(request: Request) {
             sql: `UPDATE hub_ideas SET ${updates.join(', ')} WHERE id = ?`,
             args
         });
+
+        // If score or status changed, notify player
+        if (admin_score !== undefined || status !== undefined) {
+            try {
+                const ideaRs = await db.execute({
+                    sql: 'SELECT title, player_id, admin_score, status FROM hub_ideas WHERE id = ?',
+                    args: [id]
+                });
+                if (ideaRs.rows.length > 0) {
+                    const idea = ideaRs.rows[0];
+                    const playerRs = await db.execute({
+                        sql: 'SELECT email FROM players WHERE id = ?',
+                        args: [idea.player_id]
+                    });
+                    const playerEmail = playerRs.rows[0]?.email;
+                    if (playerEmail) {
+                        await sendIdeaReviewedPlayerNotification(
+                            playerEmail, 
+                            idea.title as string, 
+                            (idea.status || 'REVIEWED') as string, 
+                            idea.admin_score as number
+                        );
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to notify player of idea review', err);
+            }
+        }
 
         return NextResponse.json({ success: true });
 

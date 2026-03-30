@@ -11,8 +11,8 @@ export async function POST(request: Request) {
         }
 
         await initDb();
-        const { name, rating, pool, min_bid, tags } = await request.json();
-        console.log('API: Creating player:', { name, rating, pool, min_bid, tags });
+        const { name, email, rating, pool, min_bid, tags } = await request.json();
+        console.log('API: Creating player:', { name, email, rating, pool, min_bid, tags });
 
         if (!name) {
             console.error('API Error: Name is missing in POST /api/admin/players');
@@ -20,13 +20,14 @@ export async function POST(request: Request) {
         }
 
         const id = crypto.randomUUID();
+        const finalEmail = email || `${name.toLowerCase().replace(/\s+/g, '.')}@simsyn.com`;
 
         await db.execute({
             sql: `
-            INSERT INTO players (id, name, rating, pool, min_bid, tags, is_auctioned)
-            VALUES (?, ?, ?, ?, ?, ?, 0)
+            INSERT INTO players (id, name, email, rating, pool, min_bid, tags, is_auctioned)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
         `,
-            args: [id, name, rating, pool, min_bid, tags || '']
+            args: [id, name, finalEmail, rating, pool, min_bid, tags || '']
         });
 
         return NextResponse.json({ success: true, id });
@@ -107,17 +108,19 @@ export async function PATCH(request: Request) {
                 }
             ], 'write');
         } else if (action === 'update_details') {
-            const { name, rating, pool, min_bid, tags } = data;
-            console.log('API: Updating player details:', { id, name, rating, pool, min_bid, tags });
+            const { name, email, rating, pool, min_bid, tags } = data;
+            console.log('API: Updating player details:', { id, name, email, rating, pool, min_bid, tags });
 
             if (!name) {
                 console.error('API Error: Name is missing in PATCH /api/admin/players (update_details)');
                 return NextResponse.json({ error: 'Name is required' }, { status: 400 });
             }
+            
+            const finalEmail = email || `${name.toLowerCase().replace(/\s+/g, '.')}@simsyn.com`;
 
             await db.execute({
-                sql: 'UPDATE players SET name = ?, rating = ?, pool = ?, min_bid = ?, tags = ? WHERE id = ?',
-                args: [name, rating, pool, min_bid, tags, id]
+                sql: 'UPDATE players SET name = ?, email = ?, rating = ?, pool = ?, min_bid = ?, tags = ? WHERE id = ?',
+                args: [name, finalEmail, rating, pool, min_bid, tags, id]
             });
         }
 

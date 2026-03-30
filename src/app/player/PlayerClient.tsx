@@ -873,6 +873,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                                                 {idea.status && idea.status !== 'PENDING' && (
                                                     <span className={`text-[8px] font-black uppercase tracking-widest mt-0.5 
                                                         ${idea.status === 'APPROVED' ? 'text-green-500' :
+                                                            idea.status === 'DEVELOPMENT' ? 'text-blue-500' :
                                                             idea.status === 'NEEDS_IMPROVEMENT' ? 'text-yellow-500' : 'text-red-500'}
                                                     `}>
                                                         {idea.status.replace('_', ' ')}

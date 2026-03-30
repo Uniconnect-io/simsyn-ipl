@@ -167,6 +167,7 @@ export default function IdeasTab() {
                         <option value="">ALL STATUS</option>
                         <option value="PENDING">PENDING</option>
                         <option value="APPROVED">APPROVED</option>
+                        <option value="DEVELOPMENT">DEVELOPMENT</option>
                         <option value="NEEDS_IMPROVEMENT">NEEDS IMPROVEMENT</option>
                         <option value="REJECTED">REJECTED</option>
                     </select>
@@ -216,9 +217,10 @@ export default function IdeasTab() {
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         <span className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest border ${idea.status === 'APPROVED' ? 'bg-green-500/10 text-green-500 border-green-500/20' :
+                                            idea.status === 'DEVELOPMENT' ? 'bg-blue-500/10 text-blue-500 border-blue-500/20' :
                                             idea.status === 'NEEDS_IMPROVEMENT' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
                                                 idea.status === 'REJECTED' ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-white/5 text-gray-500 border-white/10'}`}>
-                                            {idea.status || 'PENDING'}
+                                            {idea.status ? idea.status.replace('_', ' ') : 'PENDING'}
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
@@ -399,11 +401,13 @@ export default function IdeasTab() {
                                                 }}
                                                 className={`w-full bg-black/50 border border-white/10 rounded-lg px-3 py-3 text-[10px] font-black uppercase outline-none cursor-pointer transition-all hover:border-accent/40
                                                     ${selectedIdeaForModal.status === 'APPROVED' ? 'text-green-500' :
+                                                        selectedIdeaForModal.status === 'DEVELOPMENT' ? 'text-blue-500' :
                                                         selectedIdeaForModal.status === 'NEEDS_IMPROVEMENT' ? 'text-yellow-500' :
                                                             selectedIdeaForModal.status === 'REJECTED' ? 'text-red-500' : 'text-gray-400'}`}
                                             >
                                                 <option value="PENDING">PENDING</option>
                                                 <option value="APPROVED">APPROVED</option>
+                                                <option value="DEVELOPMENT">DEVELOPMENT</option>
                                                 <option value="NEEDS_IMPROVEMENT">NEEDS IMPROVEMENT</option>
                                                 <option value="REJECTED">REJECTED</option>
                                             </select>

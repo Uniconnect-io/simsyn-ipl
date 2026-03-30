@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, Tag, User, Trophy, BarChart, Gavel } from 'lucide-react';
+import { X, Save, Tag, User, Trophy, BarChart, Gavel, Mail } from 'lucide-react';
 
 interface Player {
     id?: string;
@@ -11,6 +11,7 @@ interface Player {
     pool: string;
     min_bid: number;
     tags?: string;
+    email?: string;
 }
 
 interface PlayerModalProps {
@@ -26,7 +27,8 @@ export default function PlayerModal({ isOpen, onClose, onSave, player }: PlayerM
         rating: 5,
         pool: 'A',
         min_bid: 100000,
-        tags: ''
+        tags: '',
+        email: ''
     });
     const [existingTags, setExistingTags] = useState<string[]>([]);
     const [newTag, setNewTag] = useState('');
@@ -40,7 +42,8 @@ export default function PlayerModal({ isOpen, onClose, onSave, player }: PlayerM
                 rating: player.rating,
                 pool: player.pool,
                 min_bid: player.min_bid,
-                tags: player.tags || ''
+                tags: player.tags || '',
+                email: player.email || ''
             });
         } else {
             setFormData({
@@ -48,7 +51,8 @@ export default function PlayerModal({ isOpen, onClose, onSave, player }: PlayerM
                 rating: 5,
                 pool: 'A',
                 min_bid: 100000,
-                tags: ''
+                tags: '',
+                email: ''
             });
         }
     }, [player, isOpen]);
@@ -138,6 +142,19 @@ export default function PlayerModal({ isOpen, onClose, onSave, player }: PlayerM
                                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                         className="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:border-accent outline-none text-white transition-all text-sm"
                                         placeholder="Enter player name"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] text-gray-500 uppercase font-black px-1 flex items-center gap-2">
+                                        <Mail className="w-3 h-3" /> Email Address
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl p-4 focus:border-accent outline-none text-white transition-all text-sm"
+                                        placeholder="player@simsyn.com"
                                     />
                                 </div>
 

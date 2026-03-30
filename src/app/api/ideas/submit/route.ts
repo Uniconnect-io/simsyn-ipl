@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { getIdeaScoreAndFeedback } from '@/lib/ai';
+import { sendNewIdeaAdminNotification } from '@/lib/email';
+import { sendTeamsNotification } from '@/lib/msteams';
 
 export async function POST(request: Request) {
     try {
@@ -70,6 +72,22 @@ export async function POST(request: Request) {
                 `,
                 args: [ideaId, playerId, title, content, score, feedback]
             });
+
+            // Trigger notification
+            try {
+                const adminsRs = await db.execute('SELECT email FROM admins WHERE email IS NOT NULL');
+                const adminEmails = adminsRs.rows.map((row: any) => row.email);
+                const playerRs = await db.execute({ sql: 'SELECT name FROM players WHERE id = ?', args: [playerId] });
+                const playerName = playerRs.rows[0]?.name || 'A player';
+                
+                await sendNewIdeaAdminNotification(adminEmails, title, playerName);
+                await sendTeamsNotification(
+                    'New Idea Submission', 
+                    `**${playerName}** has submitted a new idea to the Idea Hub:\n\n*"${title}"*\n\nPlease review it in the Admin Console.`
+                );
+            } catch (err) {
+                console.error('Failed to send admin notification for new idea', err);
+            }
 
             return NextResponse.json({
                 success: true,

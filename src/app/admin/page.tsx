@@ -5,43 +5,34 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
     Users,
-    Trophy,
-    Calendar,
     Settings,
-    RefreshCw,
     Search,
     Plus,
     Shield,
-    ChevronRight,
     Gavel,
-    FileText,
-    BarChart,
     Home,
     LogOut,
-    Play,
-    CheckCircle,
     User,
     Award,
-    Edit2,
     X,
     Timer,
-    List,
     Zap,
     Trash2,
     Check,
     Upload,
     Lightbulb,
+    Mail,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 
 // Modular Tab Components
 import IdeasTab from '@/components/admin/IdeasTab';
 import OwnersTab from '@/components/admin/OwnersTab';
-import CasesTab from '@/components/admin/CasesTab';
 import AuctionTab from '@/components/admin/AuctionTab';
 import BattlesTab from '@/components/admin/BattlesTab';
 import MaintenanceTab from '@/components/admin/MaintenanceTab';
 import PlayerModal from '@/components/admin/PlayerModal';
+import AdminsTab from '@/components/admin/AdminsTab';
+import EmailsTab from '@/components/admin/EmailsTab';
 
 interface Player {
     id: string;
@@ -651,6 +642,8 @@ export default function AdminPage() {
                     { id: 'ideas', label: 'Idea Hub', icon: Lightbulb },
                     { id: 'battles', label: 'Battles', icon: Zap },
                     { id: 'auction', label: 'Auction', icon: Gavel },
+                    { id: 'admins', label: 'Admins', icon: Users },
+                    { id: 'emails', label: 'Emails', icon: Mail },
                     { id: 'maintenance', label: 'Maintenance', icon: Settings, color: 'hover:text-red-500' }
                 ].map(tab => (
                     <button
@@ -679,6 +672,8 @@ export default function AdminPage() {
                 )}
 
                 {activeTab === 'ideas' && <IdeasTab />}
+                {activeTab === 'admins' && <AdminsTab />}
+                {activeTab === 'emails' && <EmailsTab />}
 
                 {activeTab === 'battles' && (
                     <BattlesTab
