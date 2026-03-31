@@ -11,7 +11,7 @@ export async function GET(request: Request) {
         }
 
         const rs = await db.execute({
-            sql: 'SELECT id, username, email, role FROM admins ORDER BY username ASC',
+            sql: 'SELECT id, username, email, role, permissions FROM admins ORDER BY username ASC',
             args: []
         });
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { username, email, password, role } = await request.json();
+        const { username, email, password, role, permissions } = await request.json();
 
         if (!username || !password) {
             return NextResponse.json({ error: 'Username and password are required' }, { status: 400 });
@@ -38,10 +38,11 @@ export async function POST(request: Request) {
         const hashedPassword = await hashPassword(password);
         const finalEmail = email || `${username}@simsyn.com`;
         const finalRole = role || 'ADMIN';
+        const finalPermissions = permissions || 'owners,ideas,battles,auction,admins,emails,maintenance';
 
         await db.execute({
-            sql: `INSERT INTO admins (username, email, password, role) VALUES (?, ?, ?, ?)`,
-            args: [username, finalEmail, hashedPassword, finalRole]
+            sql: `INSERT INTO admins (username, email, password, role, permissions) VALUES (?, ?, ?, ?, ?)`,
+            args: [username, finalEmail, hashedPassword, finalRole, finalPermissions]
         });
 
         return NextResponse.json({ success: true });
@@ -58,7 +59,7 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id, username, email, password, role } = await request.json();
+        const { id, username, email, password, role, permissions } = await request.json();
 
         if (!id) {
             return NextResponse.json({ error: 'Admin ID is required' }, { status: 400 });
@@ -78,6 +79,10 @@ export async function PATCH(request: Request) {
         if (role) {
             updates.push('role = ?');
             args.push(role);
+        }
+        if (permissions !== undefined) {
+            updates.push('permissions = ?');
+            args.push(permissions);
         }
         if (password) {
             updates.push('password = ?');

@@ -7,7 +7,18 @@ interface AdminUser {
     username: string;
     email: string;
     role: string;
+    permissions: string;
 }
+
+const AVAILABLE_TABS = [
+    { id: 'owners', label: 'Players' },
+    { id: 'ideas', label: 'Idea Hub' },
+    { id: 'battles', label: 'Battles' },
+    { id: 'auction', label: 'Auction' },
+    { id: 'admins', label: 'Admins' },
+    { id: 'emails', label: 'Emails' },
+    { id: 'maintenance', label: 'Maintenance' }
+];
 
 export default function AdminsTab() {
     const [admins, setAdmins] = useState<AdminUser[]>([]);
@@ -20,7 +31,8 @@ export default function AdminsTab() {
         username: '',
         email: '',
         password: '',
-        role: 'ADMIN'
+        role: 'ADMIN',
+        permissions: 'owners,ideas,battles,auction,admins,emails,maintenance'
     });
 
     useEffect(() => {
@@ -87,13 +99,25 @@ export default function AdminsTab() {
 
     const openCreate = () => {
         setEditingAdmin(null);
-        setFormData({ username: '', email: '', password: '', role: 'ADMIN' });
+        setFormData({ 
+            username: '', 
+            email: '', 
+            password: '', 
+            role: 'ADMIN',
+            permissions: 'owners,ideas,battles,auction,admins,emails,maintenance'
+        });
         setIsModalOpen(true);
     };
 
     const openEdit = (admin: AdminUser) => {
         setEditingAdmin(admin);
-        setFormData({ username: admin.username, email: admin.email || '', password: '', role: admin.role });
+        setFormData({ 
+            username: admin.username, 
+            email: admin.email || '', 
+            password: '', 
+            role: admin.role,
+            permissions: admin.permissions || ''
+        });
         setIsModalOpen(true);
     };
 
@@ -148,8 +172,15 @@ export default function AdminsTab() {
                             <div className="flex items-center gap-2 mt-2 text-xs text-gray-400 font-bold">
                                 <Mail className="w-3 h-3" /> {admin.email || 'No email set'}
                             </div>
-                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 font-bold uppercase">
+                             <div className="flex items-center gap-2 mt-1 text-xs text-gray-500 font-bold uppercase">
                                 <Shield className="w-3 h-3" /> Role: {admin.role}
+                            </div>
+                            <div className="mt-4 flex flex-wrap gap-1">
+                                {(admin.permissions || '').split(',').map(p => (
+                                    <span key={p} className="text-[8px] bg-white/5 px-2 py-0.5 rounded border border-white/5 text-gray-400 uppercase font-black">
+                                        {p}
+                                    </span>
+                                ))}
                             </div>
                         </motion.div>
                     ))}
@@ -202,6 +233,32 @@ export default function AdminsTab() {
                                 </div>
                             </div>
                             
+                            <div>
+                                <label className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-3 block">Permissions (Accessible Tabs)</label>
+                                <div className="grid grid-cols-2 gap-2 bg-white/5 p-4 rounded-xl border border-white/10">
+                                    {AVAILABLE_TABS.map(tab => {
+                                        const isChecked = formData.permissions.split(',').includes(tab.id);
+                                        return (
+                                            <label key={tab.id} className="flex items-center gap-2 cursor-pointer group">
+                                                <div 
+                                                    onClick={() => {
+                                                        const current = formData.permissions.split(',').filter(Boolean);
+                                                        const next = isChecked 
+                                                            ? current.filter(p => p !== tab.id)
+                                                            : [...current, tab.id];
+                                                        setFormData({ ...formData, permissions: next.join(',') });
+                                                    }}
+                                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${isChecked ? 'bg-red-500 border-red-500' : 'border-white/20 group-hover:border-white/40'}`}
+                                                >
+                                                    {isChecked && <Plus className="w-3 h-3 text-white rotate-45" style={{ transform: 'rotate(0deg)' }} />}
+                                                </div>
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider ${isChecked ? 'text-white' : 'text-gray-500'}`}>{tab.label}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
                             <div>
                                 <label className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-2 block">
                                     Password {editingAdmin && <span className="text-gray-600">(leave blank to keep current)</span>}

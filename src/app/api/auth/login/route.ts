@@ -10,7 +10,7 @@ export async function POST(request: Request) {
 
         if (type === 'admin') {
             const rs = await db.execute({
-                sql: 'SELECT id, username as name, role, password FROM admins WHERE username = ?',
+                sql: 'SELECT id, username as name, role, permissions, password FROM admins WHERE username = ?',
                 args: [id]
             });
             const admin = rs.rows[0];

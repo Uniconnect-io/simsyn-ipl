@@ -34,6 +34,16 @@ import PlayerModal from '@/components/admin/PlayerModal';
 import AdminsTab from '@/components/admin/AdminsTab';
 import EmailsTab from '@/components/admin/EmailsTab';
 
+const ADMIN_TABS = [
+    { id: 'owners', label: 'Players', icon: Shield },
+    { id: 'ideas', label: 'Idea Hub', icon: Lightbulb },
+    { id: 'battles', label: 'Battles', icon: Zap },
+    { id: 'auction', label: 'Auction', icon: Gavel },
+    { id: 'admins', label: 'Admins', icon: Users },
+    { id: 'emails', label: 'Emails', icon: Mail },
+    { id: 'maintenance', label: 'Maintenance', icon: Settings, color: 'hover:text-red-500' }
+];
+
 interface Player {
     id: string;
     name: string;
@@ -155,6 +165,16 @@ export default function AdminPage() {
     }, []);
 
     useEffect(() => {
+        if (loggedInAdmin && !isCheckingSession) {
+            const permissions = (loggedInAdmin.permissions || '').split(',').filter(Boolean);
+            // If active tab is not in permissions, switch to first allowed tab
+            if (permissions.length > 0 && !permissions.includes(activeTab)) {
+                setActiveTab(permissions[0]);
+            }
+        }
+    }, [loggedInAdmin, isCheckingSession, activeTab]);
+
+    useEffect(() => {
         if (auctionStatus?.status === 'ACTIVE' && auctionStatus.timerEnd) {
             const calculateTime = () => {
                 const end = new Date(auctionStatus.timerEnd).getTime();
@@ -245,15 +265,17 @@ export default function AdminPage() {
 
     const handlePlayerAction = async (id: string, action: 'release' | 'assign', team_id?: string) => {
         let refund = false;
+        let removeScores = false;
         if (action === 'release') {
             if (!confirm('Release this player from their team?')) return;
             refund = confirm('Refund sold price to team wallet?');
+            removeScores = confirm('Remove team ID from past scores also?');
         }
         try {
             const res = await fetch('/api/admin/players', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, action, team_id, refund }),
+                body: JSON.stringify({ id, action, team_id, refund, removeScores }),
             });
             if (res.ok) fetchHeartbeat();
         } catch (error) {
@@ -349,7 +371,7 @@ export default function AdminPage() {
     const handleCreateBattle = async () => {
         try {
             const endpoint = editingBattleId ? '/api/admin/battles' : '/api/admin/battles';
-            const method = editingBattleId ? 'PUT' : 'POST';
+            const method = editingBattleId ? 'PATCH' : 'POST';
 
             // Format start_time if date and time are provided
             let start_time = null;
@@ -637,15 +659,7 @@ export default function AdminPage() {
             </header>
 
             <nav className="flex gap-2 mb-12 border-b border-white/5 pb-4 overflow-x-auto custom-scrollbar no-scrollbar">
-                {[
-                    { id: 'owners', label: 'Players', icon: Shield },
-                    { id: 'ideas', label: 'Idea Hub', icon: Lightbulb },
-                    { id: 'battles', label: 'Battles', icon: Zap },
-                    { id: 'auction', label: 'Auction', icon: Gavel },
-                    { id: 'admins', label: 'Admins', icon: Users },
-                    { id: 'emails', label: 'Emails', icon: Mail },
-                    { id: 'maintenance', label: 'Maintenance', icon: Settings, color: 'hover:text-red-500' }
-                ].map(tab => (
+                {ADMIN_TABS.filter(tab => (loggedInAdmin?.permissions || '').split(',').includes(tab.id)).map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
@@ -718,14 +732,25 @@ export default function AdminPage() {
                         onEndIndividualBattle={handleEndIndividualBattle}
                         onEditBattle={(battle) => {
                             setEditingBattleId(battle.id);
+
+                            let localDateStr = '';
+                            let localTimeStr = '';
+                            if (battle.start_time) {
+                                const d = new Date(battle.start_time);
+                                if (!isNaN(d.getTime())) {
+                                    localDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                                    localTimeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                                }
+                            }
+
                             setWizardConfig({
                                 title: battle.title,
                                 description: battle.description,
                                 question_timer: battle.question_timer,
                                 team1_id: battle.team1_id || '',
                                 team2_id: battle.team2_id || '',
-                                date: battle.start_time ? battle.start_time.split('T')[0] : '',
-                                time: battle.start_time ? battle.start_time.split('T')[1]?.substring(0, 5) : '',
+                                date: localDateStr,
+                                time: localTimeStr,
                                 conductor_id: battle.conductor_id || '',
                                 points_config: battle.points_config ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config).join(', ') : battle.points_config.join(', ')) : '5, 3, 1',
                                 is_test: !!battle.is_test
@@ -1040,10 +1065,12 @@ export default function AdminPage() {
                                                     {wizardConfig.date && wizardConfig.time ? `${wizardConfig.date} ${wizardConfig.time}` : 'Not Scheduled'}
                                                 </span>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">PointsConfig</span>
-                                                <span className="font-bold text-accent">[{wizardConfig.points_config}]</span>
-                                            </div>
+                                            {battleType !== 'TECH_TALK' && (
+                                                <div className="flex justify-between">
+                                                    <span className="text-gray-500">PointsConfig</span>
+                                                    <span className="font-bold text-accent">[{wizardConfig.points_config}]</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}

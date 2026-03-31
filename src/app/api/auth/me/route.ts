@@ -12,7 +12,7 @@ export async function GET() {
         // Always fetch fresh data from DB to avoid stale sessions (e.g. after team assignment)
         if (session.user.role === 'ADMIN') {
             const rs = await db.execute({
-                sql: 'SELECT id, username as name, role FROM admins WHERE id = ?',
+                sql: 'SELECT id, username as name, role, permissions FROM admins WHERE id = ?',
                 args: [session.user.id]
             });
             const admin = rs.rows[0];

@@ -77,7 +77,7 @@ export async function PATCH(request: Request) {
         const { id, action } = data;
 
         if (action === 'release') {
-            const { refund } = data;
+            const { refund, removeScores } = data;
             const playerRs = await db.execute({
                 sql: 'SELECT team_id, sold_price FROM players WHERE id = ?',
                 args: [id]
@@ -95,6 +95,13 @@ export async function PATCH(request: Request) {
                 sql: 'UPDATE players SET team_id = NULL, is_auctioned = 0, sold_price = NULL, auction_status = \'IDLE\', auction_current_bidder_id = NULL, auction_current_bid = 0 WHERE id = ?',
                 args: [id]
             });
+
+            if (removeScores) {
+                await db.execute({
+                    sql: 'UPDATE scores SET team_id = NULL WHERE player_id = ?',
+                    args: [id]
+                });
+            }
         } else if (action === 'assign') {
             const { team_id } = data;
             await db.batch([

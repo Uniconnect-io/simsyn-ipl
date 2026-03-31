@@ -23,7 +23,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { title, description, mode, battle_type, team1_id, team2_id, start_time, question_timer, conductor_id, points_config, is_test } = await request.json();
+        const { title, description, mode, type: battle_type, team1_id, team2_id, start_time, question_timer, conductor_id, points_config, is_test } = await request.json();
 
         const id = crypto.randomUUID();
         await db.execute({
@@ -59,7 +59,7 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id, status, title, description, question_timer, mode, team1_id, team2_id, battle_type, start_time, conductor_id, points_config, is_test } = await request.json();
+        const { id, status, title, description, question_timer, mode, team1_id, team2_id, type: battle_type, start_time, conductor_id, points_config, is_test } = await request.json();
 
         if (status) {
             // If marking as COMPLETED, calculate team stats
