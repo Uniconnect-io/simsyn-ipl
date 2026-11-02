@@ -19,15 +19,21 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
             args: [id]
         });
 
-        // 2. Delete all scores (leaderboard)
+        // 2. Delete all roadmap submissions
+        await db.execute({
+            sql: `DELETE FROM roadmap_submissions WHERE match_id = ?`,
+            args: [id]
+        });
+
+        // 3. Delete all scores (leaderboard)
         await db.execute({
             sql: `DELETE FROM scores WHERE match_id = ?`,
             args: [id]
         });
 
-        // 3. Reset Match Status to PENDING
+        // 4. Reset Match Status to PENDING, current_round = 1, roadmap_results = NULL
         await db.execute({
-            sql: `UPDATE matches SET status = 'PENDING' WHERE id = ?`,
+            sql: `UPDATE matches SET status = 'PENDING', current_round = 1, roadmap_results = NULL WHERE id = ?`,
             args: [id]
         });
 

@@ -60,3 +60,8 @@ body {
     background: #555;
   }
 }
+
+select option {
+  background-color: #121212 !important;
+  color: #ffffff !important;
+}

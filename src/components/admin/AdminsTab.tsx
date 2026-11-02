@@ -11,6 +11,7 @@ interface AdminUser {
 }
 
 const AVAILABLE_TABS = [
+    { id: 'hackathon', label: 'Hackathon' },
     { id: 'owners', label: 'Players' },
     { id: 'ideas', label: 'Idea Hub' },
     { id: 'battles', label: 'Battles' },
@@ -32,7 +33,7 @@ export default function AdminsTab() {
         email: '',
         password: '',
         role: 'ADMIN',
-        permissions: 'owners,ideas,battles,auction,admins,emails,maintenance'
+        permissions: 'hackathon,owners,ideas,battles,auction,admins,emails,maintenance'
     });
 
     useEffect(() => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Zap, Plus, List, FileText, X, Edit2, Globe, EyeOff, RotateCcw, Trash2 } from 'lucide-react';
+import { Zap, Plus, List, FileText, X, Edit2, Globe, EyeOff, RotateCcw, Trash2, Trophy } from 'lucide-react';
 
 interface Match {
     id: string;
@@ -29,11 +29,12 @@ interface BattlesTabProps {
     onManageQuestions: (battleId: string) => void;
     onViewReport: (battleId: string) => void;
     onStartIndividualBattle: (battleId: string) => void;
-    onEndIndividualBattle: (battleId: string) => void;
+    onEndIndividualBattle: (battle: any) => void;
     onEditBattle: (battle: any) => void;
     onDeleteMatch: (id: string) => void;
     onPublishMatch: (id: string, published: boolean) => void;
     onResetMatch: (id: string) => void;
+    onAdvanceRoadmapRound: (battleId: string, currentRound: number) => void;
 }
 
 export default function BattlesTab({
@@ -49,7 +50,8 @@ export default function BattlesTab({
     onEditBattle,
     onDeleteMatch,
     onPublishMatch,
-    onResetMatch
+    onResetMatch,
+    onAdvanceRoadmapRound
 }: BattlesTabProps) {
     // Filter strictly for LEAGUE matches or standard legacy matches
     // since individualBattles already contains non-LEAGUE battle types
@@ -141,6 +143,16 @@ export default function BattlesTab({
                                     </button>
                                 </div>
                             )}
+                            {match.status !== 'SCHEDULED' && (
+                                <a
+                                    href={`/battles/leaderboard/${match.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-purple-600/20 text-purple-400 border border-purple-500/20 px-3 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-purple-600 hover:text-white transition-all flex items-center gap-1.5"
+                                >
+                                    <Trophy className="w-3 h-3" /> Standings
+                                </a>
+                            )}
                         </div>
                     </div>
                 ))}
@@ -150,7 +162,7 @@ export default function BattlesTab({
                     <div key={battle.id} className={`glass-card p-6 flex flex-col md:flex-row justify-between items-center gap-6 border-l-4 ${battle.status === 'ACTIVE' ? 'border-l-green-500' : 'border-l-gray-500'}`}>
                         <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] font-black bg-purple-500/20 text-purple-500 px-2 rounded uppercase">INDIVIDUAL</span>
+                                <span className="text-[10px] font-black bg-purple-500/20 text-purple-500 px-2 rounded uppercase">{battle.type === 'TEAM_BUILDING' ? 'TEAM BATTLE' : 'INDIVIDUAL'}</span>
                                 <span className="text-[10px] font-black bg-blue-500/20 text-blue-500 px-2 rounded uppercase">{battle.type?.replace('_', ' ') || 'KAHOOT'}</span>
                                 {battle.is_test && (
                                     <span className="text-[10px] font-black bg-red-500/20 text-red-500 px-2 rounded uppercase border border-red-500/30">TEST MODE</span>
@@ -163,6 +175,14 @@ export default function BattlesTab({
                             <p className="text-sm text-gray-500 line-clamp-1">{battle.description}</p>
                         </div>
                         <div className="flex gap-2">
+                            {battle.type === 'ROADMAP' && (
+                                <button
+                                    onClick={() => onManageQuestions(battle.id)}
+                                    className="bg-white/5 text-gray-400 border border-white/10 px-3 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-white/10 hover:text-white transition-all flex items-center gap-2"
+                                >
+                                    <List className="w-3 h-3" /> Features
+                                </button>
+                            )}
                             {(battle.type === 'KAHOOT' || !battle.type) && (
                                 <>
                                     <button
@@ -185,7 +205,7 @@ export default function BattlesTab({
                                         onClick={() => onStartIndividualBattle(battle.id)}
                                         className="bg-green-600/20 text-green-500 border border-green-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-green-600 hover:text-white transition-all"
                                     >
-                                        START
+                                        {battle.type === 'ROADMAP' ? 'START RD 1' : 'START'}
                                     </button>
                                     <button
                                         onClick={() => onDeleteMatch(battle.id)}
@@ -197,12 +217,43 @@ export default function BattlesTab({
                                 </div>
                             )}
                             {battle.status === 'ACTIVE' && (
-                                <button
-                                    onClick={() => onEndIndividualBattle(battle.id)}
-                                    className="bg-red-600/20 text-red-500 border border-red-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-red-600 hover:text-white transition-all"
-                                >
-                                    END
-                                </button>
+                                <div className="flex gap-2">
+                                    {battle.type === 'ROADMAP' ? (
+                                        <>
+                                            {battle.current_round === 1 && (
+                                                <button
+                                                    onClick={() => onAdvanceRoadmapRound(battle.id, 1)}
+                                                    className="bg-red-600/20 text-red-500 border border-red-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-red-600 hover:text-white transition-all"
+                                                >
+                                                    END RD 1
+                                                </button>
+                                            )}
+                                            {battle.current_round === 2 && (
+                                                <button
+                                                    onClick={() => onAdvanceRoadmapRound(battle.id, 2)}
+                                                    className="bg-green-600/20 text-green-500 border border-green-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-green-600 hover:text-white transition-all"
+                                                >
+                                                    START RD 2
+                                                </button>
+                                            )}
+                                            {battle.current_round === 3 && (
+                                                <button
+                                                    onClick={() => onAdvanceRoadmapRound(battle.id, 3)}
+                                                    className="bg-red-600/20 text-red-500 border border-red-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-red-600 hover:text-white transition-all"
+                                                >
+                                                    COMPLETE
+                                                </button>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <button
+                                            onClick={() => onEndIndividualBattle(battle)}
+                                            className="bg-red-600/20 text-red-500 border border-red-500/20 px-4 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-red-600 hover:text-white transition-all"
+                                        >
+                                            END
+                                        </button>
+                                    )}
+                                </div>
                             )}
                             {battle.status === 'COMPLETED' && (
                                 <>
@@ -221,6 +272,16 @@ export default function BattlesTab({
                                         <RotateCcw className="w-3 h-3" />
                                     </button>
                                 </>
+                            )}
+                            {battle.status !== 'PENDING' && (
+                                <a
+                                    href={`/battles/leaderboard/${battle.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-purple-600/20 text-purple-400 border border-purple-500/20 px-3 py-2 rounded-lg font-bold text-[10px] uppercase hover:bg-purple-600 hover:text-white transition-all flex items-center gap-1.5 animate-pulse"
+                                >
+                                    <Trophy className="w-3 h-3" /> Standings
+                                </a>
                             )}
                             <button
                                 onClick={() => onEditBattle(battle)}

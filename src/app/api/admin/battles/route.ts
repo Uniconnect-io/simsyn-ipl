@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db, { initDb } from '@/lib/db';
 import { getSession } from '@/lib/auth';
 import { sendTeamsNotification, createBattleScheduledCard, createBattleCompletedCard } from '@/lib/teams';
+import { FEATURE_CARDS, MOSCOW_MAP, TSHIRT_MAP } from '@/lib/roadmapData';
 
 export async function GET() {
     try {
@@ -59,7 +60,392 @@ export async function PATCH(request: Request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id, status, title, description, question_timer, mode, team1_id, team2_id, type: battle_type, start_time, conductor_id, points_config, is_test } = await request.json();
+        const { id, status, title, description, question_timer, mode, team1_id, team2_id, type: battle_type, start_time, conductor_id, points_config, is_test, team_positions, current_round, team_question_timer } = await request.json();
+
+        const battleCheck = await db.execute({
+            sql: 'SELECT type, is_test, current_round, start_time, title, points_config, roadmap_results FROM matches WHERE id = ?',
+            args: [id]
+        });
+        const currentBattle = battleCheck.rows[0] as any;
+
+        if (currentBattle && currentBattle.type === 'ROADMAP') {
+            const is_test = currentBattle.is_test;
+            let parsedPointsConfig = [25, 15, 10];
+            if (points_config) {
+                parsedPointsConfig = typeof points_config === 'string'
+                    ? points_config.split(',').map((p: string) => Number(p.trim()))
+                    : points_config;
+            } else if (currentBattle.points_config) {
+                parsedPointsConfig = typeof currentBattle.points_config === 'string'
+                    ? JSON.parse(currentBattle.points_config)
+                    : currentBattle.points_config;
+            }
+
+            if (current_round === 2) {
+                // Round 1 ended, calculate player scores
+                const questionsRs = await db.execute({
+                    sql: 'SELECT id FROM battle_questions WHERE battle_id = ?',
+                    args: [id]
+                });
+                let matchFeatures = questionsRs.rows.map((r: any) => r.id);
+                if (matchFeatures.length === 0) {
+                    matchFeatures = FEATURE_CARDS.map(c => c.id);
+                }
+
+                const submissionsRs = await db.execute({
+                    sql: 'SELECT player_id, team_id, submissions FROM roadmap_submissions WHERE match_id = ? AND round = 1',
+                    args: [id]
+                });
+                const submissions = submissionsRs.rows as any[];
+
+                const cardTotals: Record<string, { valueSum: number; effortSum: number; count: number }> = {};
+                matchFeatures.forEach(fid => {
+                    cardTotals[fid] = { valueSum: 0, effortSum: 0, count: 0 };
+                });
+
+                submissions.forEach(sub => {
+                    const list = typeof sub.submissions === 'string' ? JSON.parse(sub.submissions) : sub.submissions;
+                    list.forEach((item: any) => {
+                        const cardId = item.cardId;
+                        const vVal = MOSCOW_MAP[item.value] || 1;
+                        const eVal = TSHIRT_MAP[item.effort] || 1;
+                        if (cardTotals[cardId]) {
+                            cardTotals[cardId].valueSum += vVal;
+                            cardTotals[cardId].effortSum += eVal;
+                            cardTotals[cardId].count += 1;
+                        }
+                    });
+                });
+
+                const globalTargetMatrix: Record<string, { avgValue: number; avgEffort: number; avgWsjf: number }> = {};
+                matchFeatures.forEach(fid => {
+                    const totals = cardTotals[fid];
+                    const avgValue = totals.count > 0 ? totals.valueSum / totals.count : 8;
+                    const avgEffort = totals.count > 0 ? totals.effortSum / totals.count : 3;
+                    globalTargetMatrix[fid] = {
+                        avgValue: parseFloat(avgValue.toFixed(2)),
+                        avgEffort: parseFloat(avgEffort.toFixed(2)),
+                        avgWsjf: parseFloat((avgValue / avgEffort).toFixed(3))
+                    };
+                });
+
+                const playerScores: any[] = [];
+                for (const sub of submissions) {
+                    const playerId = sub.player_id;
+                    const teamId = sub.team_id;
+
+                    const nameRs = await db.execute({
+                        sql: 'SELECT name FROM players WHERE id = ?',
+                        args: [playerId]
+                    });
+                    const playerName = (nameRs.rows[0] as any)?.name || 'Unknown Player';
+
+                    const list = typeof sub.submissions === 'string' ? JSON.parse(sub.submissions) : sub.submissions;
+                    let totalScore = 0;
+                    const cardChoices: Record<string, any> = {};
+
+                    list.forEach((item: any) => {
+                        const cardId = item.cardId;
+                        const vVal = MOSCOW_MAP[item.value] || 1;
+                        const eVal = TSHIRT_MAP[item.effort] || 1;
+                        const wsjf = vVal / eVal;
+
+                        const target = globalTargetMatrix[cardId];
+                        if (target) {
+                            const deviation = target.avgWsjf > 0
+                                ? Math.abs(wsjf - target.avgWsjf) / target.avgWsjf
+                                : 0;
+
+                            let cardPoints = 0;
+                            if (deviation <= 0.10) {
+                                cardPoints = 1.0;
+                            } else if (deviation <= 0.25) {
+                                cardPoints = 0.5;
+                            }
+
+                            totalScore += cardPoints;
+                            cardChoices[cardId] = {
+                                value: item.value,
+                                effort: item.effort,
+                                wsjf: parseFloat(wsjf.toFixed(3)),
+                                deviation: parseFloat(deviation.toFixed(3)),
+                                points: cardPoints
+                            };
+                        }
+                    });
+
+                    const finalPlayerScore = parseFloat(totalScore.toFixed(1));
+                    playerScores.push({
+                        playerId,
+                        playerName,
+                        teamId,
+                        score: finalPlayerScore,
+                        choices: cardChoices
+                    });
+
+                    if (!is_test) {
+                        await db.execute({
+                            sql: 'DELETE FROM scores WHERE match_id = ? AND player_id = ?',
+                            args: [id, playerId]
+                        });
+                        await db.execute({
+                            sql: 'INSERT INTO scores (id, match_id, player_id, team_id, score, points, nrr_contribution) VALUES (?, ?, ?, ?, ?, 0, 0)',
+                            args: [crypto.randomUUID(), id, playerId, teamId, finalPlayerScore]
+                        });
+                    }
+                }
+
+                playerScores.sort((a, b) => b.score - a.score);
+
+                const currentResults = {
+                    round1: {
+                        globalTargetMatrix,
+                        playerScores
+                    }
+                };
+
+                await db.execute({
+                    sql: 'UPDATE matches SET current_round = 2, roadmap_results = ? WHERE id = ?',
+                    args: [JSON.stringify(currentResults), id]
+                });
+
+                return NextResponse.json({ success: true });
+
+            } else if (current_round === 3) {
+                await db.execute({
+                    sql: 'UPDATE matches SET current_round = 3, start_time = CURRENT_TIMESTAMP WHERE id = ?',
+                    args: [id]
+                });
+                return NextResponse.json({ success: true });
+
+            } else if (status === 'COMPLETED' || current_round === 4) {
+                const questionsRs = await db.execute({
+                    sql: 'SELECT id FROM battle_questions WHERE battle_id = ?',
+                    args: [id]
+                });
+                let matchFeatures = questionsRs.rows.map((r: any) => r.id);
+                if (matchFeatures.length === 0) {
+                    matchFeatures = FEATURE_CARDS.map(c => c.id);
+                }
+
+                const submissionsRs = await db.execute({
+                    sql: 'SELECT player_id, team_id, submissions FROM roadmap_submissions WHERE match_id = ? AND round = 2',
+                    args: [id]
+                });
+                const teamSubmissions = submissionsRs.rows as any[];
+
+                const teamsRs = await db.execute('SELECT id, name FROM teams');
+                const allTeams = teamsRs.rows as any[];
+
+                const prevResults = currentBattle.roadmap_results
+                    ? (typeof currentBattle.roadmap_results === 'string' ? JSON.parse(currentBattle.roadmap_results) : currentBattle.roadmap_results)
+                    : { round1: { globalTargetMatrix: {}, playerScores: [] } };
+
+                const cardTotals: Record<string, { valueSum: number; effortSum: number; count: number }> = {};
+                matchFeatures.forEach(fid => {
+                    cardTotals[fid] = { valueSum: 0, effortSum: 0, count: 0 };
+                });
+
+                teamSubmissions.forEach(sub => {
+                    const list = typeof sub.submissions === 'string' ? JSON.parse(sub.submissions) : sub.submissions;
+                    list.forEach((item: any) => {
+                        const cardId = item.cardId;
+                        const vVal = MOSCOW_MAP[item.value] || 1;
+                        const eVal = TSHIRT_MAP[item.effort] || 1;
+                        if (cardTotals[cardId]) {
+                            cardTotals[cardId].valueSum += vVal;
+                            cardTotals[cardId].effortSum += eVal;
+                            cardTotals[cardId].count += 1;
+                        }
+                    });
+                });
+
+                const globalTeamBaseline: Record<string, { avgValue: number; avgEffort: number; avgWsjf: number }> = {};
+                matchFeatures.forEach(fid => {
+                    const totals = cardTotals[fid];
+                    const avgValue = totals.count > 0 ? totals.valueSum / totals.count : 8;
+                    const avgEffort = totals.count > 0 ? totals.effortSum / totals.count : 3;
+                    globalTeamBaseline[fid] = {
+                        avgValue: parseFloat(avgValue.toFixed(2)),
+                        avgEffort: parseFloat(avgEffort.toFixed(2)),
+                        avgWsjf: parseFloat((avgValue / avgEffort).toFixed(3))
+                    };
+                });
+
+                const teamScores: any[] = [];
+                for (const team of allTeams) {
+                    const teamId = team.id;
+                    const teamName = team.name;
+
+                    const sub = teamSubmissions.find(s => s.team_id === teamId);
+                    if (!sub) {
+                        teamScores.push({
+                            teamId,
+                            teamName,
+                            consensusPoints: 0,
+                            collaborationBonus: 0,
+                            avgMemberDeviation: 0,
+                            totalScore: 0,
+                            choices: {}
+                        });
+                        continue;
+                    }
+
+                    const list = typeof sub.submissions === 'string' ? JSON.parse(sub.submissions) : sub.submissions;
+                    let consensusPoints = 0;
+                    const cardChoices: Record<string, any> = {};
+
+                    list.forEach((item: any) => {
+                        const cardId = item.cardId;
+                        const vVal = MOSCOW_MAP[item.value] || 1;
+                        const eVal = TSHIRT_MAP[item.effort] || 1;
+                        const wsjf = vVal / eVal;
+
+                        const baseline = globalTeamBaseline[cardId];
+                        if (baseline) {
+                            const deviation = baseline.avgWsjf > 0
+                                ? Math.abs(wsjf - baseline.avgWsjf) / baseline.avgWsjf
+                                : 0;
+
+                            let cardPoints = 0;
+                            if (deviation <= 0.10) {
+                                cardPoints = 5;
+                            }
+
+                            consensusPoints += cardPoints;
+                            cardChoices[cardId] = {
+                                value: item.value,
+                                effort: item.effort,
+                                wsjf: parseFloat(wsjf.toFixed(3)),
+                                deviation: parseFloat(deviation.toFixed(3)),
+                                points: cardPoints
+                            };
+                        }
+                    });
+
+                    const membersRs = await db.execute({
+                        sql: 'SELECT submissions FROM roadmap_submissions WHERE match_id = ? AND round = 1 AND team_id = ?',
+                        args: [id, teamId]
+                    });
+                    const memberSubs = membersRs.rows as any[];
+                    let collaborationBonus = 0;
+                    let avgMemberDeviation = 0;
+
+                    if (memberSubs.length === 0) {
+                        collaborationBonus = 50;
+                        avgMemberDeviation = 0;
+                    } else {
+                        const cardMemberWSJFs: Record<string, number[]> = {};
+                        matchFeatures.forEach(fid => {
+                            cardMemberWSJFs[fid] = [];
+                        });
+
+                        memberSubs.forEach(ms => {
+                            const msList = typeof ms.submissions === 'string' ? JSON.parse(ms.submissions) : ms.submissions;
+                            msList.forEach((item: any) => {
+                                const cardId = item.cardId;
+                                const vVal = MOSCOW_MAP[item.value] || 1;
+                                const eVal = TSHIRT_MAP[item.effort] || 1;
+                                if (cardMemberWSJFs[cardId]) {
+                                    cardMemberWSJFs[cardId].push(vVal / eVal);
+                                }
+                            });
+                        });
+
+                        let totalDevSum = 0;
+                        let cardCount = 0;
+
+                        matchFeatures.forEach(fid => {
+                            const wsjfs = cardMemberWSJFs[fid] || [];
+                            if (wsjfs.length > 0) {
+                                const avgMemberWsjf = wsjfs.reduce((a, b) => a + b, 0) / wsjfs.length;
+                                const teamChoice = cardChoices[fid];
+                                if (teamChoice) {
+                                    const dev = avgMemberWsjf > 0
+                                        ? Math.abs(teamChoice.wsjf - avgMemberWsjf) / avgMemberWsjf
+                                        : 0;
+                                    totalDevSum += dev;
+                                    cardCount += 1;
+                                    teamChoice.memberAvgWsjf = parseFloat(avgMemberWsjf.toFixed(3));
+                                    teamChoice.memberDev = parseFloat(dev.toFixed(3));
+                                }
+                            }
+                        });
+
+                        avgMemberDeviation = cardCount > 0 ? totalDevSum / cardCount : 0;
+                        if (avgMemberDeviation <= 0.20) {
+                            collaborationBonus = 50;
+                        }
+                    }
+
+                    const rawPoints = consensusPoints + collaborationBonus;
+                    teamScores.push({
+                        teamId,
+                        teamName,
+                        consensusPoints,
+                        collaborationBonus,
+                        avgMemberDeviation: parseFloat(avgMemberDeviation.toFixed(3)),
+                        totalScore: rawPoints,
+                        choices: cardChoices
+                    });
+                }
+
+                teamScores.sort((a, b) => b.totalScore - a.totalScore);
+
+                const pointsConfigArr = parsedPointsConfig;
+                for (let i = 0; i < teamScores.length; i++) {
+                    const tScore = teamScores[i];
+                    if (tScore.totalScore === 0) {
+                        tScore.awardedPoints = 0;
+                        continue;
+                    }
+                    const firstEqualScoreIndex = teamScores.findIndex(t => t.totalScore === tScore.totalScore);
+                    tScore.awardedPoints = Number(pointsConfigArr[firstEqualScoreIndex] || 0);
+
+                    if (!is_test) {
+                        await db.execute({
+                            sql: 'DELETE FROM scores WHERE match_id = ? AND team_id = ? AND player_id IS NULL',
+                            args: [id, tScore.teamId]
+                        });
+                        await db.execute({
+                            sql: 'INSERT INTO scores (id, match_id, player_id, team_id, score, points, nrr_contribution) VALUES (?, ?, NULL, ?, 0, ?, 0)',
+                            args: [crypto.randomUUID(), id, tScore.teamId, tScore.awardedPoints]
+                        });
+                    }
+                }
+
+                const finalResults = {
+                    ...prevResults,
+                    round2: {
+                        globalTeamBaseline,
+                        teamScores
+                    }
+                };
+
+                await db.execute({
+                    sql: 'UPDATE matches SET status = \'COMPLETED\', current_round = 4, roadmap_results = ?, winner_id = ? WHERE id = ?',
+                    args: [JSON.stringify(finalResults), teamScores[0]?.totalScore > 0 ? teamScores[0].teamId : null, id]
+                });
+
+                await sendTeamsNotification(createBattleCompletedCard({
+                    title: currentBattle.title,
+                    team1: teamScores[0]?.teamName || 'N/A',
+                    team2: teamScores[1]?.teamName || 'N/A',
+                    score1: teamScores[0]?.totalScore || 0,
+                    score2: teamScores[1]?.totalScore || 0,
+                    winner: teamScores[0]?.totalScore > 0 ? teamScores[0].teamName : 'None'
+                }));
+
+                return NextResponse.json({ success: true });
+
+            } else if (status === 'ACTIVE') {
+                await db.execute({
+                    sql: 'UPDATE matches SET status = ?, current_round = 1, start_time = CURRENT_TIMESTAMP WHERE id = ?',
+                    args: [status, id]
+                });
+                return NextResponse.json({ success: true });
+            }
+        }
 
         if (status) {
             // If marking as COMPLETED, calculate team stats
@@ -81,7 +467,29 @@ export async function PATCH(request: Request) {
 
                 const pointsConfig = battle?.points_config ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config) : battle.points_config) : [5, 3, 1];
 
-                if (battle && battle.type === 'TECH_TALK' && battle.conductor_id) {
+                if (battle && battle.type === 'TEAM_BUILDING' && Array.isArray(team_positions) && team_positions.length > 0) {
+                    const rankedTeamIds = team_positions.filter(Boolean);
+
+                    await db.execute({
+                        sql: 'DELETE FROM scores WHERE match_id = ?',
+                        args: [id]
+                    });
+
+                    for (let i = 0; i < rankedTeamIds.length; i++) {
+                        const teamId = rankedTeamIds[i];
+                        const awardedPoints = Number(pointsConfig[i] || 0);
+
+                        await db.execute({
+                            sql: 'INSERT INTO scores (id, match_id, player_id, team_id, score, points, nrr_contribution) VALUES (?, ?, NULL, ?, ?, ?, 0)',
+                            args: [crypto.randomUUID(), id, teamId, awardedPoints, awardedPoints]
+                        });
+                    }
+
+                    await db.execute({
+                        sql: 'UPDATE matches SET winner_id = ? WHERE id = ?',
+                        args: [rankedTeamIds[0] || null, id]
+                    });
+                } else if (battle && battle.type === 'TECH_TALK' && battle.conductor_id) {
                     const conductorRs = await db.execute({
                         sql: 'SELECT team_id FROM players WHERE id = ?',
                         args: [battle.conductor_id]
@@ -227,20 +635,37 @@ export async function PATCH(request: Request) {
             }
         } else {
             // General Update (Edit Battle)
-            await db.execute({
-                sql: `UPDATE matches 
-                      SET title = ?, description = ?, question_timer = ?, mode = ?, 
-                          team1_id = ?, team2_id = ?, type = ?, start_time = ?, conductor_id = ?, points_config = ?, is_test = ?
-                      WHERE id = ?`,
-                args: [
-                    title, description, question_timer, mode,
-                    team1_id || null, team2_id || null, battle_type,
-                    start_time || null, conductor_id || null,
-                    points_config ? JSON.stringify(points_config) : null,
-                    is_test !== undefined ? is_test : true,
-                    id
-                ]
-            });
+            if (currentBattle.type === 'ROADMAP') {
+                await db.execute({
+                    sql: `UPDATE matches 
+                          SET title = ?, description = ?, question_timer = ?, team_question_timer = ?, mode = ?, 
+                              team1_id = ?, team2_id = ?, type = ?, start_time = ?, conductor_id = ?, points_config = ?, is_test = ?
+                          WHERE id = ?`,
+                    args: [
+                        title, description, question_timer, team_question_timer || 15, mode,
+                        team1_id || null, team2_id || null, battle_type,
+                        start_time || null, conductor_id || null,
+                        points_config ? JSON.stringify(typeof points_config === 'string' ? points_config.split(',').map((p: string) => Number(p.trim())) : points_config) : null,
+                        is_test !== undefined ? is_test : true,
+                        id
+                    ]
+                });
+            } else {
+                await db.execute({
+                    sql: `UPDATE matches 
+                          SET title = ?, description = ?, question_timer = ?, mode = ?, 
+                              team1_id = ?, team2_id = ?, type = ?, start_time = ?, conductor_id = ?, points_config = ?, is_test = ?
+                          WHERE id = ?`,
+                    args: [
+                        title, description, question_timer, mode,
+                        team1_id || null, team2_id || null, battle_type,
+                        start_time || null, conductor_id || null,
+                        points_config ? JSON.stringify(typeof points_config === 'string' ? points_config.split(',').map((p: string) => Number(p.trim())) : points_config) : null,
+                        is_test !== undefined ? is_test : true,
+                        id
+                    ]
+                });
+            }
         }
 
         return NextResponse.json({ success: true });

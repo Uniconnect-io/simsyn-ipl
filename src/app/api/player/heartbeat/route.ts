@@ -14,6 +14,7 @@ export async function GET(request: Request) {
         const action = searchParams.get('action');
 
         const playerId = session.user.id;
+        let savedSelections: any = null;
 
         // LIGHTWEIGHT MODE: Just check for active battle and player status
         if (action === 'status_check') {
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
                     args: []
                 }),
                 db.execute({
-                    sql: 'SELECT id, name, team_id, rating FROM players WHERE id = ?',
+                    sql: 'SELECT id, name, team_id, rating, role FROM players WHERE id = ?',
                     args: [playerId]
                 })
             ]);
@@ -34,26 +35,59 @@ export async function GET(request: Request) {
             let hasSubmitted = false;
 
             if (battle) {
-                const [answerCheckRs, totalQuestionsRs] = await Promise.all([
-                    db.execute({
-                        sql: 'SELECT question_id FROM individual_battle_answers WHERE battle_id = ? AND player_id = ?',
-                        args: [battle.id, playerId]
-                    }),
-                    db.execute({
+                if (battle.type === 'ROADMAP') {
+                    const currentRound = battle.current_round || 1;
+                    if (currentRound === 1) {
+                        const checkRs = await db.execute({
+                            sql: 'SELECT submissions, is_final FROM roadmap_submissions WHERE match_id = ? AND player_id = ? AND round = 1',
+                            args: [battle.id, playerId]
+                        });
+                        const existingSub = checkRs.rows[0] as any;
+                        hasSubmitted = existingSub ? !!existingSub.is_final : false;
+                        savedSelections = existingSub ? (typeof existingSub.submissions === 'string' ? JSON.parse(existingSub.submissions) : existingSub.submissions) : null;
+                    } else if (currentRound === 3) {
+                        const targetTeamId = playerBasic?.team_id || null;
+                        if (targetTeamId) {
+                            const checkRs = await db.execute({
+                                sql: 'SELECT submissions, is_final FROM roadmap_submissions WHERE match_id = ? AND team_id = ? AND round = 2',
+                                args: [battle.id, targetTeamId]
+                            });
+                            const existingSub = checkRs.rows[0] as any;
+                            hasSubmitted = existingSub ? !!existingSub.is_final : false;
+                            savedSelections = existingSub ? (typeof existingSub.submissions === 'string' ? JSON.parse(existingSub.submissions) : existingSub.submissions) : null;
+                        } else {
+                            hasSubmitted = false;
+                        }
+                    } else {
+                        // Unknown/transitional round — do not mark as submitted
+                        hasSubmitted = false;
+                    }
+                    const totalFeaturesRs = await db.execute({
                         sql: 'SELECT COUNT(*) as count FROM battle_questions WHERE battle_id = ?',
                         args: [battle.id]
-                    })
-                ]);
+                    });
+                    battle.total_questions = (totalFeaturesRs.rows[0] as any)?.count || 20;
+                } else {
+                    const [answerCheckRs, totalQuestionsRs] = await Promise.all([
+                        db.execute({
+                            sql: 'SELECT question_id FROM individual_battle_answers WHERE battle_id = ? AND player_id = ?',
+                            args: [battle.id, playerId]
+                        }),
+                        db.execute({
+                            sql: 'SELECT COUNT(*) as count FROM battle_questions WHERE battle_id = ?',
+                            args: [battle.id]
+                        })
+                    ]);
 
-                answeredQuestionIds = answerCheckRs.rows.map((r: any) => r.question_id);
-                const totalQuestions = (totalQuestionsRs.rows[0] as any)?.count || 0;
+                    answeredQuestionIds = answerCheckRs.rows.map((r: any) => r.question_id);
+                    const totalQuestions = (totalQuestionsRs.rows[0] as any)?.count || 0;
 
-                if (totalQuestions > 0 && answeredQuestionIds.length >= totalQuestions) {
-                    hasSubmitted = true;
+                    if (totalQuestions > 0 && answeredQuestionIds.length >= totalQuestions) {
+                        hasSubmitted = true;
+                    }
+
+                    battle.total_questions = totalQuestions;
                 }
-
-                // Add metadata to battle object
-                battle.total_questions = totalQuestions;
             }
 
             return NextResponse.json({
@@ -61,6 +95,7 @@ export async function GET(request: Request) {
                 battle,
                 answeredQuestionIds,
                 hasSubmitted,
+                savedSelections,
                 isPartial: true
             });
         }
@@ -69,7 +104,7 @@ export async function GET(request: Request) {
         // Fetch everything in parallel
         const [playerRs, battleRs, leaderboardRs, historyRs] = await Promise.all([
             db.execute({
-                sql: 'SELECT id, name, team_id, rating, pool, sold_price FROM players WHERE id = ?',
+                sql: 'SELECT id, name, team_id, rating, pool, sold_price, role FROM players WHERE id = ?',
                 args: [playerId]
             }),
             db.execute({
@@ -117,26 +152,59 @@ export async function GET(request: Request) {
         let answeredQuestionIds: string[] = [];
         let hasSubmitted = false;
         if (battle) {
-            const [answerCheckRs, totalQuestionsRs] = await Promise.all([
-                db.execute({
-                    sql: 'SELECT question_id FROM individual_battle_answers WHERE battle_id = ? AND player_id = ?',
-                    args: [battle.id, playerId]
-                }),
-                db.execute({
+            if (battle.type === 'ROADMAP') {
+                const currentRound = battle.current_round || 1;
+                if (currentRound === 1) {
+                    const checkRs = await db.execute({
+                        sql: 'SELECT submissions, is_final FROM roadmap_submissions WHERE match_id = ? AND player_id = ? AND round = 1',
+                        args: [battle.id, playerId]
+                    });
+                    const existingSub = checkRs.rows[0] as any;
+                    hasSubmitted = existingSub ? !!existingSub.is_final : false;
+                    savedSelections = existingSub ? (typeof existingSub.submissions === 'string' ? JSON.parse(existingSub.submissions) : existingSub.submissions) : null;
+                } else if (currentRound === 3) {
+                    const targetTeamId = player?.team_id || null;
+                    if (targetTeamId) {
+                        const checkRs = await db.execute({
+                            sql: 'SELECT submissions, is_final FROM roadmap_submissions WHERE match_id = ? AND team_id = ? AND round = 2',
+                            args: [battle.id, targetTeamId]
+                        });
+                        const existingSub = checkRs.rows[0] as any;
+                        hasSubmitted = existingSub ? !!existingSub.is_final : false;
+                        savedSelections = existingSub ? (typeof existingSub.submissions === 'string' ? JSON.parse(existingSub.submissions) : existingSub.submissions) : null;
+                    } else {
+                        hasSubmitted = false;
+                    }
+                } else {
+                    // Unknown/transitional round — do not mark as submitted
+                    hasSubmitted = false;
+                }
+                const totalFeaturesRs = await db.execute({
                     sql: 'SELECT COUNT(*) as count FROM battle_questions WHERE battle_id = ?',
                     args: [battle.id]
-                })
-            ]);
+                });
+                battle.total_questions = (totalFeaturesRs.rows[0] as any)?.count || 20;
+            } else {
+                const [answerCheckRs, totalQuestionsRs] = await Promise.all([
+                    db.execute({
+                        sql: 'SELECT question_id FROM individual_battle_answers WHERE battle_id = ? AND player_id = ?',
+                        args: [battle.id, playerId]
+                    }),
+                    db.execute({
+                        sql: 'SELECT COUNT(*) as count FROM battle_questions WHERE battle_id = ?',
+                        args: [battle.id]
+                    })
+                ]);
 
-            answeredQuestionIds = answerCheckRs.rows.map((r: any) => r.question_id);
-            const totalQuestions = (totalQuestionsRs.rows[0] as any)?.count || 0;
+                answeredQuestionIds = answerCheckRs.rows.map((r: any) => r.question_id);
+                const totalQuestions = (totalQuestionsRs.rows[0] as any)?.count || 0;
 
-            if (totalQuestions > 0 && answeredQuestionIds.length >= totalQuestions) {
-                hasSubmitted = true;
+                if (totalQuestions > 0 && answeredQuestionIds.length >= totalQuestions) {
+                    hasSubmitted = true;
+                }
+
+                battle.total_questions = totalQuestions;
             }
-
-            // Add metadata to battle object
-            battle.total_questions = totalQuestions;
         }
 
         // Stats calculation
@@ -266,7 +334,8 @@ export async function GET(request: Request) {
             battle,
             battleHistory,
             answeredQuestionIds,
-            hasSubmitted
+            hasSubmitted,
+            savedSelections
         });
 
     } catch (error: any) {

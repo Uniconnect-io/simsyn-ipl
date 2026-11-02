@@ -2,7 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { User, DollarSign, Award, ArrowLeft, Shield } from 'lucide-react';
+import { User, DollarSign, Award, ArrowLeft, Shield, Sparkles } from 'lucide-react';
+
+const INNOVATION_COMMITTEE_MEMBERS = ['pramuditha', 'vithursan', 'sanduni', 'dulmini', 'nisitha', 'shenali'];
+
+const isInnovationCommittee = (name?: string) => {
+  if (!name) return false;
+  return INNOVATION_COMMITTEE_MEMBERS.some(m => name.toLowerCase().includes(m));
+};
 
 interface Player {
   id: string;
@@ -77,28 +84,42 @@ export default function TeamPage({ params }: { params: { id: string } }) {
           <Award className="text-accent" /> Roster ({team.players.length} Players)
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {team.players.map(player => (
-            <motion.div
-              key={player.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="glass-card p-6 flex justify-between items-center bg-white/[0.02]"
-            >
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg font-bold">{player.name}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400">Pool {player.pool}</span>
+          {team.players.map(player => {
+            const isCommittee = isInnovationCommittee(player.name);
+            return (
+              <motion.div
+                key={player.id}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                className={`glass-card p-6 flex justify-between items-center transition-all ${
+                  isCommittee 
+                    ? 'bg-purple-500/[0.06] border-purple-500/30 shadow-[0_0_15px_rgba(168,85,247,0.15)]' 
+                    : 'bg-white/[0.02]'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className={`text-lg font-bold ${isCommittee ? 'text-purple-200' : 'text-white'}`}>
+                      {player.name}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400">Pool {player.pool}</span>
+                    {isCommittee && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 font-bold">
+                        Official
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 flex items-center gap-1">
+                    Rating: {player.rating} / 10
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500 flex items-center gap-1">
-                  Rating: {player.rating} / 10
+                <div className="text-right">
+                  <p className="text-sm text-gray-500 uppercase tracking-widest leading-none">Sold Price</p>
+                  <p className="text-xl font-black text-accent">{player.sold_price.toLocaleString()}</p>
                 </div>
-              </div>
-              <div className="text-right">
-                <p className="text-sm text-gray-500 uppercase tracking-widest leading-none">Sold Price</p>
-                <p className="text-xl font-black text-accent">{player.sold_price.toLocaleString()}</p>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            );
+          })}
           {team.players.length === 0 && (
             <div className="col-span-full py-12 text-center glass-card border-dashed">
               <p className="text-gray-500">No players acquired yet. Head to the Auction!</p>

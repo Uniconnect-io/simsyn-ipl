@@ -197,6 +197,28 @@ export default function LiveBattlePage() {
         );
     }
 
+    if (activeMatch.type === 'ROADMAP') {
+        return (
+            <main className="min-h-screen flex flex-col items-center justify-center p-6 bg-black text-white">
+                <div className="glass-card p-12 text-center border-dashed border-white/10 max-w-md mx-auto space-y-6">
+                    <div className="w-16 h-16 bg-accent/10 rounded-full flex items-center justify-center mx-auto mb-2 animate-pulse">
+                        <Trophy className="w-8 h-8 text-accent" />
+                    </div>
+                    <h4 className="text-xl font-bold uppercase italic text-accent">Product Roadmap Tournament</h4>
+                    <p className="text-sm text-gray-400 leading-relaxed uppercase tracking-wider text-xs">
+                        A collaborative roadmap tournament is currently active. Team Owners participate and submit consensus strategies from the Player Console.
+                    </p>
+                    <button 
+                        onClick={() => router.push('/player')} 
+                        className="w-full py-4 text-xs font-black uppercase tracking-[0.2em] shadow-lg rounded-xl btn-primary bg-accent shadow-accent/20"
+                    >
+                        Go to Player HQ
+                    </button>
+                </div>
+            </main>
+        );
+    }
+
     // Merge Feed Items with Pending Items
     // Pending items should be at top (first) if descending sort
     const mergedFeed = [...pendingIdeas, ...feedItems];

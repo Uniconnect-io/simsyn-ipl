@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Trophy, Star, Shield, LogOut, Zap, BarChart3, Clock, User, Home, Lightbulb, Send, CheckCircle2, ChevronRight, Trash2 } from 'lucide-react';
+import { Trophy, Star, Shield, LogOut, Zap, BarChart3, Clock, User, Home, Lightbulb, Send, CheckCircle2, ChevronRight, Trash2, Users, List, FileText, CheckCircle, Award } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { FEATURE_CARDS, MOSCOW_MAP, TSHIRT_MAP } from '@/lib/roadmapData';
 
 interface PlayerClientProps {
     user: any; // Initial user data from server
@@ -22,6 +23,8 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
     const isFetchingQuestionsRef = useRef(false);
 
     const [hasSubmitted, setHasSubmitted] = useState(false);
+    const isRoadmapLoadedRef = useRef(false);
+    const lastRoundRef = useRef<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [battleStep, setBattleStep] = useState<'lobby' | 'question' | 'result'>('lobby');
     const battleStepRef = useRef<'lobby' | 'question' | 'result'>('lobby');
@@ -39,6 +42,11 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
     const [battleHistory, setBattleHistory] = useState<any[]>([]);
     const [questionStartTime, setQuestionStartTime] = useState<number>(0);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+
+    // --- ROADMAP TOURNAMENT STATE ---
+    const [roadmapSelections, setRoadmapSelections] = useState<Record<string, { value: string; effort: string }>>({});
+    const [roadmapTimeLeft, setRoadmapTimeLeft] = useState<number>(300);
+    const [teams, setTeams] = useState<any[]>([]);
 
     // --- INNOVATION HUB STATE ---
     const [myIdeas, setMyIdeas] = useState<any[]>([]);
@@ -178,6 +186,18 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                 // 1. Update Critical State (Server is Truth)
                 setHasSubmitted(data.hasSubmitted);
 
+                if (data.savedSelections && Array.isArray(data.savedSelections) && !isRoadmapLoadedRef.current) {
+                    const selectionsDict: Record<string, { value: string; effort: string }> = {};
+                    data.savedSelections.forEach((item: any) => {
+                        selectionsDict[item.cardId] = {
+                            value: item.value || '',
+                            effort: item.effort || ''
+                        };
+                    });
+                    setRoadmapSelections(selectionsDict);
+                    isRoadmapLoadedRef.current = true;
+                }
+
                 // 2. Update stats (only if provided in full update)
                 if (!data.isPartial) {
                     setUser(data.player);
@@ -192,10 +212,16 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                 if (data.battle) {
                     const currentBattleId = data.battle.id;
 
-                    // 1. Only update battle object if ID or Status changed
-                    // This prevents 'activeBattle' from changing on every heartbeat just because of new object refs
-                    if (!activeBattle || activeBattle.id !== data.battle.id || activeBattle.status !== data.battle.status) {
+                    // 1. Only update battle object if ID, Status, or Round changed
+                    if (!activeBattle || activeBattle.id !== data.battle.id || activeBattle.status !== data.battle.status || activeBattle.current_round !== data.battle.current_round) {
                         setActiveBattle(data.battle);
+
+                        // If the round has advanced, clear previous round's selections
+                        if (data.battle.type === 'ROADMAP' && lastRoundRef.current !== null && lastRoundRef.current !== data.battle.current_round) {
+                            setRoadmapSelections({});
+                            isRoadmapLoadedRef.current = false;
+                        }
+                        lastRoundRef.current = data.battle.current_round ?? null;
                     }
 
                     // --- EXPIRY CHECK ---
@@ -206,7 +232,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                     const totalDurationMs = totalQuestionsCount * (perQuestionTime + 2) * 1000; // +2s for transitions
                     const buffer = 20000; // 20s grace period
 
-                    if (data.battle.start_time && now > (startTime + totalDurationMs + buffer)) {
+                    if (data.battle.type !== 'ROADMAP' && data.battle.start_time && now > (startTime + totalDurationMs + buffer)) {
                         console.warn("Battle session expired based on start time");
                         setHasSubmitted(true);
                         setBattleStep('result');
@@ -236,7 +262,9 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                             }));
 
                             const isNewBattle = currentBattleId !== loadedBattleIdRef.current;
-
+                            if (isNewBattle) {
+                                isRoadmapLoadedRef.current = false;
+                            }
                             // Set all questions (don't filter, to keep total count stable)
                             setBattleQuestions(transformed);
                             loadedBattleIdRef.current = currentBattleId;
@@ -300,7 +328,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
 
                     // 2. Step Transition Logic (Only move to 'question' if in 'lobby')
                     if (battleQuestions.length > 0 || currentBattleId !== loadedBattleIdRef.current) {
-                        if (battleStep === 'lobby' && !data.hasSubmitted) {
+                        if (battleStep === 'lobby' && !data.hasSubmitted && (data.battle?.type !== 'ROADMAP' || data.battle?.status === 'ACTIVE')) {
                             setBattleStep('question');
                             const qId = battleQuestions[currentQuestion]?.id;
                             const now = Date.now();
@@ -363,6 +391,18 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
         fetchHeartbeat(false);
         fetchMyIdeas();
 
+        const fetchTeams = async () => {
+            try {
+                const res = await fetch('/api/teams');
+                if (res.ok) {
+                    setTeams(await res.json());
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        fetchTeams();
+
         const channel = supabase
             .channel('player_realtime')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, () => {
@@ -393,6 +433,38 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
             clearInterval(interval);
         };
     }, [user?.id]); // Only re-subscribe if user ID changes (e.g. login/logout)
+
+    // Roadmap Timer Countdown (Round 1 only — Round 3 is admin-controlled)
+    useEffect(() => {
+        if (activeBattle?.type === 'ROADMAP') {
+            // Round 3 (Team Huddle) has no timer — admin ends it manually
+            if (activeBattle.current_round === 3) return;
+
+            const updateTimer = () => {
+                if (activeBattle.status !== 'ACTIVE') {
+                    // Match is paused or pending. Do not tick or auto-submit.
+                    return;
+                }
+                const now = Date.now();
+                const startTime = new Date(activeBattle.start_time).getTime();
+                if (!startTime || isNaN(startTime)) {
+                    return;
+                }
+                const durationSec = (activeBattle.question_timer || 5) * 60;
+                const elapsed = Math.floor((now - startTime) / 1000);
+                const remaining = Math.max(0, durationSec - elapsed);
+                setRoadmapTimeLeft(remaining);
+
+                if (remaining <= 0 && !hasSubmitted) {
+                    handleRoadmapAutoSubmit();
+                }
+            };
+
+            updateTimer();
+            const t = setInterval(updateTimer, 1000);
+            return () => clearInterval(t);
+        }
+    }, [activeBattle, hasSubmitted]);
 
     const [timeLeft, setTimeLeft] = useState(10);
     const [answerFeedback, setAnswerFeedback] = useState<any>(null);
@@ -503,9 +575,487 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
         setIsSubmitting(false);
     };
 
+    const handleSelectChange = (featId: string, type: 'value' | 'effort', val: string) => {
+        if (activeBattle?.status !== 'ACTIVE') return;
+        const currentSel = roadmapSelections[featId] || { value: '', effort: '' };
+        const updatedSel = { ...currentSel, [type]: val };
+        const updatedSelectionsDict = {
+            ...roadmapSelections,
+            [featId]: updatedSel
+        };
+        
+        setRoadmapSelections(updatedSelectionsDict);
+
+        const features = battleQuestions.length > 0 ? battleQuestions : FEATURE_CARDS;
+        const ballot = features.map(c => {
+            const sel = updatedSelectionsDict[c.id] || { value: '', effort: '' };
+            return {
+                cardId: c.id,
+                value: sel.value,
+                effort: sel.effort
+            };
+        }).filter(item => item.value || item.effort);
+
+        submitRoadmapBallotQuietly(ballot);
+    };
+
+    async function submitRoadmapBallotQuietly(ballot: any[]) {
+        try {
+            const round = activeBattle.current_round === 3 ? 2 : 1;
+            await fetch('/api/roadmap/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    matchId: activeBattle.id,
+                    round,
+                    submissions: ballot,
+                    isFinal: true
+                })
+            });
+        } catch (e) {
+            console.error("Autosave failed:", e);
+        }
+    }
+
+    async function handleRoadmapAutoSubmit() {
+        if (hasSubmitted) return;
+        setHasSubmitted(true);
+        const features = battleQuestions.length > 0 ? battleQuestions : FEATURE_CARDS;
+        const ballot = features.map(c => {
+            const sel = roadmapSelections[c.id] || { value: 'W', effort: 'XL' };
+            return {
+                cardId: c.id,
+                value: sel.value,
+                effort: sel.effort
+            };
+        });
+        await submitRoadmapBallot(ballot, true);
+    }
+
+    async function submitRoadmapBallot(ballot: any[], isFinal = false) {
+        setIsSubmitting(true);
+        try {
+            const round = activeBattle.current_round === 3 ? 2 : 1;
+            const res = await fetch('/api/roadmap/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    matchId: activeBattle.id,
+                    round,
+                    submissions: ballot,
+                    isFinal
+                })
+            });
+            if (res.ok) {
+                if (isFinal) {
+                    setHasSubmitted(true);
+                }
+                fetchHeartbeat(true);
+            } else {
+                const err = await res.json();
+                alert(err.error || 'Failed to submit ballot');
+            }
+        } catch (e) {
+            console.error("Roadmap submit error:", e);
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
     const handleLogout = async () => {
         await fetch('/api/auth/logout', { method: 'POST' });
         router.push('/');
+    };
+
+    const renderRoadmapWarZone = () => {
+        const round = activeBattle.current_round || 1;
+        const features = battleQuestions.length > 0 ? battleQuestions : FEATURE_CARDS;
+
+        // Round 1 (Solo Active)
+        if (round === 1) {
+            const answeredCount = features.filter(f => {
+                const sel = roadmapSelections[f.id];
+                return sel && sel.value && sel.effort;
+            }).length;
+            const progressPercent = (answeredCount / features.length) * 100;
+            const playerScores = activeBattle.roadmap_results?.round1?.playerScores || [];
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center bg-black/40 border border-white/10 p-4 rounded-2xl">
+                        <div className="space-y-1">
+                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">Ballot Progress</span>
+                            <div className="flex items-center gap-2">
+                                <div className="text-sm font-black text-white">{answeredCount} / {features.length} Cards</div>
+                                <div className="text-[10px] bg-accent/20 text-accent px-1.5 py-0.5 rounded font-black">{progressPercent.toFixed(0)}%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-accent transition-all duration-300" style={{ width: `${progressPercent}%` }} />
+                    </div>
+
+                    {/* Feature Cards Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[calc(100vh-300px)] overflow-y-auto p-1 pr-2 custom-scrollbar">
+                        {features.map((feat, idx) => {
+                            const currentSel = roadmapSelections[feat.id] || { value: '', effort: '' };
+                            return (
+                                <div key={feat.id} className={`p-4 rounded-2xl border transition-all space-y-3 ${currentSel.value && currentSel.effort ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 bg-black/20'}`}>
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="text-[10px] font-black bg-white/5 text-gray-400 w-5 h-5 rounded-full flex items-center justify-center italic shrink-0">
+                                            {idx + 1}
+                                        </span>
+                                        <div>
+                                            <h5 className="font-bold text-sm text-white leading-tight">{feat.question || feat.title}</h5>
+                                            <p className="text-[11px] text-gray-500 leading-normal mt-1">{feat.options?.[0] || feat.description}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Dropdowns */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {/* Value Dropdown */}
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-500 uppercase">Value (MoSCoW)</label>
+                                            <select
+                                                value={currentSel.value}
+                                                onChange={e => handleSelectChange(feat.id, 'value', e.target.value)}
+                                                className={`w-full bg-black/60 border rounded-lg p-2 text-xs font-bold focus:outline-none focus:border-accent ${
+                                                    currentSel.value === 'M' ? 'border-red-500/30 text-red-400' :
+                                                    currentSel.value === 'S' ? 'border-orange-500/30 text-orange-400' :
+                                                    currentSel.value === 'C' ? 'border-blue-500/30 text-blue-400' :
+                                                    currentSel.value === 'W' ? 'border-gray-500/30 text-gray-400' : 'border-white/10 text-gray-500'
+                                                }`}
+                                            >
+                                                <option className="bg-[#121212] text-white" value="" disabled>Select Value</option>
+                                                <option className="bg-[#121212] text-white" value="M">M - Must (13)</option>
+                                                <option className="bg-[#121212] text-white" value="S">S - Should (8)</option>
+                                                <option className="bg-[#121212] text-white" value="C">C - Could (3)</option>
+                                                <option className="bg-[#121212] text-white" value="W">W - Won't (1)</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Effort Dropdown */}
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-500 uppercase">Effort (T-Shirt)</label>
+                                            <select
+                                                value={currentSel.effort}
+                                                onChange={e => handleSelectChange(feat.id, 'effort', e.target.value)}
+                                                className={`w-full bg-black/60 border rounded-lg p-2 text-xs font-bold focus:outline-none focus:border-accent ${
+                                                    currentSel.effort === 'XL' ? 'border-red-500/30 text-red-400' :
+                                                    currentSel.effort === 'L' ? 'border-orange-500/30 text-orange-400' :
+                                                    currentSel.effort === 'M' ? 'border-yellow-500/30 text-yellow-400' :
+                                                    currentSel.effort === 'S' ? 'border-blue-500/30 text-blue-400' :
+                                                    currentSel.effort === 'XS' ? 'border-green-500/30 text-green-400' : 'border-white/10 text-gray-500'
+                                                }`}
+                                            >
+                                                <option className="bg-[#121212] text-white" value="" disabled>Select Effort</option>
+                                                <option className="bg-[#121212] text-white" value="XS">XS - X-Small (1)</option>
+                                                <option className="bg-[#121212] text-white" value="S">S - Small (2)</option>
+                                                <option className="bg-[#121212] text-white" value="M">M - Medium (3)</option>
+                                                <option className="bg-[#121212] text-white" value="L">L - Large (5)</option>
+                                                <option className="bg-[#121212] text-white" value="XL">XL - X-Large (8)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Live Leaderboard (Round 1 Averages) */}
+                    <div className="glass-card p-6 rounded-2xl border border-white/5 space-y-4">
+                        <h4 className="text-sm font-black uppercase tracking-widest text-accent flex items-center gap-2">
+                            <Zap className="w-4 h-4 text-accent fill-accent animate-pulse" /> Live Leaderboard (Round 1 Averages)
+                        </h4>
+                        <div className="space-y-2 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                            {playerScores.length === 0 ? (
+                                <div className="text-center text-xs text-gray-500 py-6 uppercase font-bold">No submissions yet...</div>
+                            ) : (
+                                playerScores.map((ps: any, idx: number) => {
+                                    const isCurrentUser = ps.playerId === user?.id;
+                                    const choices = ps.choices || {};
+                                    const totalChoices = Object.keys(choices).length || 1;
+                                    let agreed = 0;
+                                    Object.values(choices).forEach((ch: any) => {
+                                        if (ch.points > 0) agreed++;
+                                    });
+                                    const agreePct = Math.round((agreed / totalChoices) * 100);
+                                    const disagreePct = 100 - agreePct;
+
+                                    return (
+                                        <div key={ps.playerId} className={`flex justify-between items-center p-3 rounded-xl border text-sm font-bold transition-all ${isCurrentUser ? 'border-accent bg-accent/10 text-white' : 'border-white/5 bg-black/20 text-gray-300'}`}>
+                                            <div className="flex items-center gap-3">
+                                                <span className={`text-xs font-black w-6 h-6 rounded-full flex items-center justify-center ${idx === 0 ? 'bg-yellow-500 text-black' : idx === 1 ? 'bg-slate-300 text-black' : idx === 2 ? 'bg-amber-600 text-black' : 'bg-white/10 text-gray-500'}`}>
+                                                    {idx + 1}
+                                                </span>
+                                                <div>
+                                                    <div>{ps.playerName}</div>
+                                                    <div className="text-[10px] text-gray-500 uppercase font-black">
+                                                        {teams.find(t => t.id === ps.teamId)?.name || 'No Team'}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="text-right flex items-center gap-3">
+                                                <div className="text-right border-r border-white/10 pr-3 mr-1 text-gray-500 font-mono text-xs">
+                                                    <div>{ps.score} pts</div>
+                                                    <div className="text-[7px] uppercase tracking-widest text-gray-600 font-black">Score</div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-base font-black italic text-green-400 leading-none">{agreePct}%</div>
+                                                    <div className="text-[8px] text-gray-500 font-black uppercase tracking-widest mt-0.5">Agree</div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="text-base font-black italic text-red-400 leading-none">{disagreePct}%</div>
+                                                    <div className="text-[8px] text-gray-500 font-black uppercase tracking-widest mt-0.5">Disagree</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Round 2 (Solo Results Display)
+        if (round === 2) {
+            const r1Results = activeBattle.roadmap_results?.round1;
+            const playerScores = r1Results?.playerScores || [];
+            const myResult = playerScores.find((ps: any) => ps.playerId === user?.id);
+
+            return (
+                <div className="space-y-6">
+                    <div className="text-center py-4 bg-accent/10 border border-accent/20 rounded-2xl">
+                        <Award className="w-10 h-10 text-accent mx-auto mb-1 animate-pulse" />
+                        <h4 className="text-lg font-black uppercase text-accent font-black">Round 1 Standings</h4>
+                        {myResult ? (
+                            <p className="text-xs text-white font-bold mt-1 uppercase">
+                                You scored <span className="text-accent font-black">{myResult.score} / 20.0</span> points! (Rank #{playerScores.findIndex((ps: any) => ps.playerId === user?.id) + 1})
+                            </p>
+                        ) : (
+                            <p className="text-xs text-gray-500 font-bold mt-1 uppercase">Solo round results are in!</p>
+                        )}
+                    </div>
+
+                    <div className="glass-card p-6 rounded-2xl border border-white/5 space-y-4">
+                        <h4 className="text-sm font-black uppercase tracking-widest text-accent flex items-center gap-2">
+                            <Trophy className="w-4 h-4 text-accent" /> Leaderboard Rankings
+                        </h4>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                            {playerScores.map((ps: any, idx: number) => {
+                                const isCurrentUser = ps.playerId === user?.id;
+                                return (
+                                    <div key={ps.playerId} className={`flex justify-between items-center p-3 rounded-xl border text-sm font-bold ${isCurrentUser ? 'border-accent bg-accent/10 text-white' : 'border-white/5 bg-black/20 text-gray-300'}`}>
+                                        <div className="flex items-center gap-3">
+                                            <span className={`text-xs font-black w-6 h-6 rounded-full flex items-center justify-center ${idx === 0 ? 'bg-yellow-500 text-black' : idx === 1 ? 'bg-gray-300 text-black' : idx === 2 ? 'bg-amber-600 text-black' : 'bg-white/10 text-gray-500'}`}>
+                                                {idx + 1}
+                                            </span>
+                                            <div>
+                                                <div>{ps.playerName}</div>
+                                                <div className="text-[10px] text-gray-500 uppercase font-black">
+                                                    {teams.find(t => t.id === ps.teamId)?.name || 'No Team'}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-accent font-mono font-black">{ps.score} pts</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Round 3 (Team Collaborative strategy)
+        if (round === 3) {
+            const isOwner = user?.role === 'OWNER';
+
+            if (!isOwner) {
+                // Team Member Spectator View
+                return (
+                    <div className="space-y-6 text-center py-10">
+                        <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                            <Users className="w-8 h-8 text-accent" />
+                        </div>
+                        <h4 className="text-xl font-bold uppercase italic">Team Huddle In Progress</h4>
+                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider max-w-sm mx-auto leading-relaxed">
+                            Your Team Owner is currently negotiating and submitting the final consensus ballot. Help them discuss and strategize!
+                        </p>
+                        <div className="pt-6 border-t border-white/5 mt-6 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                            <h5 className="text-xs text-left font-black uppercase text-gray-500 mb-3 tracking-widest">Roadmap Feature List</h5>
+                            {features.map((feat, idx) => (
+                                <div key={feat.id} className="flex justify-between items-center text-left py-2 border-b border-white/5 text-xs text-gray-300">
+                                    <span className="font-bold">{idx + 1}. {feat.question || feat.title}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                );
+            }
+
+            // Team Owner Edit & Submit Ballot View
+            if (hasSubmitted) {
+                return (
+                    <div className="text-center py-10 space-y-4 animate-pulse">
+                        <CheckCircle className="w-16 h-16 text-green-500 mx-auto" />
+                        <h4 className="text-xl font-bold uppercase italic">Team Ballot Submitted!</h4>
+                        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Awaiting administrator to close the match and compile team scores.</p>
+                    </div>
+                );
+            }
+
+            const answeredCount = features.filter(f => {
+                const sel = roadmapSelections[f.id];
+                return sel && sel.value && sel.effort;
+            }).length;
+            const progressPercent = (answeredCount / features.length) * 100;
+            const timerMin = Math.floor(roadmapTimeLeft / 60);
+            const timerSec = roadmapTimeLeft % 60;
+
+            return (
+                <div className="space-y-6">
+                    <div className="bg-accent/10 border border-accent/20 p-4 rounded-2xl text-xs text-accent font-bold uppercase leading-relaxed">
+                        ⚠️ <span className="font-black">Team Owner Console:</span> You are submitting the final consensus decisions for your entire team. Ensure your team is fully aligned!
+                    </div>
+
+                    <div className="flex justify-between items-center bg-black/40 border border-white/10 p-4 rounded-2xl">
+                        <div className="space-y-1">
+                            <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider">Consensus Ballot Progress</span>
+                            <div className="flex items-center gap-2">
+                                <div className="text-sm font-black text-white">{answeredCount} / {features.length} Cards</div>
+                                <div className="text-[10px] bg-accent/20 text-accent px-1.5 py-0.5 rounded font-black">{progressPercent.toFixed(0)}%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-h-[calc(100vh-300px)] overflow-y-auto p-1 pr-2 custom-scrollbar">
+                        {features.map((feat, idx) => {
+                            const currentSel = roadmapSelections[feat.id] || { value: '', effort: '' };
+                            return (
+                                <div key={feat.id} className={`p-4 rounded-2xl border transition-all space-y-3 ${currentSel.value && currentSel.effort ? 'border-green-500/20 bg-green-500/5' : 'border-white/5 bg-black/20'}`}>
+                                    <div className="flex items-start gap-2.5">
+                                        <span className="text-[10px] font-black bg-white/5 text-gray-400 w-5 h-5 rounded-full flex items-center justify-center italic shrink-0">
+                                            {idx + 1}
+                                        </span>
+                                        <div>
+                                            <h5 className="font-bold text-sm text-white leading-tight">{feat.question || feat.title}</h5>
+                                            <p className="text-[11px] text-gray-500 leading-normal mt-1">{feat.options?.[0] || feat.description}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-500 uppercase">Value (MoSCoW)</label>
+                                            <select
+                                                value={currentSel.value}
+                                                onChange={e => handleSelectChange(feat.id, 'value', e.target.value)}
+                                                className={`w-full bg-black/60 border rounded-lg p-2 text-xs font-bold focus:outline-none focus:border-accent ${
+                                                    currentSel.value === 'M' ? 'border-red-500/30 text-red-400' :
+                                                    currentSel.value === 'S' ? 'border-orange-500/30 text-orange-400' :
+                                                    currentSel.value === 'C' ? 'border-blue-500/30 text-blue-400' :
+                                                    currentSel.value === 'W' ? 'border-gray-500/30 text-gray-400' : 'border-white/10 text-gray-500'
+                                                }`}
+                                            >
+                                                <option className="bg-[#121212] text-white" value="" disabled>Select Value</option>
+                                                <option className="bg-[#121212] text-white" value="M">M - Must (13)</option>
+                                                <option className="bg-[#121212] text-white" value="S">S - Should (8)</option>
+                                                <option className="bg-[#121212] text-white" value="C">C - Could (3)</option>
+                                                <option className="bg-[#121212] text-white" value="W">W - Won't (1)</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[9px] font-black text-gray-500 uppercase">Effort (T-Shirt)</label>
+                                            <select
+                                                value={currentSel.effort}
+                                                onChange={e => handleSelectChange(feat.id, 'effort', e.target.value)}
+                                                className={`w-full bg-black/60 border rounded-lg p-2 text-xs font-bold focus:outline-none focus:border-accent ${
+                                                    currentSel.effort === 'XL' ? 'border-red-500/30 text-red-400' :
+                                                    currentSel.effort === 'L' ? 'border-orange-500/30 text-orange-400' :
+                                                    currentSel.effort === 'M' ? 'border-yellow-500/30 text-yellow-400' :
+                                                    currentSel.effort === 'S' ? 'border-blue-500/30 text-blue-400' :
+                                                    currentSel.effort === 'XS' ? 'border-green-500/30 text-green-400' : 'border-white/10 text-gray-500'
+                                                }`}
+                                            >
+                                                <option className="bg-[#121212] text-white" value="" disabled>Select Effort</option>
+                                                <option className="bg-[#121212] text-white" value="XS">XS - X-Small (1)</option>
+                                                <option className="bg-[#121212] text-white" value="S">S - Small (2)</option>
+                                                <option className="bg-[#121212] text-white" value="M">M - Medium (3)</option>
+                                                <option className="bg-[#121212] text-white" value="L">L - Large (5)</option>
+                                                <option className="bg-[#121212] text-white" value="XL">XL - X-Large (8)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            );
+        }
+
+        // Round 4 (Tournament Completed Results)
+        if (round === 4) {
+            const r2Results = activeBattle.roadmap_results?.round2;
+            const teamScores = r2Results?.teamScores || [];
+            const myTeamResult = teamScores.find((ts: any) => ts.teamId === user?.team_id);
+
+            return (
+                <div className="space-y-6">
+                    <div className="text-center py-4 bg-green-500/10 border border-green-500/20 rounded-2xl">
+                        <Award className="w-10 h-10 text-green-500 mx-auto mb-1 animate-pulse" />
+                        <h4 className="text-lg font-black uppercase text-green-500">Tournament Completed</h4>
+                        {myTeamResult ? (
+                            <p className="text-xs text-white font-bold mt-1 uppercase leading-normal">
+                                Your Team Total Score: <span className="text-green-400 font-black">{myTeamResult.totalScore} pts</span><br />
+                                (Consensus: {myTeamResult.consensusPoints} pts, Collaboration Bonus: +{myTeamResult.collaborationBonus} pts)
+                            </p>
+                        ) : (
+                            <p className="text-xs text-gray-500 font-bold mt-1 uppercase">Final Team Scores Compiled!</p>
+                        )}
+                    </div>
+
+                    <div className="glass-card p-6 rounded-2xl border border-white/5 space-y-4">
+                        <h4 className="text-sm font-black uppercase tracking-widest text-accent flex items-center gap-2">
+                            <Trophy className="w-4 h-4 text-accent" /> Team Leaderboard
+                        </h4>
+                        <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                            {teamScores.map((ts: any, idx: number) => {
+                                const isMyTeam = ts.teamId === user?.team_id;
+                                return (
+                                    <div key={ts.teamId} className={`flex justify-between items-center p-3 rounded-xl border text-sm font-bold ${isMyTeam ? 'border-accent bg-accent/10 text-white' : 'border-white/5 bg-black/20 text-gray-300'}`}>
+                                        <div className="flex items-center gap-3">
+                                            <span className={`text-xs font-black w-6 h-6 rounded-full flex items-center justify-center ${idx === 0 ? 'bg-yellow-500 text-black' : idx === 1 ? 'bg-gray-300 text-black' : idx === 2 ? 'bg-amber-600 text-black' : 'bg-white/10 text-gray-500'}`}>
+                                                {idx + 1}
+                                            </span>
+                                            <div>
+                                                <div>{ts.teamName}</div>
+                                                <div className="text-[10px] text-gray-500 uppercase font-black">
+                                                    deviation: {(ts.avgMemberDeviation * 100).toFixed(0)}%
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-accent font-mono font-black">{ts.totalScore} pts</div>
+                                            <div className="text-[9px] text-gray-500 uppercase">League Points: +{ts.awardedPoints}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        return null;
     };
 
     if (loading && !user) return (
@@ -515,8 +1065,8 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
     );
 
     return (
-        <main className="min-h-screen p-4 md:p-6 bg-animate text-white pb-20">
-            <header className="max-w-7xl mx-auto flex justify-between items-center mb-6 md:mb-12">
+        <main className="min-h-screen p-4 md:p-6 xl:p-10 bg-animate text-white pb-20">
+            <header className="max-w-screen-2xl mx-auto flex justify-between items-center mb-6 md:mb-12">
                 <div className="flex items-center gap-3 md:gap-4">
                     <div className="w-12 h-12 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-accent/20">
                         <img
@@ -547,9 +1097,9 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                 </div>
             </header>
 
-            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+            <div className="max-w-screen-2xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_1fr_2fr] xl:grid-cols-[320px_320px_1fr] gap-6 md:gap-8 xl:gap-10 items-start">
                 {/* Profile Card */}
-                <div className="glass-card p-6 md:p-8 border-accent/10 relative overflow-hidden group order-2 lg:order-1">
+                <div className="glass-card p-6 md:p-8 xl:p-10 border-accent/10 relative overflow-hidden group order-2 lg:order-1">
                     <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-20 transition-opacity">
                         <User className="w-24 h-24" />
                     </div>
@@ -594,7 +1144,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                 </div>
 
                 {/* Team Info Card */}
-                <div className="glass-card p-6 md:p-8 border-purple-500/10 relative overflow-hidden group order-3 lg:order-2">
+                <div className="glass-card p-6 md:p-8 xl:p-10 border-purple-500/10 relative overflow-hidden group order-3 lg:order-2">
                     <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-20 transition-opacity text-purple-500">
                         <Shield className="w-24 h-24" />
                     </div>
@@ -638,7 +1188,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
                 </div>
 
                 {/* Individual Battles Card */}
-                <div className="glass-card p-6 md:p-8 border-green-500/10 relative overflow-hidden group bg-green-500/5 order-1 lg:order-3">
+                <div className="glass-card p-6 md:p-8 xl:p-10 border-green-500/10 relative overflow-hidden group bg-green-500/5 order-1 lg:order-3">
                     {/* <div className="absolute top-0 right-0 p-4 opacity-10 animate-pulse text-green-500">
                         <Zap className="w-24 h-24" />
                     </div> */}
@@ -648,7 +1198,9 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
 
                     <div className="space-y-6 relative z-10 min-h-[250px] flex flex-col justify-between">
                         {activeBattle ? (
-                            hasSubmitted || battleStep === 'result' ? (
+                            activeBattle.type === 'ROADMAP' ? (
+                                renderRoadmapWarZone()
+                            ) : hasSubmitted || battleStep === 'result' ? (
                                 <div className="text-center space-y-4 flex-1 flex flex-col justify-center">
                                     <Clock className="w-12 h-12 text-gray-500 mx-auto" />
                                     <h4 className="text-xl font-bold uppercase italic">Response Recorded</h4>
@@ -790,7 +1342,7 @@ export default function PlayerClient({ user: initialUser }: PlayerClientProps) {
             </div>
 
             {/* Innovation Hub Section */}
-            <section id="innovation-hub" className="max-w-7xl mx-auto mt-12 mb-20 px-4 md:px-0">
+            <section id="innovation-hub" className="max-w-screen-2xl mx-auto mt-12 mb-20 px-4 md:px-0">
                 <div className="flex items-center justify-between mb-8">
                     <div>
                         <h3 className="text-xl md:text-2xl font-black uppercase tracking-tighter italic">Innovation Hub</h3>

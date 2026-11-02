@@ -22,6 +22,7 @@ import {
     Upload,
     Lightbulb,
     Mail,
+    Rocket,
 } from 'lucide-react';
 
 // Modular Tab Components
@@ -33,8 +34,10 @@ import MaintenanceTab from '@/components/admin/MaintenanceTab';
 import PlayerModal from '@/components/admin/PlayerModal';
 import AdminsTab from '@/components/admin/AdminsTab';
 import EmailsTab from '@/components/admin/EmailsTab';
+import HackathonTab from '@/components/admin/HackathonTab';
 
 const ADMIN_TABS = [
+    { id: 'hackathon', label: 'Hackathon', icon: Rocket },
     { id: 'owners', label: 'Players', icon: Shield },
     { id: 'ideas', label: 'Idea Hub', icon: Lightbulb },
     { id: 'battles', label: 'Battles', icon: Zap },
@@ -134,6 +137,7 @@ export default function AdminPage() {
         title: '',
         description: '',
         question_timer: 10,
+        team_question_timer: 15,
         team1_id: '',
         team2_id: '',
         date: '',
@@ -157,6 +161,9 @@ export default function AdminPage() {
     // Report Viewing
     const [viewingReportBattleId, setViewingReportBattleId] = useState<string | null>(null);
     const [reportData, setReportData] = useState<any>(null);
+    const [isTeamBattleCloseModalOpen, setIsTeamBattleCloseModalOpen] = useState(false);
+    const [closingBattle, setClosingBattle] = useState<any | null>(null);
+    const [closingTeamPositions, setClosingTeamPositions] = useState<string[]>([]);
 
     useEffect(() => {
         checkSession();
@@ -164,15 +171,27 @@ export default function AdminPage() {
         return () => clearInterval(interval);
     }, []);
 
+    const isSuperAdmin = loggedInAdmin?.username === 'admin' || loggedInAdmin?.name === 'admin' || (loggedInAdmin?.permissions || '').split(',').includes('ALL');
+
+    const allowedTabs = ADMIN_TABS.filter(tab => {
+        if (!loggedInAdmin) return false;
+        if (isSuperAdmin) return true;
+        const perms = (loggedInAdmin.permissions || '').split(',').map((p: string) => p.trim()).filter(Boolean);
+        if (perms.length === 0) return true;
+        return perms.includes(tab.id);
+    });
+
+    const hasTabPermission = (tabId: string) => {
+        return allowedTabs.some(t => t.id === tabId);
+    };
+
     useEffect(() => {
         if (loggedInAdmin && !isCheckingSession) {
-            const permissions = (loggedInAdmin.permissions || '').split(',').filter(Boolean);
-            // If active tab is not in permissions, switch to first allowed tab
-            if (permissions.length > 0 && !permissions.includes(activeTab)) {
-                setActiveTab(permissions[0]);
+            if (allowedTabs.length > 0 && !allowedTabs.some(t => t.id === activeTab)) {
+                setActiveTab(allowedTabs[0].id);
             }
         }
-    }, [loggedInAdmin, isCheckingSession, activeTab]);
+    }, [loggedInAdmin, isCheckingSession, activeTab, allowedTabs]);
 
     useEffect(() => {
         if (auctionStatus?.status === 'ACTIVE' && auctionStatus.timerEnd) {
@@ -388,12 +407,13 @@ export default function AdminPage() {
                 title: wizardConfig.title,
                 description: wizardConfig.description,
                 question_timer: wizardConfig.question_timer,
+                team_question_timer: wizardConfig.team_question_timer || 15,
                 team1_id: wizardConfig.team1_id || null,
                 team2_id: wizardConfig.team2_id || null,
                 start_time,
                 schedule_time: start_time,
                 conductor_id: wizardConfig.conductor_id || null,
-                points_config: wizardConfig.points_config ? wizardConfig.points_config.split(',').map(n => parseInt(n.trim())) : [5, 3, 1],
+                points_config: wizardConfig.points_config ? wizardConfig.points_config.split(',').map(n => parseInt(n.trim())) : (battleType === 'ROADMAP' ? [25, 15, 10] : [5, 3, 1]),
                 is_test: wizardConfig.is_test ? 1 : 0
             };
 
@@ -432,7 +452,63 @@ export default function AdminPage() {
         }
     };
 
-    const handleEndIndividualBattle = async (battleId: string) => {
+    const handleAdvanceRoadmapRound = async (battleId: string, currentRound: number) => {
+        const confirmMsg = currentRound === 1 
+            ? "End Round 1 (Solo Phase) and calculate Global averages?" 
+            : currentRound === 2 
+            ? "Start Round 2 (Collaborative Strategy Phase)?"
+            : "End Round 2 and complete the roadmap tournament?";
+        
+        if (!confirm(confirmMsg)) return;
+
+        try {
+            let payload: any = { id: battleId };
+            if (currentRound === 1) {
+                payload.current_round = 2;
+            } else if (currentRound === 2) {
+                payload.current_round = 3;
+            } else if (currentRound === 3) {
+                payload.status = 'COMPLETED';
+                payload.current_round = 4;
+            }
+
+            const res = await fetch('/api/admin/battles', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                alert(err.error || 'Failed to advance round');
+                return;
+            }
+
+            fetchHeartbeat();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to advance roadmap round');
+        }
+    };
+
+    const handleEndIndividualBattle = async (battle: any) => {
+        const battleId = battle?.id;
+        if (!battleId) return;
+
+        const isTeamPlacementBattle = battle?.type === 'TEAM_BUILDING';
+
+        if (isTeamPlacementBattle) {
+            const pointsConfigArr = battle?.points_config
+                ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config) : battle.points_config)
+                : [5, 3, 1];
+
+            const ladderCount = Math.max(1, Math.min(teams.length, Array.isArray(pointsConfigArr) ? pointsConfigArr.length : 3));
+            setClosingBattle(battle);
+            setClosingTeamPositions(Array.from({ length: ladderCount }, () => ''));
+            setIsTeamBattleCloseModalOpen(true);
+            return;
+        }
+
         if (!confirm('End this individual battle and calculate scores?')) return;
         try {
             await fetch('/api/admin/battles', {
@@ -444,6 +520,47 @@ export default function AdminPage() {
         } catch (error) {
             console.error(error);
             alert('Failed to end battle');
+        }
+    };
+
+    const handleCompleteTeamBattle = async () => {
+        if (!closingBattle?.id) return;
+
+        const picked = closingTeamPositions.filter(Boolean);
+        if (picked.length !== closingTeamPositions.length) {
+            alert('Please select teams for all podium positions.');
+            return;
+        }
+
+        if (new Set(picked).size !== picked.length) {
+            alert('Each team can be selected only once.');
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/admin/battles', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: closingBattle.id,
+                    status: 'COMPLETED',
+                    team_positions: closingTeamPositions
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                alert(err.error || 'Failed to complete team battle');
+                return;
+            }
+
+            setIsTeamBattleCloseModalOpen(false);
+            setClosingBattle(null);
+            setClosingTeamPositions([]);
+            fetchHeartbeat();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to complete team battle');
         }
     };
 
@@ -659,7 +776,7 @@ export default function AdminPage() {
             </header>
 
             <nav className="flex gap-2 mb-12 border-b border-white/5 pb-4 overflow-x-auto custom-scrollbar no-scrollbar">
-                {ADMIN_TABS.filter(tab => (loggedInAdmin?.permissions || '').split(',').includes(tab.id)).map(tab => (
+                {allowedTabs.map(tab => (
                     <button
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
@@ -674,7 +791,9 @@ export default function AdminPage() {
             </nav>
 
             <div className="mt-8">
-                {activeTab === 'owners' && (
+                {activeTab === 'hackathon' && hasTabPermission('hackathon') && <HackathonTab />}
+
+                {activeTab === 'owners' && hasTabPermission('owners') && (
                     <OwnersTab
                         owners={owners}
                         players={players}
@@ -685,11 +804,11 @@ export default function AdminPage() {
                     />
                 )}
 
-                {activeTab === 'ideas' && <IdeasTab />}
-                {activeTab === 'admins' && <AdminsTab />}
-                {activeTab === 'emails' && <EmailsTab />}
+                {activeTab === 'ideas' && hasTabPermission('ideas') && <IdeasTab />}
+                {activeTab === 'admins' && hasTabPermission('admins') && <AdminsTab />}
+                {activeTab === 'emails' && hasTabPermission('emails') && <EmailsTab />}
 
-                {activeTab === 'battles' && (
+                {activeTab === 'battles' && hasTabPermission('battles') && (
                     <BattlesTab
                         matches={matches}
                         individualBattles={individualBattles}
@@ -701,6 +820,7 @@ export default function AdminPage() {
                                 title: '',
                                 description: '',
                                 question_timer: 10,
+                                team_question_timer: 15,
                                 team1_id: '',
                                 team2_id: '',
                                 date: '',
@@ -747,12 +867,13 @@ export default function AdminPage() {
                                 title: battle.title,
                                 description: battle.description,
                                 question_timer: battle.question_timer,
+                                team_question_timer: battle.team_question_timer || 15,
                                 team1_id: battle.team1_id || '',
                                 team2_id: battle.team2_id || '',
                                 date: localDateStr,
                                 time: localTimeStr,
                                 conductor_id: battle.conductor_id || '',
-                                points_config: battle.points_config ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config).join(', ') : battle.points_config.join(', ')) : '5, 3, 1',
+                                points_config: battle.points_config ? (typeof battle.points_config === 'string' ? JSON.parse(battle.points_config).join(', ') : battle.points_config.join(', ')) : (battle.type === 'ROADMAP' ? '25, 15, 10' : '5, 3, 1'),
                                 is_test: !!battle.is_test
                             });
                             setBattleMode(battle.mode);
@@ -763,10 +884,11 @@ export default function AdminPage() {
                         onDeleteMatch={handleDeleteMatch}
                         onPublishMatch={handlePublishMatch}
                         onResetMatch={handleResetMatch}
+                        onAdvanceRoadmapRound={handleAdvanceRoadmapRound}
                     />
                 )}
 
-                {activeTab === 'auction' && (
+                {activeTab === 'auction' && hasTabPermission('auction') && (
                     <AuctionTab
                         players={players}
                         auctionStatus={auctionStatus}
@@ -782,7 +904,7 @@ export default function AdminPage() {
                     />
                 )}
 
-                {activeTab === 'maintenance' && (
+                {activeTab === 'maintenance' && hasTabPermission('maintenance') && (
                     <MaintenanceTab
                         onClearCache={() => alert('API Cache Purged!')}
                         onResetAuction={handleResetAuction}
@@ -824,38 +946,55 @@ export default function AdminPage() {
                             <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                                 {/* Step Indicator */}
                                 <div className="flex items-center gap-4 mb-8">
-                                    {[1, 2, 3].map(step => (
+                                    {[1, 2].map(step => (
                                         <div key={step} className={`flex-1 h-2 rounded-full transition-all ${step <= wizardStep ? 'bg-accent' : 'bg-white/10'}`} />
                                     ))}
                                 </div>
 
                                 {wizardStep === 1 && (
                                     <div className="space-y-6">
-                                        <h3 className="text-xl font-bold">Select Battle Mode</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <h3 className="text-xl font-bold">Select Battle Template</h3>
+                                        <p className="text-sm text-gray-400">This directly sets both mode and type for Step 2.</p>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div
-                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${battleMode === 'INDIVIDUAL' ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
-                                                onClick={() => setBattleMode('INDIVIDUAL')}
+                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${(battleMode === 'INDIVIDUAL' && battleType === 'KAHOOT') ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
+                                                onClick={() => { setBattleMode('INDIVIDUAL'); setBattleType('KAHOOT'); }}
                                             >
                                                 <User className="w-8 h-8 text-accent mb-3" />
-                                                <h3 className="font-bold text-lg">Individual</h3>
-                                                <p className="text-sm text-gray-400">Players compete individually for points.</p>
+                                                <h3 className="font-bold text-lg">Quiz Battle</h3>
+                                                <p className="text-sm text-gray-400">Individual mode with Kahoot/quiz format.</p>
                                             </div>
                                             <div
-                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${battleMode === 'TEAM_VS_TEAM' ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
-                                                onClick={() => setBattleMode('TEAM_VS_TEAM')}
+                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${(battleMode === 'TEAM_VS_TEAM' && battleType === 'CASE_STUDY') ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
+                                                onClick={() => { setBattleMode('TEAM_VS_TEAM'); setBattleType('CASE_STUDY'); }}
                                             >
                                                 <Users className="w-8 h-8 text-blue-400 mb-3" />
-                                                <h3 className="font-bold text-lg">1 vs 1 Team</h3>
-                                                <p className="text-sm text-gray-400">Two teams compete against each other.</p>
+                                                <h3 className="font-bold text-lg">1 vs 1 Team Battle</h3>
+                                                <p className="text-sm text-gray-400">Two teams compete with case-study style scoring.</p>
                                             </div>
                                             <div
-                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${battleMode === 'TEAMS' ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
-                                                onClick={() => setBattleMode('TEAMS')}
+                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${(battleMode === 'INDIVIDUAL' && battleType === 'TECH_TALK') ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
+                                                onClick={() => { setBattleMode('INDIVIDUAL'); setBattleType('TECH_TALK'); }}
+                                            >
+                                                <Timer className="w-8 h-8 text-purple-400 mb-3" />
+                                                <h3 className="font-bold text-lg">Tech Talk</h3>
+                                                <p className="text-sm text-gray-400">Conductor-led session with fixed team reward.</p>
+                                            </div>
+                                            <div
+                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${(battleMode === 'TEAMS' && battleType === 'TEAM_BUILDING') ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
+                                                onClick={() => { setBattleMode('TEAMS'); setBattleType('TEAM_BUILDING'); }}
                                             >
                                                 <Shield className="w-8 h-8 text-green-400 mb-3" />
-                                                <h3 className="font-bold text-lg">All Teams</h3>
-                                                <p className="text-sm text-gray-400">All teams compete in a group battle.</p>
+                                                <h3 className="font-bold text-lg">Team Battle (Podium)</h3>
+                                                <p className="text-sm text-gray-400">All teams participate; choose 1st/2nd/3rd on close.</p>
+                                            </div>
+                                            <div
+                                                className={`p-6 bg-white/5 rounded-xl border-2 cursor-pointer transition-all ${(battleMode === 'TEAMS' && battleType === 'ROADMAP') ? 'border-accent bg-accent/20' : 'border-transparent hover:bg-white/10'}`}
+                                                onClick={() => { setBattleMode('TEAMS'); setBattleType('ROADMAP'); setWizardConfig(prev => ({ ...prev, question_timer: 5, team_question_timer: 15, points_config: '25, 15, 10' })); }}
+                                            >
+                                                <Award className="w-8 h-8 text-yellow-400 mb-3" />
+                                                <h3 className="font-bold text-lg">Roadmap Tournament</h3>
+                                                <p className="text-sm text-gray-400">Two-round prioritized roadmap tournament with WSJF scoring.</p>
                                             </div>
                                         </div>
                                     </div>
@@ -865,18 +1004,13 @@ export default function AdminPage() {
                                     <div className="space-y-6">
                                         <h3 className="text-xl font-bold">Configuration</h3>
                                         <div className="space-y-4">
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div className="space-y-2">
-                                                    <label className="text-xs text-gray-400 font-bold uppercase">Battle Type</label>
-                                                    <select
-                                                        value={battleType}
-                                                        onChange={(e) => setBattleType(e.target.value)}
-                                                        className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
-                                                    >
-                                                        <option value="KAHOOT">Kahoot / Quiz</option>
-                                                        <option value="CASE_STUDY">Case Study</option>
-                                                        <option value="TECH_TALK">Tech Talk</option>
-                                                    </select>
+                                                    <label className="text-xs text-gray-400 font-bold uppercase">Selected Template</label>
+                                                    <div className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white">
+                                                        <div className="text-sm font-black">{battleType.replace('_', ' ')}</div>
+                                                        <div className="text-[10px] text-gray-500 font-bold uppercase mt-1">Mode: {battleMode}</div>
+                                                    </div>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-xs text-gray-400 font-bold uppercase">Session Mode</label>
@@ -895,8 +1029,39 @@ export default function AdminPage() {
                                                         </button>
                                                     </div>
                                                 </div>
-                                                {battleType !== 'TECH_TALK' && (
+                                            </div>
+                                            {battleType === 'ROADMAP' ? (
+                                                <div className="grid grid-cols-2 gap-4">
                                                     <div className="space-y-1">
+                                                        <label className="text-xs text-gray-400 font-bold uppercase">Round 1 Timer (mins)</label>
+                                                        <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
+                                                            <Timer className="w-4 h-4 text-gray-500 mr-3" />
+                                                            <input
+                                                                type="number"
+                                                                value={wizardConfig.question_timer}
+                                                                onChange={(e) => setWizardConfig({ ...wizardConfig, question_timer: parseInt(e.target.value) })}
+                                                                className="bg-transparent border-none outline-none text-white w-full font-mono font-bold"
+                                                                placeholder="5"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-xs text-gray-400 font-bold uppercase">Round 2 Timer (mins)</label>
+                                                        <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
+                                                            <Timer className="w-4 h-4 text-gray-500 mr-3" />
+                                                            <input
+                                                                type="number"
+                                                                value={wizardConfig.team_question_timer}
+                                                                onChange={(e) => setWizardConfig({ ...wizardConfig, team_question_timer: parseInt(e.target.value) })}
+                                                                className="bg-transparent border-none outline-none text-white w-full font-mono font-bold"
+                                                                placeholder="15"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                battleType !== 'TECH_TALK' && battleType !== 'TEAM_BUILDING' && (
+                                                    <div className="space-y-1 max-w-xs">
                                                         <label className="text-xs text-gray-400 font-bold uppercase">Question Timer (sec)</label>
                                                         <div className="flex items-center bg-black/40 border border-white/10 rounded-lg px-4 py-3">
                                                             <Timer className="w-4 h-4 text-gray-500 mr-3" />
@@ -904,13 +1069,13 @@ export default function AdminPage() {
                                                                 type="number"
                                                                 value={wizardConfig.question_timer}
                                                                 onChange={(e) => setWizardConfig({ ...wizardConfig, question_timer: parseInt(e.target.value) })}
-                                                                className="bg-transparent border-none outline-none text-white w-full font-mono"
+                                                                className="bg-transparent border-none outline-none text-white w-full font-mono font-bold"
                                                                 placeholder="10"
                                                             />
                                                         </div>
                                                     </div>
-                                                )}
-                                            </div>
+                                                )
+                                            )}
                                         </div>
 
                                         {battleType !== 'TECH_TALK' && (
@@ -1039,41 +1204,6 @@ export default function AdminPage() {
                                     </div>
                                 )}
 
-                                {wizardStep === 3 && (
-                                    <div className="space-y-6">
-                                        <h3 className="text-xl font-bold">Review & Create</h3>
-                                        <div className="bg-white/5 p-6 rounded-2xl space-y-2">
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Mode</span>
-                                                <span className="font-bold text-white">{battleMode}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Type</span>
-                                                <span className="font-bold text-white">{battleType}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Status</span>
-                                                <span className={`font-bold ${wizardConfig.is_test ? 'text-red-500' : 'text-green-500'}`}>{wizardConfig.is_test ? 'TEST MODE' : 'LIVE'}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Title</span>
-                                                <span className="font-bold text-white">{wizardConfig.title}</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-gray-500">Date/Time</span>
-                                                <span className="font-bold text-white">
-                                                    {wizardConfig.date && wizardConfig.time ? `${wizardConfig.date} ${wizardConfig.time}` : 'Not Scheduled'}
-                                                </span>
-                                            </div>
-                                            {battleType !== 'TECH_TALK' && (
-                                                <div className="flex justify-between">
-                                                    <span className="text-gray-500">PointsConfig</span>
-                                                    <span className="font-bold text-accent">[{wizardConfig.points_config}]</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="p-8 border-t border-white/5 flex justify-between bg-white/5">
@@ -1083,11 +1213,10 @@ export default function AdminPage() {
                                 >
                                     Back
                                 </button>
-                                {wizardStep < 3 ? (
+                                {wizardStep < 2 ? (
                                     <button
                                         onClick={() => setWizardStep(wizardStep + 1)}
                                         className="bg-white text-black font-black px-8 py-3 rounded-xl hover:scale-105 transition-all"
-                                        disabled={wizardStep === 2 && !wizardConfig.title}
                                     >
                                         Next
                                     </button>
@@ -1099,6 +1228,87 @@ export default function AdminPage() {
                                         {editingBattleId ? 'Update Battle' : 'Create Battle'}
                                     </button>
                                 )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Team Battle Close Modal */}
+            <AnimatePresence>
+                {isTeamBattleCloseModalOpen && closingBattle && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.92, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            className="bg-[#0a0a0a] border border-white/10 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl"
+                        >
+                            <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
+                                <div>
+                                    <h3 className="text-xl font-black uppercase italic tracking-tighter">Finalize Team Battle</h3>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Select podium positions based on ladder</p>
+                                </div>
+                                <button
+                                    onClick={() => {
+                                        setIsTeamBattleCloseModalOpen(false);
+                                        setClosingBattle(null);
+                                        setClosingTeamPositions([]);
+                                    }}
+                                    className="text-gray-400 hover:text-white"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="p-6 space-y-4">
+                                <div className="text-sm text-gray-300 font-bold">{closingBattle.title || 'Team Battle'}</div>
+                                {closingTeamPositions.map((teamId, idx) => (
+                                    <div key={idx} className="space-y-2">
+                                        <label className="text-xs text-gray-400 font-bold uppercase tracking-widest">
+                                            Position #{idx + 1}
+                                        </label>
+                                        <select
+                                            value={teamId}
+                                            onChange={(e) => {
+                                                const next = [...closingTeamPositions];
+                                                next[idx] = e.target.value;
+                                                setClosingTeamPositions(next);
+                                            }}
+                                            className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-accent"
+                                        >
+                                            <option value="">Select Team</option>
+                                            {teams
+                                                .filter((t) => !closingTeamPositions.includes(t.id) || t.id === teamId)
+                                                .map((team) => (
+                                                    <option key={team.id} value={team.id}>{team.name}</option>
+                                                ))}
+                                        </select>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="p-6 border-t border-white/5 bg-white/5 flex justify-end gap-3">
+                                <button
+                                    onClick={() => {
+                                        setIsTeamBattleCloseModalOpen(false);
+                                        setClosingBattle(null);
+                                        setClosingTeamPositions([]);
+                                    }}
+                                    className="px-5 py-2 rounded-xl border border-white/10 text-gray-400 hover:text-white transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleCompleteTeamBattle}
+                                    className="px-6 py-2 rounded-xl bg-accent text-white font-black hover:scale-105 transition-all"
+                                >
+                                    Complete Battle
+                                </button>
                             </div>
                         </motion.div>
                     </motion.div>
@@ -1121,12 +1331,14 @@ export default function AdminPage() {
                         >
                             <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/5">
                                 <div>
-                                    <h2 className="text-2xl font-black uppercase italic tracking-tighter">Question Management</h2>
+                                    <h2 className="text-2xl font-black uppercase italic tracking-tighter">
+                                        {individualBattles.find(b => b.id === managingQuestionsBattleId)?.type === 'ROADMAP' ? 'Feature Card Management' : 'Question Management'}
+                                    </h2>
                                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Battle: {individualBattles.find(b => b.id === managingQuestionsBattleId)?.title}</p>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <label className="flex items-center gap-2 bg-accent/20 text-accent border border-accent/20 px-4 py-2 rounded-xl text-xs font-black uppercase cursor-pointer hover:bg-accent hover:text-white transition-all">
-                                        <Upload className="w-4 h-4" /> Import CSV
+                                        <Upload className="w-4 h-4" /> {individualBattles.find(b => b.id === managingQuestionsBattleId)?.type === 'ROADMAP' ? 'Import CSV (2-col)' : 'Import CSV'}
                                         <input
                                             type="file"
                                             accept=".csv"
@@ -1151,21 +1363,32 @@ export default function AdminPage() {
                                                         }
 
                                                         const data = lines.slice(1).map((line, idx) => {
-                                                            // Split by comma, respecting quotes
                                                             const parts = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(p => p.trim().replace(/^"|"$/g, ''));
+
+                                                            if (individualBattles.find(b => b.id === managingQuestionsBattleId)?.type === 'ROADMAP') {
+                                                                if (parts.length < 2) {
+                                                                    console.warn(`Skipping line ${idx + 2}: Insufficient columns for Roadmap`, parts);
+                                                                    return null;
+                                                                }
+                                                                return {
+                                                                    battle_id: managingQuestionsBattleId,
+                                                                    question: parts[0],
+                                                                    options: [parts[1]],
+                                                                    correct_option: 0
+                                                                };
+                                                            }
 
                                                             if (parts.length < 6) {
                                                                 console.warn(`Skipping line ${idx + 2}: Insufficient columns`, parts);
                                                                 return null;
                                                             }
 
-                                                            // Handle 1-indexed correct option from CSV
                                                             let correctIdx = parseInt(parts[5]);
                                                             if (isNaN(correctIdx)) {
                                                                 console.warn(`Skipping line ${idx + 2}: Invalid CorrectIndex`, parts[5]);
                                                                 return null;
                                                             }
-                                                            correctIdx = Math.max(0, correctIdx - 1); // Convert 1-indexed to 0-indexed
+                                                            correctIdx = Math.max(0, correctIdx - 1);
 
                                                             return {
                                                                 battle_id: managingQuestionsBattleId,
@@ -1176,7 +1399,7 @@ export default function AdminPage() {
                                                         }).filter(d => d !== null);
 
                                                         if (data.length === 0) {
-                                                            alert('No valid questions found in CSV. Please check the format.');
+                                                            alert(individualBattles.find(b => b.id === managingQuestionsBattleId)?.type === 'ROADMAP' ? 'No valid features found in CSV. Expected [Title, Description]' : 'No valid questions found in CSV. Please check the format.');
                                                             return;
                                                         }
 
@@ -1187,7 +1410,7 @@ export default function AdminPage() {
                                                         });
 
                                                         if (res.ok) {
-                                                            alert(`Successfully imported ${data.length} questions!`);
+                                                            alert(individualBattles.find(b => b.id === managingQuestionsBattleId)?.type === 'ROADMAP' ? `Successfully imported ${data.length} feature cards!` : `Successfully imported ${data.length} questions!`);
                                                             const updated = await fetch(`/api/admin/battles/questions?battleId=${managingQuestionsBattleId}`);
                                                             setBattleQuestions(await updated.json());
                                                         } else {
@@ -1198,7 +1421,6 @@ export default function AdminPage() {
                                                         console.error('Import error:', err);
                                                         alert('Failed to process CSV file.');
                                                     } finally {
-                                                        // Reset input
                                                         e.target.value = '';
                                                     }
                                                 };
@@ -1242,13 +1464,19 @@ export default function AdminPage() {
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                {q.options.map((opt: string, i: number) => (
-                                                    <div key={i} className={`p-3 rounded-xl text-xs font-bold border ${i === q.correct_option ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-black/20 border-white/5 text-gray-400'}`}>
-                                                        {opt} {i === q.correct_option && <Check className="w-3 h-3 inline ml-1" />}
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            {individualBattles.find(b => b.id === managingQuestionsBattleId)?.type === 'ROADMAP' ? (
+                                                <div className="p-4 bg-black/20 border border-white/5 rounded-xl text-sm text-gray-300">
+                                                    {q.options?.[0]}
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {q.options.map((opt: string, i: number) => (
+                                                        <div key={i} className={`p-3 rounded-xl text-xs font-bold border ${i === q.correct_option ? 'bg-green-500/10 border-green-500/20 text-green-500' : 'bg-black/20 border-white/5 text-gray-400'}`}>
+                                                            {opt} {i === q.correct_option && <Check className="w-3 h-3 inline ml-1" />}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
 
@@ -1260,42 +1488,68 @@ export default function AdminPage() {
 
                                     {isAddingQuestion && (
                                         <div className="bg-accent/5 border border-accent/20 p-8 rounded-3xl space-y-6 animate-in slide-in-from-bottom-2 duration-300">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Question Content</label>
-                                                <input
-                                                    type="text"
-                                                    value={newQuestion.question}
-                                                    onChange={e => setNewQuestion({ ...newQuestion, question: e.target.value })}
-                                                    className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-accent outline-none text-white font-bold"
-                                                    placeholder="Enter your question here..."
-                                                />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                {newQuestion.options.map((opt, i) => (
-                                                    <div key={i} className="space-y-2">
-                                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Option {i + 1}</label>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="text"
-                                                                value={opt}
-                                                                onChange={e => {
-                                                                    const newOpts = [...newQuestion.options];
-                                                                    newOpts[i] = e.target.value;
-                                                                    setNewQuestion({ ...newQuestion, options: newOpts });
-                                                                }}
-                                                                className={`w-full bg-black/40 border rounded-xl p-4 focus:border-accent outline-none font-bold pr-12 ${newQuestion.correct_option === i ? 'border-green-500/50' : 'border-white/10'}`}
-                                                                placeholder={`Option ${i + 1}`}
-                                                            />
-                                                            <button
-                                                                onClick={() => setNewQuestion({ ...newQuestion, correct_option: i })}
-                                                                className={`absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${newQuestion.correct_option === i ? 'bg-green-500 text-black' : 'bg-white/5 text-gray-600'}`}
-                                                            >
-                                                                <Check className="w-4 h-4" />
-                                                            </button>
-                                                        </div>
+                                            {individualBattles.find(b => b.id === managingQuestionsBattleId)?.type === 'ROADMAP' ? (
+                                                <>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Feature Title</label>
+                                                        <input
+                                                            type="text"
+                                                            value={newQuestion.question}
+                                                            onChange={e => setNewQuestion({ ...newQuestion, question: e.target.value })}
+                                                            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-accent outline-none text-white font-bold"
+                                                            placeholder="Enter feature title here..."
+                                                        />
                                                     </div>
-                                                ))}
-                                            </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Feature Description</label>
+                                                        <textarea
+                                                            value={newQuestion.options[0] || ''}
+                                                            onChange={e => setNewQuestion({ ...newQuestion, options: [e.target.value] })}
+                                                            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-accent outline-none text-white font-bold h-32 resize-none"
+                                                            placeholder="Enter feature description..."
+                                                        />
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Question Content</label>
+                                                        <input
+                                                            type="text"
+                                                            value={newQuestion.question}
+                                                            onChange={e => setNewQuestion({ ...newQuestion, question: e.target.value })}
+                                                            className="w-full bg-black/40 border border-white/10 rounded-xl p-4 focus:border-accent outline-none text-white font-bold"
+                                                            placeholder="Enter your question here..."
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        {newQuestion.options.map((opt, i) => (
+                                                            <div key={i} className="space-y-2">
+                                                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Option {i + 1}</label>
+                                                                <div className="relative">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={opt}
+                                                                        onChange={e => {
+                                                                            const newOpts = [...newQuestion.options];
+                                                                            newOpts[i] = e.target.value;
+                                                                            setNewQuestion({ ...newQuestion, options: newOpts });
+                                                                        }}
+                                                                        className={`w-full bg-black/40 border rounded-xl p-4 focus:border-accent outline-none font-bold pr-12 ${newQuestion.correct_option === i ? 'border-green-500/50' : 'border-white/10'}`}
+                                                                        placeholder={`Option ${i + 1}`}
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => setNewQuestion({ ...newQuestion, correct_option: i })}
+                                                                        className={`absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center transition-all ${newQuestion.correct_option === i ? 'bg-green-500 text-black' : 'bg-white/5 text-gray-600'}`}
+                                                                    >
+                                                                        <Check className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </>
+                                            )}
                                             <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
                                                 <button
                                                     onClick={() => setIsAddingQuestion(false)}
@@ -1305,10 +1559,17 @@ export default function AdminPage() {
                                                 </button>
                                                 <button
                                                     onClick={async () => {
+                                                        const isRoadmap = individualBattles.find(b => b.id === managingQuestionsBattleId)?.type === 'ROADMAP';
+                                                        const payload = {
+                                                            battle_id: managingQuestionsBattleId,
+                                                            question: newQuestion.question,
+                                                            options: isRoadmap ? [newQuestion.options[0] || ''] : newQuestion.options,
+                                                            correct_option: 0
+                                                        };
                                                         const res = await fetch('/api/admin/battles/questions', {
                                                             method: 'POST',
                                                             headers: { 'Content-Type': 'application/json' },
-                                                            body: JSON.stringify({ ...newQuestion, battle_id: managingQuestionsBattleId })
+                                                            body: JSON.stringify(payload)
                                                         });
                                                         if (res.ok) {
                                                             setIsAddingQuestion(false);
@@ -1319,7 +1580,7 @@ export default function AdminPage() {
                                                     }}
                                                     className="bg-accent text-white px-8 py-3 rounded-xl font-black text-xs uppercase shadow-lg shadow-accent/20"
                                                 >
-                                                    Add Question
+                                                    {individualBattles.find(b => b.id === managingQuestionsBattleId)?.type === 'ROADMAP' ? 'Add Feature' : 'Add Question'}
                                                 </button>
                                             </div>
                                         </div>

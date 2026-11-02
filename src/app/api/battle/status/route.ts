@@ -37,7 +37,7 @@ export async function GET(request: Request) {
                 FROM matches m
                 LEFT JOIN teams t1 ON m.team1_id = t1.id
                 LEFT JOIN teams t2 ON m.team2_id = t2.id
-                WHERE m.status = 'IN_PROGRESS'
+                WHERE m.status IN ('IN_PROGRESS', 'ACTIVE', 'PAUSED')
                 LIMIT 1
             `,
                 args: []
@@ -45,6 +45,10 @@ export async function GET(request: Request) {
             const activeMatch = activeMatchRs.rows[0] as any;
 
             if (!activeMatch) return NextResponse.json({ status: 'NO_ACTIVE_MATCH' });
+
+            if (activeMatch.type === 'ROADMAP') {
+                return NextResponse.json({ match: activeMatch, ideas: [] });
+            }
 
             // Calculate progression based on time (10s per ball)
             const startTime = new Date(activeMatch.start_time).getTime();

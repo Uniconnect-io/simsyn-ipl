@@ -180,6 +180,38 @@ CREATE TABLE IF NOT EXISTS hub_ideas (
   status TEXT DEFAULT 'PENDING'
 );
 
+-- Team Survival Answers Table (Postgres verified schema)
+CREATE TABLE IF NOT EXISTS team_survival_answers (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  match_id UUID NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+  team_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  ranking JSONB NOT NULL,
+  score REAL,
+  time_taken REAL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Roadmap Submissions Table (New game mode)
+CREATE TABLE IF NOT EXISTS roadmap_submissions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  match_id UUID REFERENCES matches(id) ON DELETE CASCADE,
+  player_id UUID REFERENCES players(id) ON DELETE CASCADE,
+  team_id UUID REFERENCES teams(id) ON DELETE CASCADE,
+  round INTEGER NOT NULL,
+  submissions JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Ensure matches and players tables columns are fully documented
+-- ALTER TABLE matches ADD COLUMN IF NOT EXISTS points_config JSONB;
+-- ALTER TABLE matches ADD COLUMN IF NOT EXISTS is_test BOOLEAN;
+-- ALTER TABLE matches ADD COLUMN IF NOT EXISTS max_wickets INTEGER;
+-- ALTER TABLE matches ADD COLUMN IF NOT EXISTS phase VARCHAR;
+-- ALTER TABLE matches ADD COLUMN IF NOT EXISTS team_question_timer INTEGER;
+-- ALTER TABLE matches ADD COLUMN IF NOT EXISTS current_round INTEGER DEFAULT 1;
+-- ALTER TABLE matches ADD COLUMN IF NOT EXISTS roadmap_results JSONB;
+-- ALTER TABLE players ADD COLUMN IF NOT EXISTS email TEXT;
+
 -- Enable Realtime
 alter publication supabase_realtime add table players;
 alter publication supabase_realtime add table bids;
@@ -189,6 +221,8 @@ alter publication supabase_realtime add table individual_battle_answers;
 alter publication supabase_realtime add table scores;
 alter publication supabase_realtime add table case_studies;
 alter publication supabase_realtime add table hub_ideas;
+alter publication supabase_realtime add table team_survival_answers;
+alter publication supabase_realtime add table roadmap_submissions;
 
 -- RLS Policies for Admin Access (Safety first: Disable RLS for admins table if it's strictly internal/server-side managed)
 -- ALTER TABLE admins DISABLE ROW LEVEL SECURITY;
@@ -196,3 +230,8 @@ alter publication supabase_realtime add table hub_ideas;
 -- OR explicitly allow all reads if you want RLS enabled but functional:
 ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow all reads for admins" ON admins FOR SELECT USING (true);
+
+-- Enable RLS for roadmap_submissions
+ALTER TABLE roadmap_submissions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow all access to roadmap_submissions" ON roadmap_submissions FOR ALL USING (true) WITH CHECK (true);
+

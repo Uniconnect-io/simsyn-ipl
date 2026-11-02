@@ -32,12 +32,15 @@ export async function POST(request: Request) {
                         balls2 = 0,
                         case_description = NULL, 
                         judgement_scheme_id = NULL, 
-                        status = CASE WHEN type = 'LEAGUE' THEN 'SCHEDULED' ELSE 'PENDING' END
+                        status = CASE WHEN type = 'LEAGUE' THEN 'SCHEDULED' ELSE 'PENDING' END,
+                        current_round = 1,
+                        roadmap_results = NULL
                 `);
                 // Clear unified score data
                 await db.execute('DELETE FROM scores');
                 await db.execute('DELETE FROM individual_battle_answers');
                 await db.execute('DELETE FROM battle_ideas');
+                await db.execute('DELETE FROM roadmap_submissions');
                 break;
 
             case 'players':

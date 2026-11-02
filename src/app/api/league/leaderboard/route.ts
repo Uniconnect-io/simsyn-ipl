@@ -4,7 +4,7 @@ import db, { initDb } from '@/lib/db';
 export async function GET() {
     try {
         await initDb();
-        const [teamsRs, matchesRs, teamScoresRs, playerRankingsRs] = await Promise.all([
+        const [teamsRs, matchesRs, teamScoresRs, playerRankingsRs, teamEventsRs] = await Promise.all([
             db.execute('SELECT id, name FROM teams'),
             db.execute("SELECT * FROM matches WHERE is_published = 1 AND (is_test = false OR is_test IS NULL)"),
             db.execute(`
@@ -76,6 +76,30 @@ export async function GET() {
                 GROUP BY p.id, p.name, p.team_id
                 ORDER BY total_points DESC
                 LIMIT 50
+            `),
+            db.execute(`
+                SELECT
+                    s.id,
+                    s.team_id,
+                    s.player_id,
+                    COALESCE(s.points, 0) as points,
+                    s.created_at,
+                    COALESCE(m.start_time, m.created_at, s.created_at) as event_time,
+                    m.id as match_id,
+                    m.title as match_title,
+                    m.type as match_type,
+                    m.mode as match_mode,
+                    t1.name as team1_name,
+                    t2.name as team2_name,
+                    p.name as player_name
+                FROM scores s
+                LEFT JOIN matches m ON m.id = s.match_id
+                LEFT JOIN teams t1 ON t1.id = m.team1_id
+                LEFT JOIN teams t2 ON t2.id = m.team2_id
+                LEFT JOIN players p ON p.id = s.player_id
+                WHERE s.team_id IS NOT NULL
+                  AND COALESCE(s.points, 0) <> 0
+                ORDER BY event_time DESC, s.created_at DESC
             `)
         ]);
 
@@ -83,6 +107,7 @@ export async function GET() {
         const matches = matchesRs.rows as any[];
         const teamScores = teamScoresRs.rows as any[];
         const playerRankings = playerRankingsRs.rows as any[];
+        const teamEvents = teamEventsRs.rows as any[];
 
         const leaderboard = teams.map(team => {
             let played = 0;
@@ -144,7 +169,24 @@ export async function GET() {
                 points: totalPoints,
                 nrr: parseFloat(nrr.toFixed(3)),
                 runsScored,
-                runsConceded
+                runsConceded,
+                point_breakdown: teamEvents
+                    .filter(e => e.team_id === team.id)
+                    .map(e => ({
+                        id: e.id,
+                        points: Number(e.points || 0),
+                        category: e.player_id ? 'INDIVIDUAL' : 'TEAM',
+                        player_name: e.player_name || null,
+                        date: e.event_time || e.created_at,
+                        match: {
+                            id: e.match_id || null,
+                            title: e.match_title || 'Match',
+                            type: e.match_type || null,
+                            mode: e.match_mode || null,
+                            team1_name: e.team1_name || null,
+                            team2_name: e.team2_name || null
+                        }
+                    }))
             };
         });
 

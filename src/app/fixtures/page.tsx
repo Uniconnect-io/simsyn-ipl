@@ -35,6 +35,8 @@ export default function FixturesPage() {
     const [schedule, setSchedule] = useState<Match[]>([]);
     const [loading, setLoading] = useState(true);
 
+    const LEAGUE_TYPES = ['LEAGUE', 'QUALIFIER1', 'QUALIFIER2', 'ELIMINATOR', 'FINAL'];
+
     useEffect(() => {
         fetch('/api/league/schedule')
             .then(res => res.json())
@@ -103,30 +105,34 @@ export default function FixturesPage() {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {groupedMatches[month].map(match => (
+                                (() => {
+                                    const isLeagueMatch = LEAGUE_TYPES.includes(match.type);
+                                    const isBattle = !isLeagueMatch;
+                                    const canOpenBattleLeaderboard = isBattle && match.status === 'COMPLETED' && match.type !== 'TECH_TALK';
+                                    const prettyType = match.type.replace(/_/g, ' ');
+
+                                    return (
                                 <motion.div
                                     key={match.id}
                                     whileHover={{ scale: 1.02 }}
                                     className={`glass-card p-0 border-white/5 hover:border-accent/20 group relative overflow-hidden flex flex-col 
                                         ${match.status === 'COMPLETED' ? 'bg-accent/5' : ''} 
-                                        ${(['LEAGUE', 'QUALIFIER1', 'QUALIFIER2', 'ELIMINATOR', 'FINAL'].includes(match.type) || (['KAHOOT', 'CASE_STUDY'].includes(match.type) && match.status === 'COMPLETED')) ? 'cursor-pointer' : 'cursor-default'}`}
+                                        ${(isLeagueMatch || canOpenBattleLeaderboard) ? 'cursor-pointer' : 'cursor-default'}`}
                                     onClick={() => {
-                                        const isBattle = ['KAHOOT', 'CASE_STUDY', 'TECH_TALK'].includes(match.type);
-                                        const isMatch = ['LEAGUE', 'QUALIFIER1', 'QUALIFIER2', 'ELIMINATOR', 'FINAL'].includes(match.type);
-
-                                        if (isMatch) window.location.href = `/match/${match.id}`;
-                                        if (isBattle && match.status === 'COMPLETED' && match.type !== 'TECH_TALK') window.location.href = `/battles/leaderboard/${match.id}`;
+                                        if (isLeagueMatch) window.location.href = `/match/${match.id}`;
+                                        if (canOpenBattleLeaderboard) window.location.href = `/battles/leaderboard/${match.id}`;
                                     }}
                                 >
                                     {/* Header / Status Bar */}
                                     <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
                                         <div className="flex items-center gap-2">
-                                            {['KAHOOT', 'CASE_STUDY', 'TECH_TALK'].includes(match.type) ? (
+                                            {isBattle ? (
                                                 match.type === 'TECH_TALK' ? <Video className="w-4 h-4 text-purple-400" /> : <Swords className="w-4 h-4 text-accent" />
                                             ) : (
                                                 <Trophy className="w-4 h-4 text-yellow-500" />
                                             )}
                                             <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                                {match.type.replace('_', ' ')}
+                                                {prettyType}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-2">
@@ -139,11 +145,13 @@ export default function FixturesPage() {
 
                                     {/* Content */}
                                     <div className="p-5 flex-1 flex flex-col justify-center">
-                                        {['KAHOOT', 'CASE_STUDY', 'TECH_TALK'].includes(match.type) ? (
+                                        {isBattle ? (
                                             <div className="space-y-4">
                                                 <div>
-                                                    <h3 className="font-bold text-lg leading-tight text-white mb-1">{match.title}</h3>
-                                                    <p className="text-sm text-gray-400 line-clamp-2">{match.description}</p>
+                                                    <h3 className="font-bold text-lg leading-tight text-white mb-1">{match.title || prettyType}</h3>
+                                                    <p className="text-sm text-gray-400 line-clamp-2">
+                                                        {match.description || (match.type === 'TEAM_BUILDING' ? 'All teams participate and top 3 positions are awarded.' : 'Battle activity event.')}
+                                                    </p>
                                                 </div>
 
                                                 {(match.conductorName || match.conductor_id) && (
@@ -198,14 +206,14 @@ export default function FixturesPage() {
                                     </div>
 
                                     {/* Footer / Action */}
-                                    {['LEAGUE', 'QUALIFIER1', 'QUALIFIER2', 'ELIMINATOR', 'FINAL'].includes(match.type) && (
+                                    {isLeagueMatch && (
                                         <div className="bg-white/5 p-3 flex justify-center border-t border-white/5 group-hover:bg-accent group-hover:text-black transition-colors">
                                             <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                                                 Match Details <ChevronRight className="w-3 h-3" />
                                             </span>
                                         </div>
                                     )}
-                                    {['KAHOOT', 'CASE_STUDY'].includes(match.type) && match.status === 'COMPLETED' && (
+                                    {canOpenBattleLeaderboard && (
                                         <div className="bg-white/5 p-3 flex justify-center border-t border-white/5 group-hover:bg-accent group-hover:text-black transition-colors">
                                             <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
                                                 View Leaderboard <BarChart2 className="w-3 h-3" />
@@ -213,6 +221,8 @@ export default function FixturesPage() {
                                         </div>
                                     )}
                                 </motion.div>
+                                    );
+                                })()
                             ))}
                         </div>
                     </div>

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, Gavel, BarChart2, Shield, Calendar, Star, Activity, Play, Zap, LayoutDashboard, ArrowRight, Lightbulb } from 'lucide-react';
+import { Trophy, Gavel, BarChart2, Shield, Calendar, Star, Activity, Play, Zap, LayoutDashboard, ArrowRight, Lightbulb, Rocket, Sparkles, Users } from 'lucide-react';
 import Link from 'next/link';
+import HackathonBannerPopup from '@/components/HackathonBannerPopup';
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
@@ -79,14 +80,24 @@ export default function Home() {
 
   const cards = [
     {
+      title: 'Hackathon 2026',
+      desc: 'Something Big Is Brewing. Briefing & Challenge Reveal on Oct 20 • Watch this space.',
+      icon: Rocket,
+      href: '/hackathon',
+      color: 'bg-accent',
+      tag: 'COMING SOON',
+      hide: false,
+      highlight: true
+    },
+    {
       title: 'Innovation Hub',
       desc: 'Pitch your ideas for the 2026 roadmap and earn massive points.',
       icon: Lightbulb,
       href: '/player',
-      color: 'bg-accent',
-      tag: 'NEW FEATURE',
+      color: 'bg-blue-600',
+      tag: 'Hub',
       hide: false,
-      highlight: true
+      highlight: false
     },
     {
       title: 'Active Battle',
@@ -98,12 +109,14 @@ export default function Home() {
       hide: !isBattleActive
     },
     {
-      title: 'Live Auction',
-      desc: 'The auction is LIVE! Enter the bidding arena now.',
-      icon: Gavel,
+      title: isAuctionActive ? 'Live Auction' : 'Team Squads',
+      desc: isAuctionActive
+        ? 'The auction is LIVE! Enter the bidding arena now.'
+        : 'Explore official team rosters, captains, and drafted squads.',
+      icon: isAuctionActive ? Gavel : Users,
       href: '/auction',
       color: 'bg-accent',
-      tag: isAuctionActive ? 'LIVE NOW' : 'Starts 3 PM',
+      tag: isAuctionActive ? 'LIVE NOW' : 'Squads',
       hide: false
     },
     {
@@ -158,6 +171,8 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center p-6 bg-animate relative overflow-hidden backdrop-blur-3xl">
+      <HackathonBannerPopup />
+
       <div className="w-full max-w-6xl animate-in fade-in slide-in-from-bottom-4 duration-500">
         <header className="text-center mb-16 relative z-10">
           <motion.div
@@ -165,6 +180,15 @@ export default function Home() {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5 }}
           >
+            <div className="mb-4 flex justify-center">
+              <Link
+                href="/hackathon"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/20 hover:bg-accent/30 border border-accent/40 text-accent text-xs font-black uppercase tracking-wider transition-all shadow-[0_0_20px_rgba(65,105,225,0.3)] hover:scale-105"
+              >
+                <Sparkles className="w-4 h-4 animate-spin" /> Something Big Is Brewing: SIPL × Uniconnect AI Hackathon →
+              </Link>
+            </div>
+
             <h1 className="text-7xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-gray-400 to-gray-800 tracking-tighter mb-4 drop-shadow-2xl">
               SIPL 2026
             </h1>

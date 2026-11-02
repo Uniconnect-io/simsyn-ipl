@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, User, ArrowRight, RefreshCw, Shield, List, Home } from 'lucide-react';
+import { Trophy, User, ArrowRight, RefreshCw, Shield, List, Home, Rocket } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -257,6 +257,12 @@ export default function OwnerClient({ user }: OwnerClientProps) {
                                                     LIVE
                                                 </span>
                                             )}
+                                        </button>
+                                        <button
+                                            onClick={() => window.location.href = '/hackathon/submit'}
+                                            className="btn-primary w-full py-4 flex items-center justify-center gap-2 bg-gradient-to-r from-accent to-indigo-600 shadow-[0_0_20px_rgba(65,105,225,0.4)]"
+                                        >
+                                            <Rocket className="w-5 h-5" /> Submit Hackathon Proposal
                                         </button>
                                         <button
                                             onClick={() => window.location.href = '/owner/manage'}
